@@ -367,6 +367,21 @@ To create the **fastest and most intelligent** automated trading platform that c
 
 A sophisticated ML system that ingests, processes, and analyzes diverse data sources to predict market impacts on specific securities and generate impact graphs showing causal chains and relationship strengths.
 
+**📋 Complete Architecture:** For detailed system architecture, component designs, database schemas, API specifications, and implementation guidelines, see the **[Market Intelligence & Impact Analysis Engine - Architecture Design Document](./architecture/market-intelligence-engine.md)**.
+
+The architecture document includes:
+- High-level system architecture with Mermaid diagrams
+- Component breakdown with C++23, Python, CUDA, MPI/OpenMP/UPC++ implementations
+- Data flow architecture and sequence diagrams
+- Database schema design (PostgreSQL + TimescaleDB/AGE/pgvector, DuckDB)
+- Complete REST/WebSocket/GraphQL API specifications (OpenAPI 3.0)
+- C++23 code examples with std::expected, std::flat_map, MPI, OpenMP, UPC++
+- CUDA/PyTorch GPU acceleration examples with vLLM and TensorRT
+- Python 3.14+ GIL-free parallel processing examples
+- Performance optimization strategies (caching, indexing, async patterns)
+- Deployment architectures (single-node to multi-node clusters)
+- Phase 1-12 week implementation checklist
+
 ### 3.2 Data Sources & Extraction Technologies
 
 **Note:** This section details the comprehensive data sources and specific technologies for extracting intelligence from each sector. All technologies selected prioritize affordability and open-source solutions suitable for a startup.
