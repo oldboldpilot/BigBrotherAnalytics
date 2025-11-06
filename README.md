@@ -57,8 +57,8 @@ A machine learning system that synthesizes insights from the previous two sub-pr
 
 ### Technology Stack
 
-- **Core Performance:** C++ and Rust for ultra-low latency components
-- **AI/ML Processing:** Python with CUDA acceleration for GPU-enabled inference
+- **Core Performance:** C++23 and Rust for ultra-low latency components
+- **AI/ML Processing:** Python 3.14+ (GIL-free) with CUDA acceleration for GPU-enabled inference
 - **Parallel Computing:** MPI, OpenMP, UPC++, pdsh for massive parallelization
 - **Model Serving:** vLLM for high-throughput, low-latency AI inference
 - **Deployment:** Ansible for automated infrastructure management
@@ -104,7 +104,8 @@ We are currently in the planning phase. No code implementation has begun. The fo
 - Performance is paramount - microsecond-level latency targets
 - Private server deployment (32+ cores) before cloud
 - Initial focus on options trading, then expand to stocks
-- Technology stack: C++/Rust + Python/CUDA + vLLM
+- Technology stack: C++23/Rust + Python 3.14+ (GIL-free)/CUDA + vLLM
+- Leveraging latest language features for maximum performance and parallelism
 
 ## Documentation
 

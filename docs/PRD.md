@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
 **Document Owner:** Product Team
@@ -9,13 +9,18 @@
 
 ## Executive Summary
 
-BigBrotherAnalytics is a **high-performance**, AI-powered trading intelligence platform built for **microsecond-level latency**. The system combines advanced machine learning with ultra-low latency execution in C++, Rust, and CUDA to identify and exploit market opportunities with unprecedented speed. The platform consists of three interconnected subsystems:
+BigBrotherAnalytics is a **high-performance**, AI-powered trading intelligence platform built for **microsecond-level latency**. The system combines advanced machine learning with ultra-low latency execution in C++23, Rust, and CUDA to identify and exploit market opportunities with unprecedented speed. The platform consists of three interconnected subsystems:
 
 1. **Market Intelligence & Impact Analysis Engine** - Processes multi-source data to predict market impacts
 2. **Trading Correlation Analysis Tool** - Discovers temporal and causal relationships between securities
 3. **Intelligent Trading Decision Engine** - Executes trading strategies with initial focus on options day trading
 
-**Speed is of the essence.** The platform is architected for lightning-fast analysis and execution, with core components written in C++ and Rust, AI inference accelerated by CUDA and vLLM, and massive parallelization using MPI, OpenMP, and UPC++. Initial deployment targets private servers (32+ cores) to maximize performance and minimize security concerns, with cloud deployment deferred until after validation.
+**Speed is of the essence.** The platform is architected for lightning-fast analysis and execution, with core components written in **C++23** (leveraging latest language features) and Rust, AI inference accelerated by CUDA and vLLM, and massive parallelization using MPI, OpenMP, and UPC++. Machine learning components use **Python 3.14+ in GIL-free mode** to exploit true multi-threaded parallelism for CPU-bound ML workloads. Initial deployment targets private servers (32+ cores) to maximize performance and minimize security concerns, with cloud deployment deferred until after validation.
+
+**Technology Highlights:**
+- **C++23:** Cache-friendly containers (`std::flat_map`), better error handling (`std::expected`), multi-dimensional arrays (`std::mdspan`)
+- **Python 3.14+ GIL-Free:** True multi-threading for CPU-bound tasks, parallel feature extraction, concurrent model inference
+- **Performance Target:** Near-linear scaling with core count across both C++ and Python components
 
 **Initial Focus:** Algorithmic options day trading to exploit rapid market movements and volatility patterns. Stock trading strategies will be developed subsequently.
 
@@ -1021,24 +1026,42 @@ Trading Decision Engine    Correlation Tool
 
 ### 9.1 Programming Languages (Performance-First)
 
-- **C++20:** Primary language for ultra-low latency components
+- **C++23:** Primary language for ultra-low latency components
   - Market data ingestion and processing
   - Order execution engine
   - Critical path algorithms
   - Real-time correlation calculations
   - Target: < 1ms latency for critical operations
+  - **Key C++23 Features:**
+    - `std::expected` for error handling without exceptions
+    - Deducing `this` for better performance
+    - `std::flat_map` and `std::flat_set` for cache-friendly containers
+    - Improved constexpr support
+    - `std::mdspan` for multi-dimensional array views
 
 - **Rust:** High-performance components requiring memory safety
   - Concurrent data structures
   - Network protocols
   - Safety-critical financial calculations
   - Shared nothing parallelism
+  - Zero-cost abstractions
 
-- **Python 3.11+ with CUDA:** AI/ML development only
-  - Model training (offline)
-  - Feature engineering
-  - Limited to non-critical path components
-  - C++ bindings for performance-critical sections
+- **Python 3.14+ (GIL-Free):** AI/ML development with true parallelism
+  - **GIL-Free Mode:** Exploit true multi-threading without Global Interpreter Lock
+  - Model training (offline with parallel data loading)
+  - Feature engineering (parallel processing across cores)
+  - ML inference preprocessing (parallel batch preparation)
+  - C++ bindings (pybind11) for performance-critical sections
+  - **Key Python 3.14+ Features:**
+    - Free-threaded mode for CPU-bound parallel workloads
+    - JIT compilation improvements (copy-and-patch JIT)
+    - Better memory efficiency
+    - Enhanced type system
+  - **Parallelism Strategy:**
+    - Use Python's native threading for CPU-bound ML tasks
+    - Leverage multiprocessing where isolation is needed
+    - Combine with CUDA for GPU parallelism
+    - C++ extensions for ultimate performance
 
 - **SQL:** Database queries (optimized for time-series)
 
@@ -1065,18 +1088,35 @@ Trading Decision Engine    Correlation Tool
   - Continuous batching
   - PagedAttention for memory efficiency
   - Target: > 10,000 predictions/second
+  - Python 3.14+ GIL-free for parallel request handling
 
 **Training Frameworks:**
 - **PyTorch with CUDA:** Primary deep learning framework
+  - Multi-GPU training with DDP (DistributedDataParallel)
+  - Mixed precision training (FP16/BF16)
+  - Python 3.14+ GIL-free for parallel data loading and preprocessing
 - **TensorRT:** NVIDIA inference optimization
 - **ONNX Runtime:** Cross-platform inference
 - **XGBoost/LightGBM:** Gradient boosting (with GPU support)
 - **cuML (RAPIDS):** GPU-accelerated machine learning
+- **JAX:** High-performance numerical computing with XLA compilation
 
 **NLP (GPU-Accelerated):**
 - **Hugging Face Transformers with CUDA**
 - **spaCy with GPU support**
 - **Custom CUDA kernels for specialized operations**
+
+**Python Parallelism Strategy (GIL-Free):**
+- **True Multi-threading:** Exploit Python 3.14+ free-threaded mode for CPU-bound ML tasks
+  - Parallel feature extraction across cores
+  - Concurrent model inference for different instruments
+  - Parallel data preprocessing pipelines
+- **Combined GPU + CPU Parallelism:**
+  - GPU for training and heavy inference
+  - CPU threads for data preparation and post-processing
+  - Overlap computation and I/O
+- **C++ Extensions:** Critical sections in C++23 with pybind11 bindings
+- **Performance Target:** Near-linear scaling with core count for embarrassingly parallel tasks
 
 ### 9.4 Data Processing (High-Performance)
 
@@ -1149,9 +1189,14 @@ Trading Decision Engine    Correlation Tool
 
 **CI/CD:**
 - **GitHub Actions:** Automated testing and deployment
-- **CMake:** C++ build system
+- **CMake 3.28+:** Latest C++23 build system with modern features
+- **Compilers (Latest and Greatest):**
+  - **GCC 15+** or **Clang 18+** for full C++23 support and latest optimizations
+  - **Rust 1.75+** for latest language features
+  - **Python 3.14+** with free-threaded mode enabled
 - **Cargo:** Rust build system
 - **Conan/vcpkg:** C++ package management
+- **Poetry/uv:** Python dependency management (fast resolver)
 
 ### 9.7 Brokerage & Execution (Low-Latency APIs)
 
