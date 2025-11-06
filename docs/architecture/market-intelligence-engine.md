@@ -1573,62 +1573,360 @@ def preprocess_market_data_parallel(file_paths: list[str]) -> pl.DataFrame:
     return df
 ```
 
-### 7.6 Development Environment Setup
+### 7.6 Tier 1 Development Environment Setup
+
+**CRITICAL:** Complete Tier 1 deployment stack for Market Intelligence Engine development. This setup uses Homebrew for latest GCC/binutils, uv for Python environment management, and supports RHEL with OpenShift or Ubuntu Server.
+
+#### 7.6.1 Operating System Selection
+
+**Primary: Red Hat Enterprise Linux (RHEL) 9+ with OpenShift**
+- Enterprise-grade stability
+- Integrated container orchestration
+- 10-year support lifecycle
+- Optimized for HPC workloads
+- Cost: ~$350-800/year
+
+**Alternative: Ubuntu Server 22.04 LTS**
+- Strong community support
+- Free for all use cases
+- Excellent HPC ecosystem
+- 5-year LTS support
+
+#### 7.6.2 Homebrew-Based Toolchain Installation
+
+**Why Homebrew:**
+- Latest GCC 15+ with complete C++23 support
+- Latest binutils for optimized linking
+- Easy version management without conflicts
+- Isolated from system packages
 
 ```bash
-# System requirements
-# - Ubuntu 22.04 LTS or RHEL 9+
-# - Python 3.14+ (GIL-free mode when available, 3.11+ currently)
-# - C++23 compiler (GCC 15+ or Clang 18+)
-# - CUDA 12.0+ (if GPU available)
-# - PostgreSQL 16+
-# - 32GB+ RAM (256GB for production)
-# - 500GB+ NVMe SSD
-# - 32+ CPU cores recommended
-# - NVIDIA GPU (A100/H100/RTX 4090) for ML acceleration
+# Install Homebrew on Linux
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# 1. Install C++23 toolchain
-sudo apt update
-sudo apt install -y \
-    build-essential \
-    gcc-15 g++-15 \  # Or latest GCC
-    clang-18 \       # Or latest Clang
-    cmake \
-    ninja-build \
-    git
+# Add to PATH
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+source ~/.bashrc
 
-# Set default compiler
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
-sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
+# Install complete C++23 toolchain
+brew install gcc@15          # GCC 15 with full C++23
+brew install binutils        # Latest GNU binutils
+brew install cmake           # CMake 3.28+
+brew install ninja           # Ninja build system
+brew install open-mpi        # OpenMPI 5.x
+brew install upcxx           # UPC++ for PGAS
 
-# 2. Install MPI and parallel computing libraries
-sudo apt install -y \
-    openmpi-bin libopenmpi-dev \
-    libomp-15-dev \
-    intel-oneapi-mkl \  # Intel MKL for optimized math
+# Verify installations
+gcc-15 --version             # GCC 15.x
+ld --version                 # Latest binutils
+cmake --version              # CMake 3.28+
+mpirun --version             # OpenMPI 5.x
+```
 
-# 3. Install UPC++
-wget https://bitbucket.org/berkeleylab/upcxx/downloads/upcxx-2023.9.0.tar.gz
-tar xzf upcxx-2023.9.0.tar.gz
-cd upcxx-2023.9.0
-./install /opt/upcxx
-export UPCXX_INSTALL=/opt/upcxx
+#### 7.6.3 Python 3.14+ with uv (Fast Package Manager)
 
-# 4. Install CUDA (if GPU available)
-wget https://developer.download.nvidia.com/compute/cuda/12.3.0/local_installers/cuda_12.3.0_545.23.06_linux.run
-sudo sh cuda_12.3.0_545.23.06_linux.run
-export PATH=/usr/local/cuda-12.3/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:$LD_LIBRARY_PATH
+**Why uv:**
+- Rust-based: 10-100x faster than pip
+- Automatic virtual environment management
+- Lockfile support for reproducibility
+- Compatible with all pip workflows
 
-# 5. Install Python dependencies
-sudo apt install -y \
-    python3.11 python3.11-pip python3.11-venv \
-    python3.11-dev  # For building C++ extensions
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 6. Install PostgreSQL with extensions
-sudo apt install -y \
-    postgresql-16 postgresql-contrib-16 \
-    redis-server
+# Install Python 3.14 (or 3.13 currently available)
+uv python install 3.14       # Via uv (recommended)
+# OR
+brew install python@3.14     # Via Homebrew
+
+# Create project environment
+cd /path/to/BigBrotherAnalytics
+uv venv --python 3.14        # Creates .venv
+source .venv/bin/activate
+
+# Install dependencies (ultra-fast)
+uv pip install -r requirements.txt
+
+# For GIL-free mode (Python 3.14+):
+uv python install 3.14t      # 't' = free-threaded build
+```
+
+#### 7.6.4 C++23 with OpenMP and OpenMPI
+
+```bash
+# OpenMP verification (included in GCC 15)
+echo '#include <omp.h>
+int main() {
+    #pragma omp parallel
+    printf("Thread %d\n", omp_get_thread_num());
+    return 0;
+}' | gcc-15 -fopenmp -x c++ - -o test_omp && ./test_omp
+
+# Test MPI installation
+echo '#include <mpi.h>
+#include <stdio.h>
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    printf("Rank %d\n", rank);
+    MPI_Finalize();
+    return 0;
+}' > test_mpi.cpp
+mpic++ -std=c++23 test_mpi.cpp -o test_mpi
+mpirun -np 4 ./test_mpi
+
+# Test UPC++
+echo '#include <upcxx/upcxx.hpp>
+int main() {
+    upcxx::init();
+    std::cout << "Rank " << upcxx::rank_me()
+              << " of " << upcxx::rank_n() << std::endl;
+    upcxx::finalize();
+    return 0;
+}' > test_upcxx.cpp
+upcxx -std=c++23 test_upcxx.cpp -o test_upcxx
+upcxx-run -n 4 ./test_upcxx
+```
+
+#### 7.6.5 CUDA 12.3 and PyTorch
+
+```bash
+# CUDA Toolkit Installation (RHEL 9)
+sudo dnf config-manager --add-repo \
+    https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+sudo dnf install cuda-toolkit-12-3
+
+# CUDA Toolkit Installation (Ubuntu 22.04)
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+sudo dpkg -i cuda-keyring_1.0-1_all.deb
+sudo apt update && sudo apt install cuda-toolkit-12-3
+
+# Environment variables
+echo 'export PATH=/usr/local/cuda-12.3/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify CUDA
+nvcc --version
+nvidia-smi
+
+# Install PyTorch with CUDA support (using uv)
+source .venv/bin/activate
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu123
+
+# Install vLLM for high-throughput inference
+uv pip install vllm transformers accelerate
+
+# Verify PyTorch CUDA
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+```
+
+#### 7.6.6 Infrastructure Automation with Ansible
+
+```bash
+# Install Ansible
+brew install ansible         # Via Homebrew
+# OR
+uv pip install ansible      # Via uv
+
+# Verify
+ansible --version
+```
+
+**Complete Tier 1 Ansible Playbook:**
+```yaml
+# File: playbooks/tier1-market-intelligence-setup.yml
+---
+- name: Market Intelligence Engine - Tier 1 Setup
+  hosts: localhost
+  become: yes
+  vars:
+    gcc_version: "15"
+    python_version: "3.14"
+    cuda_version: "12.3"
+    project_dir: "/opt/bigbrother"
+
+  tasks:
+    - name: Install system dependencies (RHEL)
+      dnf:
+        name: [git, wget, curl, vim, htop, tmux]
+        state: latest
+      when: ansible_os_family == "RedHat"
+
+    - name: Install system dependencies (Ubuntu)
+      apt:
+        name: [git, wget, curl, vim, htop, tmux, build-essential]
+        state: latest
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install Homebrew
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: /home/linuxbrew/.linuxbrew/bin/brew
+
+    - name: Install toolchain via Homebrew
+      homebrew:
+        name: [gcc@15, binutils, cmake, ninja, open-mpi, upcxx]
+        state: latest
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install uv
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: ~/.cargo/bin/uv
+
+    - name: Install Python
+      shell: ~/.cargo/bin/uv python install {{ python_version }}
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install PostgreSQL 16 with extensions
+      include_tasks: postgres_setup.yml
+
+    - name: Install Redis
+      package:
+        name: redis
+        state: latest
+
+    - name: Setup project environment
+      shell: |
+        cd {{ project_dir }}
+        ~/.cargo/bin/uv venv --python {{ python_version }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install -r requirements.txt
+      become_user: "{{ ansible_user_id }}"
+```
+
+#### 7.6.7 Complete Environment Verification
+
+```bash
+#!/bin/bash
+# File: scripts/verify_tier1_environment.sh
+
+echo "=== Market Intelligence Engine - Tier 1 Verification ==="
+
+# GCC C++23
+echo -n "GCC C++23: "
+gcc-15 --version | head -1
+
+# OpenMP
+echo -n "OpenMP: "
+echo '#include <omp.h>
+int main() { return omp_get_max_threads(); }' | \
+gcc-15 -fopenmp -x c++ - -o /tmp/test && /tmp/test && echo "✓" || echo "✗"
+
+# MPI
+echo -n "OpenMPI: "
+mpirun --version | head -1
+
+# UPC++
+echo -n "UPC++: "
+upcxx --version
+
+# Python
+echo -n "Python 3.14+: "
+~/.cargo/bin/uv python list | grep "3.14"
+
+# CUDA
+echo -n "CUDA: "
+nvcc --version | grep release
+
+# PyTorch CUDA
+echo -n "PyTorch CUDA: "
+source .venv/bin/activate && python -c "import torch; \
+print('✓' if torch.cuda.is_available() else '✗')"
+
+# PostgreSQL
+echo -n "PostgreSQL 16+: "
+psql --version
+
+# Redis
+echo -n "Redis: "
+redis-cli --version
+
+# DuckDB
+echo -n "DuckDB: "
+source .venv/bin/activate && python -c "import duckdb; print(f'✓ {duckdb.__version__}')"
+
+echo ""
+echo "=== Verification Complete ==="
+```
+
+#### 7.6.8 Development Workflow
+
+```bash
+# Activate environment
+cd /opt/bigbrother
+source .venv/bin/activate
+
+# Update dependencies
+uv pip install -r requirements.txt
+
+# Compile C++ components
+cd src/cpp
+cmake -B build -G Ninja \
+    -DCMAKE_CXX_COMPILER=g++-15 \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_OPENMP=ON \
+    -DENABLE_MPI=ON \
+    -DENABLE_CUDA=ON
+cmake --build build -j $(nproc)
+
+# Run tests
+cd ../.. && pytest tests/
+
+# Start services
+docker-compose up -d postgres redis
+
+# Profile performance
+perf record -g python scripts/run_pipeline.py
+perf report
+```
+
+#### 7.6.9 OpenShift Setup (RHEL Only)
+
+```bash
+# Install OpenShift Local for development
+wget https://developers.redhat.com/content-gateway/rest/mirror/pub/openshift-v4/clients/crc/latest/crc-linux-amd64.tar.xz
+tar xf crc-linux-amd64.tar.xz
+sudo cp crc-linux-*/crc /usr/local/bin/
+
+# Setup and start
+crc setup
+crc start
+
+# Access console
+crc console
+```
+
+#### 7.6.10 Tier 1 Hardware Requirements
+
+**Minimum:**
+- CPU: 8+ cores
+- RAM: 16GB
+- Storage: 500GB SSD
+- GPU: Optional
+
+**Recommended:**
+- CPU: 16-32 cores (Ryzen 9/i9/Xeon)
+- RAM: 32-64GB
+- Storage: 1TB NVMe
+- GPU: RTX 3090/4090 (24GB VRAM)
+
+**Cost:**
+- Hardware: $2,000-5,000 (one-time)
+- RHEL subscription: $350-800/year (optional)
+- Software: $0 (all open-source)
+
+---
+
+### 7.7 PostgreSQL Database Setup
 
 # 2. Install PostgreSQL extensions
 sudo apt install -y \

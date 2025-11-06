@@ -2052,6 +2052,496 @@ print(f"Analyzed 10 years of data in seconds, found {len(result)} correlations")
 - **Conan/vcpkg:** C++ package management
 - **Poetry/uv:** Python dependency management (fast resolver)
 
+### 9.6.1 Tier 1 Development Deployment Stack (Detailed)
+
+**CRITICAL:** This section specifies the exact technology stack and setup procedures for Tier 1 development deployment (Months 1-4). This is the foundation for rapid prototyping and validation before production scaling.
+
+#### 9.6.1.1 Operating System Selection
+
+**Primary Choice: Red Hat Enterprise Linux (RHEL) 9+**
+- **Advantages:**
+  - Enterprise-grade stability and security
+  - Integrated OpenShift for container orchestration
+  - Long-term support (10 years)
+  - Optimized for HPC workloads
+  - Built-in SELinux for security
+  - Commercial support available
+
+**Alternative: Ubuntu Server 22.04 LTS**
+- **Advantages:**
+  - Strong community support
+  - Excellent HPC ecosystem
+  - Easy package availability
+  - Free for personal/commercial use
+  - Long-term support (5 years with ESM extension)
+
+**Decision Matrix:**
+```
+Use RHEL if:
+- Enterprise support needed
+- OpenShift orchestration required
+- Maximum stability critical
+- Budget allows subscription (~$350-800/year)
+
+Use Ubuntu if:
+- Zero subscription cost required
+- Community support sufficient
+- Latest packages needed faster
+- Development/startup phase
+```
+
+#### 9.6.1.2 Core Development Tools Installation
+
+**1. Homebrew on Linux (for Latest GCC and Binutils)**
+
+Why Homebrew:
+- Latest GCC 15+ with full C++23 support
+- Latest binutils for optimized linking
+- Easy version management
+- Isolated from system packages
+
+Installation:
+```bash
+# Install Homebrew on Linux
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Add to PATH
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+source ~/.bashrc
+
+# Install latest GCC and binutils
+brew install gcc@15          # GCC 15 with C++23 support
+brew install binutils        # Latest GNU binutils
+brew install cmake           # CMake 3.28+
+brew install ninja           # Ninja build system
+
+# Verify installations
+gcc-15 --version             # Should show GCC 15.x
+ld --version                 # Should show latest binutils
+cmake --version              # Should show CMake 3.28+
+```
+
+**2. Python 3.14+ with uv (Development Environment Manager)**
+
+Why uv:
+- Rust-based, ultra-fast dependency resolver (10-100x faster than pip)
+- Better than Poetry for large projects
+- Handles virtual environments automatically
+- Lockfile support for reproducibility
+- Compatible with pip and requirements.txt
+
+Installation:
+```bash
+# Install uv (Rust-based Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Python 3.14 (when available, or 3.13 currently)
+# Option 1: Via uv (recommended)
+uv python install 3.14      # Or 3.13 currently
+
+# Option 2: Via Homebrew
+brew install python@3.14    # Or python@3.13
+
+# Create project environment with uv
+cd /path/to/BigBrotherAnalytics
+uv venv --python 3.14       # Creates .venv with Python 3.14
+source .venv/bin/activate   # Activate environment
+
+# Install dependencies (faster than pip)
+uv pip install -r requirements.txt
+
+# For GIL-free mode (when Python 3.14 available):
+uv python install 3.14t     # 't' suffix for free-threaded build
+```
+
+**3. C++23 with OpenMP and OpenMPI**
+
+Complete Setup:
+```bash
+# OpenMP (already included in GCC 15)
+# Verify OpenMP support
+echo '#include <omp.h>
+int main() {
+    #pragma omp parallel
+    printf("Hello from thread %d\n", omp_get_thread_num());
+    return 0;
+}' | gcc-15 -fopenmp -x c++ - -o test_omp && ./test_omp
+
+# OpenMPI installation
+brew install open-mpi        # Latest OpenMPI 5.x
+
+# Verify MPI installation
+mpirun --version
+mpicc --version
+
+# Test MPI
+echo '#include <mpi.h>
+#include <stdio.h>
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    printf("Hello from rank %d\n", rank);
+    MPI_Finalize();
+    return 0;
+}' > test_mpi.cpp
+mpic++ -std=c++23 test_mpi.cpp -o test_mpi
+mpirun -np 4 ./test_mpi
+
+# Install UPC++ (Unified Parallel C++)
+brew install upcxx           # Or build from source
+upcxx --version
+
+# Test UPC++
+echo '#include <upcxx/upcxx.hpp>
+int main() {
+    upcxx::init();
+    std::cout << "Hello from rank " << upcxx::rank_me()
+              << " of " << upcxx::rank_n() << std::endl;
+    upcxx::finalize();
+    return 0;
+}' > test_upcxx.cpp
+upcxx -std=c++23 test_upcxx.cpp -o test_upcxx
+upcxx-run -n 4 ./test_upcxx
+```
+
+**4. CUDA and PyTorch**
+
+CUDA Installation:
+```bash
+# For RHEL 9
+sudo dnf config-manager --add-repo \
+    https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+sudo dnf install cuda-toolkit-12-3
+
+# For Ubuntu 22.04
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+sudo dpkg -i cuda-keyring_1.0-1_all.deb
+sudo apt update
+sudo apt install cuda-toolkit-12-3
+
+# Set environment variables
+echo 'export PATH=/usr/local/cuda-12.3/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify CUDA
+nvcc --version
+nvidia-smi
+
+# Test CUDA
+echo '#include <cuda_runtime.h>
+#include <stdio.h>
+int main() {
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+    printf("Found %d CUDA device(s)\n", deviceCount);
+    return 0;
+}' > test_cuda.cu
+nvcc -o test_cuda test_cuda.cu
+./test_cuda
+```
+
+PyTorch with CUDA:
+```bash
+# Using uv for installation (faster)
+source .venv/bin/activate
+
+# Install PyTorch with CUDA 12.3 support
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu123
+
+# Verify PyTorch CUDA
+python -c "import torch; print(f'PyTorch version: {torch.__version__}'); \
+           print(f'CUDA available: {torch.cuda.is_available()}'); \
+           print(f'CUDA version: {torch.version.cuda}'); \
+           print(f'GPU count: {torch.cuda.device_count()}')"
+
+# Install vLLM for high-throughput inference
+uv pip install vllm
+
+# Install other ML libraries
+uv pip install \
+    transformers accelerate \
+    sentence-transformers \
+    xgboost lightgbm \
+    scikit-learn \
+    polars pyarrow duckdb
+```
+
+#### 9.6.1.3 Infrastructure Automation with Ansible
+
+**Ansible Setup:**
+```bash
+# Install Ansible
+brew install ansible         # Via Homebrew
+# OR
+uv pip install ansible      # Via uv/pip
+
+# Verify Ansible
+ansible --version
+```
+
+**Ansible Playbook for Tier 1 Setup:**
+```yaml
+# File: playbooks/tier1-setup.yml
+---
+- name: BigBrotherAnalytics Tier 1 Development Setup
+  hosts: localhost
+  become: yes
+  vars:
+    gcc_version: "15"
+    python_version: "3.14"
+    cuda_version: "12.3"
+
+  tasks:
+    - name: Install system dependencies (RHEL)
+      dnf:
+        name:
+          - git
+          - wget
+          - curl
+          - vim
+          - htop
+          - tmux
+        state: latest
+      when: ansible_os_family == "RedHat"
+
+    - name: Install system dependencies (Ubuntu)
+      apt:
+        name:
+          - git
+          - wget
+          - curl
+          - vim
+          - htop
+          - tmux
+          - build-essential
+        state: latest
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install Homebrew
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: /home/linuxbrew/.linuxbrew/bin/brew
+
+    - name: Install GCC, binutils, CMake via Homebrew
+      homebrew:
+        name:
+          - gcc@{{ gcc_version }}
+          - binutils
+          - cmake
+          - ninja
+          - open-mpi
+          - upcxx
+        state: latest
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install uv (Python package manager)
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: ~/.cargo/bin/uv
+
+    - name: Install Python {{ python_version }}
+      shell: ~/.cargo/bin/uv python install {{ python_version }}
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install PostgreSQL 16
+      include_tasks: postgres_install.yml
+
+    - name: Install Redis
+      package:
+        name: redis
+        state: latest
+
+    - name: Clone BigBrotherAnalytics repository
+      git:
+        repo: 'https://github.com/yourusername/BigBrotherAnalytics.git'
+        dest: /opt/bigbrother
+        version: main
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Create Python virtual environment
+      shell: |
+        cd /opt/bigbrother
+        ~/.cargo/bin/uv venv --python {{ python_version }}
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install Python dependencies
+      shell: |
+        cd /opt/bigbrother
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install -r requirements.txt
+      become_user: "{{ ansible_user_id }}"
+```
+
+**Run Ansible Playbook:**
+```bash
+# Run locally
+ansible-playbook playbooks/tier1-setup.yml
+
+# Run on remote server
+ansible-playbook -i inventory.ini playbooks/tier1-setup.yml
+```
+
+#### 9.6.1.4 Container Orchestration (Optional for Tier 1)
+
+**OpenShift/Kubernetes (RHEL):**
+```bash
+# Install OpenShift Local (formerly CodeReady Containers)
+# For development/testing on local machine
+wget https://developers.redhat.com/content-gateway/rest/mirror/pub/openshift-v4/clients/crc/latest/crc-linux-amd64.tar.xz
+tar xf crc-linux-amd64.tar.xz
+sudo cp crc-linux-*/crc /usr/local/bin/
+
+# Setup OpenShift Local
+crc setup
+crc start
+
+# Access OpenShift console
+crc console
+```
+
+**Docker/Podman (Alternative):**
+```bash
+# For Ubuntu
+sudo apt install docker.io docker-compose
+
+# For RHEL (Podman is pre-installed)
+sudo dnf install podman podman-compose
+
+# Verify
+docker --version  # or podman --version
+docker-compose --version  # or podman-compose --version
+```
+
+#### 9.6.1.5 Complete Tier 1 Environment Verification
+
+**System Verification Script:**
+```bash
+#!/bin/bash
+# File: scripts/verify_tier1_setup.sh
+
+echo "=== BigBrotherAnalytics Tier 1 Setup Verification ==="
+
+# Check GCC
+echo -n "GCC C++23: "
+gcc-15 --version | head -1
+
+# Check OpenMP
+echo -n "OpenMP: "
+echo '#include <omp.h>
+int main() { return omp_get_max_threads(); }' | gcc-15 -fopenmp -x c++ - -o /tmp/test_omp && /tmp/test_omp && echo "✓ Working" || echo "✗ Failed"
+
+# Check MPI
+echo -n "OpenMPI: "
+mpirun --version | head -1
+
+# Check UPC++
+echo -n "UPC++: "
+upcxx --version
+
+# Check Python
+echo -n "Python: "
+~/.cargo/bin/uv python list | grep "3.14"
+
+# Check CUDA
+echo -n "CUDA: "
+nvcc --version | grep release
+
+# Check PyTorch CUDA
+echo -n "PyTorch CUDA: "
+source .venv/bin/activate && python -c "import torch; print('✓ Available' if torch.cuda.is_available() else '✗ Not available')"
+
+# Check PostgreSQL
+echo -n "PostgreSQL: "
+psql --version
+
+# Check Redis
+echo -n "Redis: "
+redis-cli --version
+
+# Check DuckDB
+echo -n "DuckDB: "
+source .venv/bin/activate && python -c "import duckdb; print(f'✓ {duckdb.__version__}')"
+
+echo ""
+echo "=== Verification Complete ==="
+```
+
+#### 9.6.1.6 Tier 1 Development Workflow
+
+**Daily Development Cycle:**
+```bash
+# 1. Activate environment
+cd /opt/bigbrother
+source .venv/bin/activate
+
+# 2. Pull latest changes
+git pull origin main
+
+# 3. Install/update dependencies (if requirements.txt changed)
+uv pip install -r requirements.txt
+
+# 4. Compile C++ components
+cd src/cpp
+cmake -B build -G Ninja \
+    -DCMAKE_CXX_COMPILER=g++-15 \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_OPENMP=ON \
+    -DENABLE_MPI=ON \
+    -DENABLE_CUDA=ON
+cmake --build build -j $(nproc)
+
+# 5. Run tests
+cd ../..
+pytest tests/
+
+# 6. Start development services
+docker-compose up -d postgres redis
+
+# 7. Run data collectors
+python scripts/collect_free_data.py
+
+# 8. Start Jupyter for exploration
+jupyter lab --no-browser
+
+# 9. Profile performance
+perf record -g python scripts/backtest.py
+perf report
+```
+
+#### 9.6.1.7 Tier 1 Resource Requirements
+
+**Minimum Hardware:**
+- **CPU:** 8+ cores
+- **RAM:** 16GB
+- **Storage:** 500GB SSD
+- **GPU:** Optional (any NVIDIA GPU)
+
+**Recommended Hardware:**
+- **CPU:** 16-32 cores (AMD Ryzen 9 / Intel i9 / Xeon)
+- **RAM:** 32-64GB
+- **Storage:** 1TB NVMe SSD
+- **GPU:** NVIDIA RTX 3090/4090 (24GB VRAM)
+
+**Cost Estimate:**
+- **DIY Workstation:** $2,000-5,000 (one-time)
+- **Used Server:** $1,000-3,000 (eBay/Craigslist)
+- **Software:** $0 (all open-source)
+
+**Monthly Operational Costs (Tier 1):**
+- Data subscriptions: $0 (free tiers only)
+- Electricity: ~$50-100/month
+- Internet: Included
+- **Total: $50-100/month**
+
+---
+
 ### 9.7 Brokerage & Execution (Low-Latency APIs)
 
 **Options Trading APIs (Priority):**
