@@ -2540,6 +2540,188 @@ perf report
 - Internet: Included
 - **Total: $50-100/month**
 
+#### 9.6.1.8 eBay Hardware Search Guide (64+ Core Enterprise Servers)
+
+**CRITICAL:** For production-like Tier 1 testing with massive parallelization (MPI across 64+ cores), purchase used enterprise servers from eBay at 80-90% discount vs. new.
+
+**Target Specifications (64+ Cores):**
+- **CPU:** Dual-socket with 32+ cores per socket = 64+ total cores
+- **RAM:** 256GB+ ECC DDR4
+- **Storage:** NVMe SSDs in RAID configuration
+- **GPU:** NVIDIA Tesla/Quadro/RTX (24-48GB VRAM)
+- **Network:** 10GbE or better
+- **Total Cost:** $3,000-7,000 (vs. $20,000-40,000 new)
+
+**eBay Search Terms (Copy-Paste Ready):**
+
+**Budget 64-Core Systems ($2,500-4,000):**
+```
+Search: "dual epyc 7551 server"
+- 2x AMD EPYC 7551 (32 cores each) = 64 cores, 128 threads
+- Typical: Supermicro, Dell, HP
+- Price Range: $2,000-3,500
+- Add GPU: Tesla P40 24GB ($400-600)
+```
+
+**Intel Xeon Option ($2,000-3,500):**
+```
+Search: "dual xeon platinum 8168 server"
+- 2x Intel Xeon Platinum 8168 (24 cores each) = 48 cores, 96 threads
+- Typical: Dell R740, HP DL380 Gen10
+- Price Range: $2,500-4,000
+- Add GPU: RTX A4000 16GB ($800-1,200)
+```
+
+**Ultra High-Core ($5,000-8,000):**
+```
+Search: "dual epyc 7742 server"
+- 2x AMD EPYC 7742 (64 cores each) = 128 cores, 256 threads
+- Near-linear MPI scaling
+- Price Range: $5,000-7,000
+- Add GPU: RTX 4090 24GB or A40 48GB
+```
+
+**Pre-Built eBay Searches:**
+
+| Configuration | eBay Search URL | Cores | Typical Price |
+|---------------|----------------|-------|---------------|
+| Budget 64-core | [dual epyc 7551 server](https://www.ebay.com/sch/i.html?_nkw=dual+epyc+7551+server) | 64c/128t | $2K-3.5K |
+| Intel 48-core | [dual xeon platinum 8168](https://www.ebay.com/sch/i.html?_nkw=dual+xeon+platinum+8168) | 48c/96t | $2.5K-4K |
+| High 80-core | [dual epyc 7601 server](https://www.ebay.com/sch/i.html?_nkw=dual+epyc+7601+server) | 64c/128t | $3K-5K |
+| Ultra 128-core | [dual epyc 7742 server](https://www.ebay.com/sch/i.html?_nkw=dual+epyc+7742+server) | 128c/256t | $5K-7K |
+| GPU Servers | [server nvidia tesla p40](https://www.ebay.com/sch/i.html?_nkw=server+nvidia+tesla+p40) | Varies | +$400-600 |
+
+**eBay Buying Checklist:**
+
+✅ **Verify Before Purchase:**
+- [ ] Exact CPU model (check core count on ark.intel.com or amd.com)
+- [ ] RAM included (minimum 128GB, prefer 256GB+)
+- [ ] PCIe x16 slots available for GPU
+- [ ] Power supply sufficient (750W+ for GPU)
+- [ ] Seller rating 98%+ with 100+ sales
+- [ ] Includes rails/hardware if rack-mount
+- [ ] BIOS unlocked (not locked to previous owner)
+- [ ] RAID controller supports JBOD/HBA mode
+
+✅ **Questions for Sellers:**
+- "CPUs and RAM included as listed?"
+- "BIOS password removed?"
+- "Power-on hours?"
+- "All PCIe slots functional?"
+- "Successfully POSTs and boots?"
+- "Why selling?" (look for datacenter decommissions)
+
+**Recommended eBay Configurations:**
+
+**Option 1: Budget 64-Core Powerhouse ($3,000-4,500)**
+```
+Base Server: Dual AMD EPYC 7551 (64 cores, 128 threads)
+- Search: "dual epyc 7551 server" or "supermicro epyc"
+- Server cost: $2,500-3,500
+- RAM: 256GB ECC DDR4 (usually included)
+- Storage: 4x 960GB SSD
+- GPU: Add NVIDIA Tesla P40 24GB (~$500)
+- Network: 10GbE (usually included)
+
+Total Cost: ~$3,000-4,000
+Performance: Excellent for MPI/OpenMP workloads
+Power Draw: 400-600W under load
+```
+
+**Option 2: Intel Xeon Gold/Platinum ($3,500-5,000)**
+```
+Base Server: Dual Intel Xeon (40-56 cores total)
+- Search: "dual xeon gold 6248 server"
+- Server cost: $3,000-4,500
+- RAM: 384GB ECC DDR4
+- Storage: 2x 1.92TB NVMe
+- GPU: NVIDIA RTX A4000 16GB (~$1,000)
+- Models: Dell R740, HP DL380 Gen10, Supermicro
+
+Total Cost: ~$4,000-5,500
+Performance: Excellent single-thread + parallel
+```
+
+**Option 3: Ultra 128-Core Beast ($6,000-9,000)**
+```
+Base Server: Dual AMD EPYC 7742 (128 cores, 256 threads)
+- Search: "dual epyc 7742 server"
+- Server cost: $5,000-6,500
+- RAM: 512GB+ ECC DDR4
+- Storage: 8x 1.92TB NVMe RAID
+- GPU: NVIDIA RTX 4090 24GB or A40 48GB
+- Near-linear scaling to 256 threads
+
+Total Cost: ~$7,000-9,000
+Performance: Production-equivalent
+Best for: Validating before full deployment
+```
+
+**Additional Costs:**
+- Shipping: $100-250 (servers are 40-80 lbs)
+- Rack/Mounting: $200-500 (if needed)
+- 10GbE Switch: $150-400
+- PDU/Power cables: $50-150
+- Extra RAM: $200-1,000 (optional upgrade)
+
+**Total Tier 1 Hardware Investment (64-Core System):**
+```
+Server (64+ cores):       $2,500-6,500
+GPU (NVIDIA):            $500-2,000
+Shipping & Accessories:  $300-800
+Network Equipment:       $150-400
+───────────────────────────────────
+Total (one-time):        $3,450-9,700
+
+vs. New Enterprise:      $20,000-40,000
+Savings:                 $16,000-30,000 (80-85%)
+```
+
+**Monthly Operational Costs (64-Core Server):**
+```
+Electricity (dual-socket server):  $150-250/month
+  - Idle: 200-300W
+  - Full load: 500-700W
+  - 24/7 operation @ $0.12/kWh
+Data subscriptions (Tier 1):      $0/month (free APIs)
+RHEL subscription (optional):     $30/month
+Internet (1Gb+ recommended):      Included
+────────────────────────────────────────────
+Total Monthly:                    $150-280/month
+```
+
+**ROI Analysis (64-Core eBay Server vs. Cloud):**
+```
+Hardware Cost:           $4,000 (one-time)
+Monthly Operating:       $200/month
+
+AWS c6i.32xlarge Equivalent:
+- 128 vCPUs (64 physical cores equivalent)
+- 256GB RAM
+- Cost: $5,440/month
+
+Break-even: 0.7 months (22 days)
+Annual Savings: $60,280
+3-Year Savings: $180,840
+```
+
+**Why eBay Enterprise Servers are Perfect for Tier 1:**
+1. **Massive Parallelization**: Test MPI across 64-128 real cores
+2. **ECC Memory**: Detect memory errors during long computations
+3. **Enterprise Components**: Same hardware as production
+4. **Multiple PCIe Slots**: Add 2-4 GPUs if needed
+5. **10GbE+**: Fast data transfers between storage and compute
+6. **Proven Reliability**: These ran in datacenters for years
+7. **Easy Upgrades**: Standard components, readily available
+8. **80-90% Discount**: Get $20K hardware for $3-7K
+
+**Recommended eBay Sellers (High Volume, Good Ratings):**
+- SaveMyServer
+- TechMikeNY
+- NetworkTigers
+- Aventis Systems
+- Look for: 99%+ feedback, 1000+ sales
+
 ---
 
 ### 9.7 Brokerage & Execution (Low-Latency APIs)

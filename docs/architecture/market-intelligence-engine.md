@@ -1924,6 +1924,32 @@ crc console
 - RHEL subscription: $350-800/year (optional)
 - Software: $0 (all open-source)
 
+#### 7.6.11 eBay Enterprise Server Procurement Guide (64+ Cores)
+
+**For comprehensive procurement details, eBay search terms, configurations, and ROI analysis, see [PRD Section 9.6.1.8](../PRD.md#9618-ebay-hardware-search-guide-64-core-enterprise-servers).**
+
+**Quick Reference - Best eBay Configurations:**
+
+| System | Cores | eBay Search Term | Typical Price |
+|--------|-------|-----------------|---------------|
+| Budget | 64c/128t | `dual epyc 7551 server` | $2.5-3.5K |
+| Balanced | 48-56c | `dual xeon platinum 8168` | $3-4.5K |
+| High-End | 128c/256t | `dual epyc 7742 server` | $5-7K |
+
+**ROI vs. Cloud:**
+- Hardware: $4,000 (one-time)
+- Break-even: 22 days vs AWS c6i.32xlarge
+- Annual savings: $60,000+
+- 3-year savings: $180,000+
+
+**Key Benefits:**
+- 80-90% discount vs. new hardware
+- ECC memory for reliability
+- Enterprise-grade components
+- Multiple PCIe slots for GPUs
+- 10GbE networking included
+- Proven datacenter reliability
+
 ---
 
 ### 7.7 PostgreSQL Database Setup
