@@ -3,7 +3,7 @@
 **Version:** 0.3.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
-**Document Owner:** Product Team
+**Author:** Olumuyiwa Oluwasanmi
 
 ---
 
@@ -1668,7 +1668,7 @@ Trading Decision Engine    Correlation Tool
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 0.1.0 | 2025-11-06 | Product Team | Initial draft |
+| 0.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | Initial draft |
 
 ---
 
