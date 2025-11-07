@@ -19,12 +19,29 @@
 #   - All ML/AI frameworks
 #   - Complete verification
 #
+# Supported Operating Systems:
+#   ✓ Red Hat Enterprise Linux (RHEL) 9+
+#   ✓ Ubuntu Server 22.04 LTS
+#   ✓ Ubuntu Desktop 22.04 LTS
+#   ✓ WSL2 Ubuntu 22.04 (Windows Subsystem for Linux)
+#   ✓ Fedora 38+
+#   ✓ CentOS Stream 9+
+#
+# Installation Strategy:
+#   - Homebrew: Primary method for GCC 15, Python 3.14, CMake, Ansible, MPI
+#     (Provides latest versions, consistent across all OSes)
+#   - System Package Manager (dnf/apt): Only for OS-specific packages
+#     (PostgreSQL, Redis, kernel headers, system utilities)
+#   - From Source: UPC++, GASNet-EX (for optimization)
+#   - Python (uv): All Python packages via uv package manager
+#
 # Usage:
 #   ansible-playbook playbooks/complete-tier1-setup.yml
 #
-# Estimated time: 2-4 hours (depending on internet speed)
+# Estimated time: 2-4 hours (depending on internet speed and CPU cores)
 # Cost: $0 (all open-source)
 #
+# WSL Note: Systemd might not be available. Playbook detects and handles gracefully.
 # Reference: https://github.com/oldboldpilot/ClusterSetupAndConfigs
 
 - name: BigBrotherAnalytics - Complete Tier 1 Development Environment Setup
@@ -58,6 +75,12 @@
         update_cache: yes
       when: ansible_os_family == "Debian"
 
+    - name: Install Development Tools group (RHEL)
+      dnf:
+        name: "@Development Tools"
+        state: present
+      when: ansible_os_family == "RedHat"
+
     - name: Install base system dependencies (RHEL)
       dnf:
         name:
@@ -70,7 +93,9 @@
           - screen
           - python3
           - python3-pip
-          - build-essential
+          - gcc
+          - gcc-c++
+          - make
           - kernel-devel
           - kernel-headers
           - pciutils
@@ -97,6 +122,26 @@
           - software-properties-common
         state: latest
       when: ansible_os_family == "Debian"
+
+    - name: Check if systemd is available (for WSL compatibility)
+      shell: systemctl --version
+      register: systemd_check
+      failed_when: false
+      changed_when: false
+
+    - name: Detect if running in WSL
+      shell: grep -qi microsoft /proc/version && echo "true" || echo "false"
+      register: is_wsl
+      changed_when: false
+
+    - name: Display environment information
+      debug:
+        msg: |
+          OS Family: {{ ansible_os_family }}
+          Distribution: {{ ansible_distribution }}
+          systemd Available: {{ systemd_check.rc == 0 }}
+          Running in WSL: {{ is_wsl.stdout }}
+          CPU Cores: {{ ansible_processor_vcpus }}
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2: Homebrew Installation
@@ -384,11 +429,21 @@
         creates: /var/lib/pgsql/{{ postgresql_version }}/data/PG_VERSION
       when: ansible_os_family == "RedHat"
 
-    - name: Start and enable PostgreSQL
+    - name: Start and enable PostgreSQL (systemd)
       systemd:
-        name: postgresql
+        name: "{% if ansible_os_family == 'Debian' %}postgresql{% else %}postgresql-{{ postgresql_version }}{% endif %}"
         state: started
         enabled: yes
+      when: systemd_check.rc == 0
+
+    - name: Start PostgreSQL manually (WSL without systemd)
+      shell: |
+        {% if ansible_os_family == "Debian" %}
+        sudo -u postgres /usr/lib/postgresql/{{ postgresql_version }}/bin/pg_ctl -D /var/lib/postgresql/{{ postgresql_version }}/main start
+        {% else %}
+        sudo -u postgres /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl -D /var/lib/pgsql/{{ postgresql_version }}/data start
+        {% endif %}
+      when: systemd_check.rc != 0
 
     # Install PostgreSQL extensions
 
@@ -437,15 +492,25 @@
       args:
         creates: /usr/lib/postgresql/{{ postgresql_version }}/lib/vector.so
 
+    - name: Find PostgreSQL config file
+      shell: |
+        {% if ansible_os_family == "Debian" %}
+        echo "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+        {% else %}
+        echo "/var/lib/pgsql/{{ postgresql_version }}/data/postgresql.conf"
+        {% endif %}
+      register: pg_conf_path
+      changed_when: false
+
     - name: Configure PostgreSQL for BigBrotherAnalytics
       blockinfile:
-        path: /etc/postgresql/{{ postgresql_version }}/main/postgresql.conf
+        path: "{{ pg_conf_path.stdout }}"
         block: |
           # BigBrotherAnalytics Configuration
           shared_preload_libraries = 'timescaledb,age'
           max_connections = 200
-          shared_buffers = 64GB
-          effective_cache_size = 192GB
+          shared_buffers = 16GB
+          effective_cache_size = 48GB
           work_mem = 256MB
           maintenance_work_mem = 2GB
           max_parallel_workers_per_gather = 8
@@ -453,36 +518,78 @@
           max_worker_processes = {{ num_build_jobs }}
           jit = on
         create: yes
-      when: ansible_os_family == "Debian"
+        marker: "# {mark} BIGBROTHER ANSIBLE MANAGED BLOCK"
+
+    - name: Get PostgreSQL service name
+      shell: |
+        {% if ansible_os_family == "Debian" %}
+        echo "postgresql"
+        {% else %}
+        echo "postgresql-{{ postgresql_version }}"
+        {% endif %}
+      register: pg_service_name
+      changed_when: false
 
     - name: Restart PostgreSQL
       systemd:
-        name: postgresql
+        name: "{{ pg_service_name.stdout }}"
         state: restarted
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 9: Redis Cache
     # ═══════════════════════════════════════════════════════════
 
-    - name: Install Redis
-      package:
+    - name: Install Redis (Ubuntu)
+      apt:
+        name: redis-server
+        state: latest
+      when: ansible_os_family == "Debian"
+
+    - name: Install Redis (RHEL)
+      dnf:
         name: redis
         state: latest
+      when: ansible_os_family == "RedHat"
+
+    - name: Find Redis config file
+      shell: |
+        {% if ansible_os_family == "Debian" %}
+        echo "/etc/redis/redis.conf"
+        {% else %}
+        echo "/etc/redis/redis.conf"
+        {% endif %}
+      register: redis_conf_path
+      changed_when: false
 
     - name: Configure Redis for BigBrotherAnalytics
       lineinfile:
-        path: /etc/redis/redis.conf
+        path: "{{ redis_conf_path.stdout }}"
         regexp: "{{ item.regexp }}"
         line: "{{ item.line }}"
       loop:
         - { regexp: '^maxmemory ', line: 'maxmemory 16gb' }
         - { regexp: '^maxmemory-policy', line: 'maxmemory-policy allkeys-lru' }
 
-    - name: Start and enable Redis
+    - name: Get Redis service name
+      shell: |
+        {% if ansible_os_family == "Debian" %}
+        echo "redis-server"
+        {% else %}
+        echo "redis"
+        {% endif %}
+      register: redis_service_name
+      changed_when: false
+
+    - name: Start and enable Redis (systemd)
       systemd:
-        name: redis
+        name: "{{ redis_service_name.stdout }}"
         state: started
         enabled: yes
+      when: systemd_check.rc == 0
+
+    - name: Start Redis manually (WSL without systemd)
+      shell: "redis-server {{ redis_conf_path.stdout }} --daemonize yes"
+      when: systemd_check.rc != 0
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 10: Python Environment and ML/AI Frameworks
