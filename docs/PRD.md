@@ -361,11 +361,44 @@ To create the **fastest and most intelligent** automated trading platform that c
 ### 2.2 Use Cases (in Priority Order)
 
 **Phase 1: Options Day Trading (Initial Focus)**
-1. Exploiting rapid implied volatility changes based on news events
-2. Identifying mispriced options using correlation analysis and impact predictions
-3. Executing delta-neutral strategies (straddles, strangles) around major events
-4. Capitalizing on options Greeks arbitrage opportunities
-5. Leveraging time decay (theta) in high-probability trades
+
+**⚠️ CRITICAL UNDERSTANDING: Day Trading is Driven by Sentiment, Not Just Logic**
+
+**Behavioral Finance Principles for Day Trading:**
+- **"Animal Spirits" (Keynes):** Markets driven by emotion, instinct, and crowd psychology
+  - Fear and greed dominate short-term price movements
+  - Rational analysis only part of the equation
+  - Momentum can override fundamental value for hours or days
+  - Herd behavior creates exploitable patterns
+
+- **Sentiment Indicators MUST Be Tracked:**
+  - Market-wide sentiment (VIX, put/call ratios, advance/decline)
+  - Stock-specific sentiment (social media, news tone, analyst upgrades/downgrades)
+  - Options sentiment (implied volatility skew, unusual option activity)
+  - Institutional vs retail sentiment (order flow, dark pool activity)
+
+- **Momentum Over Fundamentals (Intraday):**
+  - Day trades resolved in minutes to hours
+  - Fundamental value matters less than directional momentum
+  - Technical patterns (support/resistance) are self-fulfilling prophecies
+  - Volume and liquidity create momentum continuation
+
+- **Psychology Patterns to Exploit:**
+  - Overreaction to news (buy panic, sell euphoria)
+  - FOMO (Fear of Missing Out) - chasing momentum
+  - Panic selling - capitulation patterns
+  - "Dead cat bounce" - false reversals
+  - "Catching falling knives" - premature bottom picking
+
+**Day Trading Use Cases (Sentiment-Driven):**
+1. Exploiting rapid implied volatility changes based on news events **AND market overreaction**
+2. Identifying mispriced options using correlation analysis, impact predictions, **AND sentiment divergence**
+3. Executing delta-neutral strategies (straddles, strangles) around major events **capturing sentiment volatility**
+4. Capitalizing on options Greeks arbitrage opportunities **driven by irrational fear/greed**
+5. Leveraging time decay (theta) in high-probability trades **while monitoring sentiment shifts**
+6. **NEW: Trading momentum breakouts driven by social media and retail trader activity**
+7. **NEW: Fading extreme sentiment (contrarian plays when fear/greed reaches extremes)**
+8. **NEW: Capturing volatility spikes from panic or euphoria**
 
 **Phase 2: Stock Trading (Lower Initial Priority, Ultimate Goal)**
 6. Identifying emerging market trends before mainstream awareness
@@ -483,10 +516,29 @@ The architecture document includes:
 - **Political Events** - Debates, elections, policy announcements
 
 #### 3.2.8 Seasonal & Sentiment Patterns
+
+**⚠️ CRITICAL:** These patterns represent "animal spirits" and behavioral biases that create tradeable opportunities.
+
 - **Holiday Timing** - Market closures, pre/post-holiday patterns
+  - Low volume = higher volatility (less rational pricing)
+  - Holiday optimism/pessimism affects sentiment
 - **Seasonal Trends** - "Sell in May," January effect, quarter-end positioning
+  - Self-fulfilling prophecies driven by herd behavior
+  - Tax loss harvesting (December) - emotion-driven selling
 - **Market Sentiment Indices** - VIX, put-call ratios, sentiment surveys
+  - **VIX > 30:** Fear dominates (contrarian opportunity)
+  - **VIX < 12:** Complacency (risk of sudden reversal)
+  - Extreme readings indicate irrational market psychology
 - **Consumer Confidence** - University of Michigan, Conference Board indices
+  - Lagging indicator but affects retail trader behavior
+
+**Behavioral Indicators (Animal Spirits):**
+- **Fear & Greed Index (CNN Business):** Quantified market emotion
+- **AAII Sentiment Survey:** Individual investor bullishness/bearishness
+- **Investor Intelligence Survey:** Newsletter writer sentiment
+- **CBOE Put/Call Ratios:** Options traders' fear vs greed positioning
+- **Margin Debt Levels:** Excessive borrowing indicates euphoria (risk)
+- **Short Interest:** High short interest = potential short squeeze fuel
 
 #### 3.2.9 Retail Intelligence
 - **Sales Data** - Top products sold at major retailers:
@@ -639,12 +691,53 @@ The architecture document includes:
 - Historical data storage and versioning
 - API integration with data providers
 
-#### 3.3.2 Natural Language Processing (NLP)
-- Sentiment analysis on news and social media
+#### 3.3.2 Natural Language Processing (NLP) & Sentiment Analysis
+
+**⚠️ CRITICAL FOR DAY TRADING:** Sentiment drives intraday price movements more than fundamentals. System MUST capture and quantify "animal spirits" in real-time.
+
+**Sentiment Analysis (MANDATORY):**
+- **News Sentiment:**
+  - Real-time sentiment scoring (-1.0 to +1.0) for all news articles
+  - Tone analysis: bearish, neutral, bullish
+  - Urgency detection: breaking news, developing story, background
+  - Emotional intensity: panic, fear, caution, optimism, euphoria
+  - Track sentiment velocity (how fast sentiment changes)
+
+- **Social Media Sentiment (Reddit, Twitter/X, StockTwits):**
+  - **"Meme stock" detection:** Identify viral momentum stocks
+  - **Retail trader sentiment:** WSB (WallStreetBets) mood tracking
+  - **FOMO indicators:** Rapid increase in mentions, hashtag trending
+  - **Panic indicators:** Sudden negative sentiment spikes
+  - Volume of mentions (viral attention correlates with volatility)
+  - Sentiment divergence: social media vs institutional news
+
+- **Options Sentiment Indicators:**
+  - Put/Call ratio (fear vs greed)
+  - Implied volatility skew (demand for puts vs calls)
+  - Unusual options activity (large bets indicate conviction)
+  - Options flow: bullish vs bearish positioning
+
+- **Market-Wide Sentiment:**
+  - VIX (fear gauge) and VIX futures
+  - Advance/decline ratios
+  - New highs vs new lows
+  - Market breadth indicators
+  - Sector rotation (risk-on vs risk-off)
+
+**Behavioral Finance Patterns to Detect:**
+- **Overreaction:** Extreme sentiment → mean reversion opportunity
+- **Underreaction:** Delayed response → momentum continuation
+- **Herding:** Crowds following crowds (exploitable with timing)
+- **Anchoring:** Traders stuck on old price levels (resistance/support)
+- **Confirmation Bias:** Ignoring contradictory information (creates mispricing)
+- **Recency Bias:** Overweighting recent events (volatility overestimation)
+
+**Traditional NLP Features (Still Important):**
 - Entity recognition (companies, people, products)
 - Event extraction and classification
 - Topic modeling and trend detection
 - Language translation for international sources
+- Named entity disambiguation
 
 #### 3.3.3 Impact Prediction Engine
 - Company-specific impact prediction
@@ -832,8 +925,65 @@ The architecture document includes:
 - Dynamic conditional correlations
 
 **Time-Lagged Correlations (Convolution Analysis):**
-- Cross-correlation functions
-- Lag periods: 1-60 minutes (intra-day), 1-30 days (inter-day)
+
+**⚠️ CRITICAL FOR PROFITABILITY:** Accurately predicting the LAG between cause and effect is KEY to profitable trading. Knowing WHEN an event will impact prices is more valuable than knowing IF it will impact.
+
+**Lag Prediction Requirements:**
+- **Cross-correlation functions:** Identify optimal lag periods
+- **Lag periods to analyze:**
+  - Intra-day: 1-60 minutes (high-frequency cause-effect)
+  - Inter-day: 1-30 days (medium-term propagation)
+  - Seasonal: weeks to months (long-term structural relationships)
+
+**Examples of Profitable Lag Exploitation:**
+- **NVDA earnings → AMD stock (15-minute lag):**
+  - NVDA reports strong earnings at 4:00 PM
+  - System predicts AMD will follow in 15 minutes
+  - Buy AMD calls at 4:01 PM, sell at 4:20 PM (exploit lag)
+  - Profit from predictable delayed reaction
+
+- **Fed rate decision → Bank stocks (30-minute lag):**
+  - Fed announces rate cut at 2:00 PM
+  - System predicts bank stocks rally in 30 minutes (delayed analysis)
+  - Enter positions immediately, exit after delayed reaction
+  - Capture momentum before crowd realizes impact
+
+- **Oil price spike → Energy sector (2-hour lag):**
+  - Crude oil jumps 5% at market open
+  - System predicts XLE (energy ETF) lags by 2 hours
+  - Trade energy stocks/options in the gap period
+
+- **S&P 500 futures → Individual stocks (5-minute lag):**
+  - ES futures spike down at 9:35 AM
+  - System predicts individual stocks follow in 5 minutes
+  - Short high-beta stocks immediately
+  - Cover when correlation catches up
+
+**Lag Prediction Profitability Formula:**
+```
+Profit Opportunity = Price Change × (1 - e^(-lag_accuracy))
+
+Where:
+  - lag_accuracy: How precisely we predict the lag (0-1 scale)
+  - Perfect prediction (lag_accuracy = 1): Capture full move
+  - No prediction (lag_accuracy = 0): Random entry, no edge
+  - Typical accuracy (lag_accuracy = 0.7): Capture 70% of move
+
+Example:
+  - Expected move: $2.00 per share
+  - Lag accuracy: 80%
+  - Capturable profit: $2.00 × (1 - e^(-0.8)) = $2.00 × 0.55 = $1.10
+  - With perfect timing: capture $1.10 of $2.00 move
+```
+
+**Lag Timing Features (MANDATORY):**
+- **Predicted lag:** Expected time delay (minutes, hours, days)
+- **Lag confidence:** How confident in the timing (0-1 scale)
+- **Historical lag distribution:** Show variability (sometimes 10min, sometimes 30min)
+- **Optimal entry window:** When to enter (immediately vs wait for confirmation)
+- **Optimal exit window:** When lag effect exhausted (mean reversion begins)
+- **Volume-adjusted lag:** Higher volume = faster propagation
+- **Sentiment-adjusted lag:** Extreme sentiment accelerates lag (panic spreads faster)
 - Leading indicators (Stock A predicts Stock B)
 - Lagging indicators (Stock A follows Stock B)
 - Optimal lag identification
@@ -997,11 +1147,18 @@ The architecture document includes:
 
 ### 5.2 Input Sources
 
+**⚠️ FUNDAMENTAL PRINCIPLE:** Trading decisions must balance rational analysis (fundamentals, correlations) with behavioral factors (sentiment, momentum, "animal spirits"). Day trading especially requires understanding crowd psychology.
+
 #### 5.2.1 From Market Intelligence Engine
 - Impact predictions with confidence scores
 - Event classifications and severity
 - Impact graphs with relationship strengths
-- Sentiment scores and trends
+- **Sentiment scores and trends (CRITICAL FOR DAY TRADING):**
+  - News sentiment: bearish, neutral, bullish
+  - Social media sentiment (Reddit, Twitter/X, StockTwits)
+  - Sentiment velocity (rate of change)
+  - Sentiment divergence (retail vs institutional)
+  - Emotional intensity (panic, fear, caution, optimism, euphoria)
 - News significance rankings
 
 #### 5.2.2 From Correlation Analysis Tool
@@ -1018,7 +1175,56 @@ The architecture document includes:
 - Trading volume (options and stocks)
 - Implied volatility surfaces
 - Options Greeks (delta, gamma, theta, vega, rho)
-- Technical indicators
+- **Technical indicators (momentum and sentiment proxies):**
+  - RSI (overbought/oversold = extreme sentiment)
+  - MACD (momentum direction)
+  - Bollinger Bands (volatility and extremes)
+  - Volume indicators (conviction and participation)
+  - Money flow indicators (smart money vs dumb money)
+
+#### 5.2.4 Behavioral & Sentiment Indicators (CRITICAL FOR DAY TRADING)
+**⚠️ NEW CATEGORY:** Quantifying "animal spirits" for short-term trading decisions.
+
+- **Market-Wide Sentiment:**
+  - VIX and VIX futures (fear gauge)
+  - Fear & Greed Index (CNN Business)
+  - Put/Call ratios (CBOE, equity-only)
+  - Advance/decline line
+  - New highs vs new lows
+  - Market breadth (% stocks above 50-day MA)
+
+- **Stock-Specific Sentiment:**
+  - Social media mentions (volume and tone)
+  - Unusual options activity (smart money positioning)
+  - Analyst rating changes (herd following)
+  - Insider trading activity (confidence indicator)
+  - Short interest levels (contrarian indicator)
+  - Retail order flow (sentiment proxy)
+
+- **Order Flow & Volume Analysis (Smart Money Tracking):**
+  - **Volume surge detection:** Volume > 2x average indicates conviction
+  - **Block trades:** Large institutional orders (>10,000 shares)
+  - **Dark pool activity:** Off-exchange institutional buying/selling
+  - **Tape reading:** Bid vs ask volume (buying vs selling pressure)
+  - **Time & sales:** Aggressive buying (lifting asks) vs selling (hitting bids)
+  - **Institutional flow:** Track large money movements
+    - Pension funds, hedge funds, mutual funds
+    - 13F filings for quarterly positions
+    - Whale watching: large account activity
+  - **Retail vs institutional:** Differentiate smart money from dumb money
+    - Retail: small trades, market orders, emotional timing
+    - Institutional: large trades, limit orders, strategic timing
+  - **Smart money indicators:**
+    - Institutional accumulation during selloffs (bullish)
+    - Institutional distribution during rallies (bearish)
+    - Follow the smart money, fade retail panic
+
+- **Momentum Indicators (Behavioral Proxies):**
+  - Price momentum (rate of change)
+  - Volume surge (attention and conviction)
+  - Breakout patterns (herd behavior)
+  - Gap up/down (overnight sentiment shift)
+  - Intraday volatility (panic or euphoria)
 
 ### 5.2.4 Supported Trading Instruments & Valuation Methods
 
@@ -1310,6 +1516,8 @@ Repository: https://github.com/oldboldpilot/SchwabFirstAPI
 
 **Objective:** Exploit intra-day options price movements and volatility changes through fully automated ultra-low latency trading
 
+**⚠️ CRITICAL PHILOSOPHY:** Day trading success requires understanding that markets are driven by **EMOTION and MOMENTUM** in the short term, not just rational analysis. The system must detect and exploit "animal spirits" - the psychological forces that move markets minute-to-minute.
+
 **Characteristics:**
 - Position holding period: Minutes to hours (intra-day only)
 - Trade frequency: 20-100+ options trades per day
@@ -1317,41 +1525,79 @@ Repository: https://github.com/oldboldpilot/SchwabFirstAPI
 - Leverage: Inherent in options (controlling 100 shares per contract)
 - Automation: 100% automated, no human intervention
 - Execution speed: < 1ms signal-to-order latency
+- **Decision basis: 60% sentiment/momentum, 40% fundamentals/correlation**
 
-**Options Strategies to Employ:**
-- **Directional plays:** Calls/Puts based on predicted underlying movement
-- **Volatility plays:** Straddles/Strangles on high-impact news events
-- **Delta-neutral strategies:** Profit from volatility changes, not direction
-- **Calendar spreads:** Exploit time decay differences
-- **Vertical spreads:** Defined risk/reward with limited capital
-- **Iron condors:** Profit from range-bound underlying
-- **Greeks arbitrage:** Exploit mispriced gamma, vega, theta
+**Options Strategies to Employ (Sentiment-Aware):**
+- **Directional plays:** Calls/Puts based on **predicted movement AND sentiment momentum**
+- **Volatility plays:** Straddles/Strangles on **high-impact news AND panic/euphoria spikes**
+- **Delta-neutral strategies:** Profit from **volatility changes driven by fear/greed**
+- **Calendar spreads:** Exploit time decay differences **while fading short-term emotion**
+- **Vertical spreads:** Defined risk/reward **capturing sentiment overreaction**
+- **Iron condors:** Profit from range-bound underlying **during low emotion periods**
+- **Greeks arbitrage:** Exploit mispriced gamma, vega, theta **caused by irrational demand**
+- **NEW: Sentiment fade trades:** Sell premium when VIX > 30 (extreme fear)
+- **NEW: Momentum continuation:** Buy calls/puts when sentiment velocity high
+- **NEW: Contrarian plays:** Opposite positioning when sentiment at extremes
 
-**Signal Sources:**
+**Signal Sources (Rational + Behavioral):**
+
+**Rational Signals:**
 - Breaking news impact predictions (implied volatility spikes)
 - Earnings announcements and guidance (volatility expansion)
 - Intra-day correlation signals (underlying and options)
-- Unusual options activity detection
-- Implied volatility surface anomalies
 - Greeks arbitrage opportunities
-- Volume and open interest spikes
-- Market microstructure signals
+- Implied volatility surface anomalies
 
-**Entry Criteria:**
-- High-confidence impact prediction (> 80%) for directional plays
-- Implied volatility mispricing detected (> 2 standard deviations)
-- Sufficient options liquidity (bid-ask spread < 5% of mid price)
-- Favorable risk-reward ratio (> 3:1 for options)
-- Technical confirmation on underlying
-- Greeks within acceptable ranges for strategy
+**Behavioral Signals (CRITICAL FOR DAY TRADING):**
+- **Sentiment momentum:** Rapid change in social media/news tone
+- **"Meme stock" alerts:** Viral stocks with retail trader attention
+- **Unusual options activity:** Large institutional bets (smart money following)
+- **Volume surges:** Breakouts driven by herd behavior
+- **VIX spikes:** Fear creating mispriced options (sell premium)
+- **Put/Call ratio extremes:** Contrarian indicators (>1.2 or <0.7)
+- **Reddit/WSB trending:** Retail momentum (ride it or fade it)
+- **Panic selling patterns:** Capitulation bottoms (buy calls)
+- **Euphoria patterns:** Blow-off tops (buy puts)
+- **FOMO indicators:** Rapid price acceleration with high volume
 
-**Exit Criteria:**
-- Target profit reached (10-50% on options premium)
-- Stop-loss triggered (30-50% loss on premium)
-- End of trading day (no overnight options positions initially)
-- Implied volatility normalized
-- Signal reversal detected
-- Time decay approaching inflection point
+**Entry Criteria (Combining Logic + Sentiment):**
+- **Rational Criteria:**
+  - High-confidence impact prediction (> 80%) for directional plays
+  - Implied volatility mispricing detected (> 2 standard deviations)
+  - Sufficient options liquidity (bid-ask spread < 5% of mid price)
+  - Favorable risk-reward ratio (> 3:1 for options)
+  - Technical confirmation on underlying
+  - Greeks within acceptable ranges for strategy
+
+- **Behavioral/Sentiment Criteria (MANDATORY FOR DAY TRADING):**
+  - **Sentiment alignment:** Momentum direction matches sentiment trend
+  - **Sentiment extremes:** VIX > 25 (sell premium) or unusual options activity
+  - **Social media momentum:** Increasing mentions + positive sentiment (ride momentum)
+  - **Contrarian setup:** Extreme fear (VIX > 35) or euphoria (meme stock blow-off)
+  - **Volume confirmation:** High volume = conviction = momentum continuation
+  - **Institutional vs retail:** Smart money positioning (large options orders)
+  - **No conflicting signals:** Sentiment and fundamentals aligned (or consciously fading emotion)
+
+**Exit Criteria (Logic + Sentiment):**
+- **Profit Targets:**
+  - Target profit reached (10-50% on options premium)
+  - Exceptional momentum: let winners run if sentiment accelerating
+
+- **Stop Losses:**
+  - Stop-loss triggered (30-50% loss on premium)
+  - Sentiment reversal: cut losses if momentum shifts against position
+
+- **Time-Based:**
+  - End of trading day (no overnight options positions initially)
+  - Time decay approaching inflection point
+
+- **Sentiment-Based (CRITICAL):**
+  - **Sentiment reversal:** Social media/news tone flips (exit momentum trades)
+  - **Volatility normalization:** VIX returns to normal after spike (exit volatility plays)
+  - **Volume exhaustion:** Momentum dying (decreasing volume on rallies/selloffs)
+  - **Extreme profit taking:** If up 100%+ and sentiment reaching euphoria (take profit)
+  - **Dead cat bounce:** False reversal pattern (don't get trapped)
+  - **Capitulation:** Final panic selling (buy opportunity, but wait for confirmation)
 
 **Risk Management:**
 - Maximum position size: 3% of portfolio per options trade

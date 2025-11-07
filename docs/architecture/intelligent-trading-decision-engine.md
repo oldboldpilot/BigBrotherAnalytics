@@ -47,11 +47,30 @@
 
 The Intelligent Trading Decision Engine integrates insights from the Market Intelligence Engine and Correlation Analysis Tool to make trading decisions with full explainability. It is NOT a black box - every decision is traceable and understandable.
 
+**⚠️ CRITICAL DESIGN PHILOSOPHY:**
+Markets are driven by TWO forces that must BOTH be modeled:
+1. **Rational Analysis:** Fundamentals, correlations, mathematical models, quantitative signals
+2. **"Animal Spirits" (Keynes):** Emotion, sentiment, momentum, crowd psychology, behavioral biases
+
+**For day trading (holding period < 1 day):**
+- Sentiment and momentum dominate (60-70% of price movement)
+- Fundamentals matter less in the short term
+- Herd behavior creates self-fulfilling prophecies
+- Fear and greed drive volatility and mispricing
+
+**For longer-term trading:**
+- Fundamentals increasingly important
+- Sentiment noise averages out
+- Value and correlation relationships dominate
+
 **Core Capabilities:**
 - Integrate signals from Market Intelligence and Correlation tools
+- **Quantify and exploit sentiment, momentum, and behavioral patterns**
 - Make trading decisions using Reinforcement Learning and Deep Neural Networks
+- **Incorporate behavioral finance theory (overreaction, underreaction, herding)**
 - Explain every decision with human-readable rationale
 - Execute options day trading strategies (initial focus)
+- **Balance rational analysis with emotional/momentum indicators**
 - Provide real-time signaling for immediate decisions
 - Support medium-term and long-term investment decisions
 - Visualize decision-making process with interactive charts
@@ -66,21 +85,27 @@ mindmap
       Correlation Data
       Technical Indicators
       Sentiment Scores
+      Behavioral Indicators
+      Animal Spirits Detection
     Mathematical Models
       Reinforcement Learning
       Deep Neural Networks
       Graph Neural Networks
       Ensemble Methods
+      Behavioral Finance Models
     Decision Making
       Options Strategies
       Position Sizing
       Risk Management
       Entry/Exit Signals
+      Sentiment-Driven Timing
+      Momentum vs Mean Reversion
     Explainability
       Feature Importance
       Decision Trees
       Attention Weights
       Human Rationale
+      Sentiment Justification
     Execution
       Order Routing
       Portfolio Management
@@ -162,15 +187,29 @@ State (s_t):
   - Current portfolio positions
   - Market intelligence predictions
   - Correlation matrices
-  - Technical indicators
-  - Market sentiment
+  - Technical indicators (momentum, RSI, MACD)
+
+  - **Behavioral & Sentiment Indicators (CRITICAL FOR DAY TRADING):**
+    - Market sentiment (VIX, Fear & Greed Index)
+    - Stock-specific sentiment (social media, news tone)
+    - Sentiment velocity (rate of change in emotion)
+    - Put/Call ratios (fear vs greed positioning)
+    - Volume surge indicators (herd behavior)
+    - Unusual options activity (smart money signals)
+    - Retail vs institutional flow (contrarian indicators)
+    - Momentum strength (price acceleration, volume)
+    - Sentiment extremes (panic or euphoria levels)
+    - Social media trending (Reddit WSB, Twitter/X mentions)
+
   - Account balance
+  - Time of day (market open affects sentiment volatility)
+  - Recent trade outcomes (avoid revenge trading bias)
 
 Action (a_t):
-  - Buy (symbol, quantity)
-  - Sell (symbol, quantity)
+  - Buy (symbol, quantity, **sentiment_weight**)
+  - Sell (symbol, quantity, **sentiment_weight**)
   - Hold
-  - Options strategies (call, put, spread)
+  - Options strategies (call, put, spread, **sentiment_basis**)
 
 Reward (r_t):
   - Immediate: Realized P&L
@@ -620,7 +659,7 @@ graph TB
     style OUT2 fill:#afa,stroke:#333,stroke-width:2px
 ```
 
-**Explainability Example Output:**
+**Explainability Example Output (Including Sentiment & Behavioral Factors):**
 
 ```json
 {
@@ -631,23 +670,57 @@ graph TB
     "type": "CALL",
     "strike": 180,
     "expiry": "2025-11-15",
-    "confidence": 0.82
+    "confidence": 0.82,
+    "decision_basis": "60% sentiment/momentum, 40% fundamentals"
   },
   "explanation": {
-    "human_summary": "BUY AAPL calls because: (1) Strong earnings beat predicted by Market Intelligence (87% confidence), (2) High positive correlation with sector leaders (MSFT r=0.79), (3) Technical breakout detected, (4) Low implied volatility (opportunity)",
+    "human_summary": "BUY AAPL calls because: (1) Strong earnings beat predicted (87% confidence), (2) Positive sentiment surge on social media (+35% mentions, bullish), (3) High correlation with sector (MSFT r=0.79), (4) Unusual call buying (smart money), (5) Technical breakout with momentum, (6) Low implied volatility",
 
     "feature_importance": [
-      {"feature": "mi_impact_prediction", "importance": 0.31, "value": 0.87},
-      {"feature": "correlation_with_sector", "importance": 0.24, "value": 0.79},
-      {"feature": "technical_breakout", "importance": 0.18, "value": 1.0},
-      {"feature": "iv_percentile", "importance": 0.15, "value": 0.23},
-      {"feature": "earnings_surprise", "importance": 0.12, "value": 0.15}
+      {"feature": "mi_impact_prediction", "importance": 0.25, "value": 0.87, "category": "rational"},
+      {"feature": "sentiment_momentum", "importance": 0.22, "value": 0.85, "category": "behavioral", "note": "Social media bullish surge"},
+      {"feature": "correlation_with_sector", "importance": 0.18, "value": 0.79, "category": "rational"},
+      {"feature": "unusual_options_activity", "importance": 0.16, "value": 0.92, "category": "behavioral", "note": "Large call purchases"},
+      {"feature": "technical_breakout", "importance": 0.12, "value": 1.0, "category": "momentum"},
+      {"feature": "iv_percentile", "importance": 0.07, "value": 0.23, "category": "rational"}
     ],
+
+    "behavioral_analysis": {
+      "sentiment_score": 0.85,
+      "sentiment_velocity": 0.42,
+      "sentiment_direction": "bullish",
+      "social_media_mentions": 1247,
+      "mention_change_24h": "+35%",
+      "dominant_emotion": "optimism",
+      "emotion_intensity": "moderate",
+      "retail_sentiment": "bullish",
+      "institutional_flow": "buying",
+      "put_call_ratio": 0.65,
+      "vix_level": 14.2,
+      "contrarian_signal": false,
+      "momentum_strength": "strong",
+      "herd_behavior_detected": true,
+      "sentiment_extreme": false,
+      "fear_greed_index": 72,
+      "animal_spirits_indicator": "positive"
+    },
 
     "model_contributions": {
       "rl_agent": {"action": "BUY", "confidence": 0.84, "weight": 0.4},
       "dnn_predictor": {"action": "BUY", "confidence": 0.79, "weight": 0.3},
-      "gnn_impact": {"action": "BUY", "confidence": 0.83, "weight": 0.3}
+      "gnn_impact": {"action": "BUY", "confidence": 0.83, "weight": 0.3},
+      "sentiment_model": {"action": "BUY", "confidence": 0.88, "weight": 0.2, "note": "Strong bullish sentiment and institutional buying"}
+    },
+
+    "order_flow_analysis": {
+      "volume_surge": true,
+      "volume_vs_avg": 2.3,
+      "institutional_buying": true,
+      "large_block_trades": 17,
+      "dark_pool_activity": "elevated",
+      "retail_order_flow": "net_buying",
+      "smart_money_indicator": "bullish",
+      "note": "Institutional accumulation detected"
     },
 
     "risk_analysis": {

@@ -554,9 +554,41 @@ private:
 
 ### 4.2 Time-Lagged Correlation (Cross-Correlation)
 
+**⚠️ CRITICAL FOR TRADING PROFITABILITY:** Accurately predicting the TIME LAG between cause and effect is the KEY to exploiting market inefficiencies. Knowing WHEN Stock B will react to Stock A's move is more valuable than just knowing they are correlated.
+
+**Profitability from Lag Prediction:**
+```
+Example: NVDA earnings announcement → AMD price reaction
+
+Without Lag Knowledge:
+  - Know NVDA and AMD are correlated (r = 0.85)
+  - Enter AMD position randomly after NVDA news
+  - May miss the move or enter too late
+  - Profit: $0 to $500 (unpredictable)
+
+With Accurate Lag Prediction:
+  - Know NVDA earnings affect AMD with 15-minute lag
+  - NVDA beats earnings at 4:00 PM
+  - Enter AMD calls at 4:01 PM (before crowd reacts)
+  - Exit at 4:20 PM when lag effect complete
+  - Profit: $1,200 (consistent, repeatable)
+
+Lag Accuracy = Profitability Multiplier
+  - 90% lag accuracy: Capture 90% of available move
+  - 50% lag accuracy: Capture 50% of available move
+  - 10% lag accuracy: Random entry, minimal edge
+```
+
+**Lag Prediction Requirements:**
+- Predict lag time with confidence interval (e.g., 15 ± 3 minutes)
+- Track lag variability (sometimes faster, sometimes slower)
+- Identify factors that accelerate/decelerate lag (volume, sentiment, time of day)
+- Provide optimal entry and exit windows
+- Alert when lag window opening (time to trade!)
+
 ```cpp
 // File: src/correlation/cross_correlation.hpp
-// Cross-correlation for lead-lag relationship detection
+// Cross-correlation for lead-lag relationship detection with profitability optimization
 
 #include <complex>
 #include <fftw3.h>  // For FFT-based cross-correlation
@@ -633,6 +665,7 @@ public:
     }
 
     // Find optimal lag (max absolute correlation)
+    // CRITICAL: This identifies WHEN the effect happens (timing for profitable trades)
     auto find_optimal_lag(
         const std::vector<double>& ccf,
         int max_lag
@@ -650,6 +683,46 @@ public:
         }
 
         return {optimal_lag, ccf[optimal_lag + max_lag]};
+    }
+
+    // Predict lag time with confidence interval (CRITICAL FOR TRADING)
+    // Returns: (predicted_lag, lower_bound, upper_bound, confidence)
+    auto predict_lag_with_confidence(
+        std::span<const double> historical_lags,
+        double current_volume_ratio,  // Volume affects lag speed
+        double current_sentiment,  // Extreme sentiment accelerates lag
+        double time_of_day_factor  // Market open/close affects lag
+    ) -> std::tuple<int, int, int, double> {
+
+        // Calculate historical lag distribution
+        auto mean_lag = std::accumulate(historical_lags.begin(), historical_lags.end(), 0.0) / historical_lags.size();
+        auto variance = calculate_variance(historical_lags, mean_lag);
+        auto std_dev = std::sqrt(variance);
+
+        // Adjust lag prediction based on market conditions
+        double lag_adjustment = 1.0;
+
+        // High volume accelerates lag (information propagates faster)
+        if (current_volume_ratio > 2.0) {
+            lag_adjustment *= 0.7;  // 30% faster
+        }
+
+        // Extreme sentiment accelerates lag (panic spreads fast)
+        if (std::abs(current_sentiment) > 0.8) {
+            lag_adjustment *= 0.6;  // 40% faster (fear is contagious)
+        }
+
+        // Market open: slower lag (confusion, uncertainty)
+        // Mid-day: normal lag
+        // Market close: faster lag (urgency)
+        lag_adjustment *= time_of_day_factor;
+
+        auto predicted_lag = static_cast<int>(mean_lag * lag_adjustment);
+        auto lower_bound = static_cast<int>(predicted_lag - std_dev);
+        auto upper_bound = static_cast<int>(predicted_lag + std_dev);
+        auto confidence = 1.0 / (1.0 + variance);  // Lower variance = higher confidence
+
+        return {predicted_lag, lower_bound, upper_bound, confidence};
     }
 
     // Granger causality test
