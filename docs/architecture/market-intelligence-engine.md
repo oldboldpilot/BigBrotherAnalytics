@@ -2328,7 +2328,7 @@ source ~/.bashrc
 # Install complete C++23 toolchain
 brew install gcc@15          # GCC 15 with full C++23
 brew install binutils        # Latest GNU binutils
-brew install cmake           # CMake 3.28+
+brew install cmake           # CMake 4.1.2+
 brew install ninja           # Ninja build system
 brew install open-mpi        # OpenMPI 5.x
 
@@ -2356,7 +2356,7 @@ ansible-playbook playbooks/install-upcxx-berkeley.yml
 # Verify installations
 gcc-15 --version             # GCC 15.x
 ld --version                 # Latest binutils
-cmake --version              # CMake 3.28+
+cmake --version              # CMake 4.1.2+
 mpirun --version             # OpenMPI 5.x
 upcxx --version              # UPC++ 2024.3.0
 ```

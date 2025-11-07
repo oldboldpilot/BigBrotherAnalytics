@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase Complete, Ready for Implementation
 **Author:** Olumuyiwa Oluwasanmi
@@ -1117,72 +1117,116 @@ Implementation: CUDA for parallel scenarios (100K+ paths in milliseconds)
 - **Analytic (Black-Scholes):** When applicable
 - **Automatic Differentiation:** For ML-based pricing
 
-#### Broker Platform Evaluation (Tier 1 POC Focus)
+#### Broker Platform Selection (Tier 1 POC - Real Money)
 
-**CRITICAL:** Choose cost-effective brokers for POC phase. Evaluate based on: API quality, costs, data access, and options support.
+**CRITICAL:** Tier 1 POC uses existing Schwab account with $30k margin. This is REAL MONEY trading - profitability from day one is essential.
 
-**Tier 1 POC Broker Options (Budget-Friendly):**
+**TIER 1 POC BROKER: Charles Schwab**
 
-| Broker | Account Min | Commission | API Access | Options Support | Data Feeds | POC Suitability |
-|--------|-------------|------------|------------|-----------------|------------|-----------------|
-| **Tradier** | $0 | $0 stock, $0.35/contract | ✅ Free API | ✅ Full | ✅ Free real-time | ⭐⭐⭐⭐⭐ BEST |
-| **Interactive Brokers (IBKR)** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ $10-15/mo for options data | ⭐⭐⭐⭐ Good |
-| **TD Ameritrade (thinkorswim)** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ Free real-time | ⭐⭐⭐⭐ Good |
-| **Alpaca** | $0 | $0 stock, N/A options | ✅ Free API | ❌ No options | ✅ Free | ⭐⭐ Stock only |
-| **Robinhood** | $0 | $0 stock, $0 options | ❌ No official API | ⚠️ Limited | ⚠️ Limited | ⭐ Not suitable |
-| **E*TRADE** | $0 | $0 stock, $0.50/contract | ⚠️ Approval needed | ✅ Full | ✅ Free | ⭐⭐⭐ OK |
-| **Schwab** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ Free | ⭐⭐⭐⭐ Good |
+**Account Details:**
+- **Existing Account:** $30,000 margin trading account
+- **Account Type:** Margin account (pattern day trading enabled)
+- **API Access:** Schwab Developer API (already configured)
+- **Commission:** $0 stock, $0.65/contract options
+- **Data Access:** Free real-time market data (Level 1)
+- **Options Support:** Full (all strategies supported)
+- **Existing Integration:** SchwabFirstAPI repository
 
-**RECOMMENDED for Tier 1 POC: Tradier**
+**Schwab API Integration:**
 
-Reasons:
-- **$0 account minimum** (critical for POC)
-- **Free API access** (unlimited paper trading)
-- **Full options support** (all strategies)
-- **Free real-time data** (when account funded)
-- **Developer-friendly** (RESTful API, WebSocket streams)
-- **Options-focused** (designed for active options traders)
-- **Low commissions** ($0.35/contract, very competitive)
-- **Paper trading** (test without real money)
+**📋 Complete Schwab API Integration Guide:** For detailed C++23 implementation design, OAuth 2.0 token management, security implications, and integration patterns, see the **[Schwab API Integration - Implementation Guide](./architecture/schwab-api-integration.md)**.
 
-**Tradier API Features:**
-- REST API for orders, positions, account data
-- WebSocket for real-time quotes and options chains
-- Market data: Real-time quotes, options chains, Greeks
-- Historical data: OHLC, options history
-- Account management: Balances, positions, orders
-- Documentation: Excellent, with code examples
+The Schwab integration document includes:
+- Complete OAuth 2.0 authentication flow with token refresh
+- C++23 module architecture for Schwab API client
+- Secure credential and token storage strategies
+- Rate limiting implementation
+- HTTP client library evaluation (cpr, libcurl, Boost.Beast)
+- JSON parsing with nlohmann/json
+- Thread-safe token management with std::atomic
+- Security best practices for $30k account
+- CMake 4.1.2 build configuration
+- Integration phases and implementation checklist
+- Risk mitigations for real money trading
 
-**Tier 1 POC Setup with Tradier:**
+Reference Repository: https://github.com/oldboldpilot/SchwabFirstAPI
+- Existing options trading intelligence implementation
+- Proven Schwab API connectivity
+- Market data access patterns
+- Options chain retrieval
+- Order execution workflows
+- OAuth patterns and credential management
+- Can reuse/adapt existing code for BigBrotherAnalytics C++23 implementation
+
+**Schwab API Capabilities:**
+- **REST API:** Orders, positions, account data, market data
+- **Streaming API:** Real-time quotes, options chains, Level 1 data
+- **Market Data:** Free real-time with funded account
+- **Options Chains:** Complete chains with all strikes and expirations
+- **Greeks:** Delta, Gamma, Theta, Vega provided by API
+- **Historical Data:** OHLC, options history
+- **Account Management:** Balances, positions, buying power
+- **Order Types:** All standard types (market, limit, stop, etc.)
+
+**Tier 1 POC Risk Management ($30k Account):**
+
+**⚠️ CRITICAL: Daily Profitability Requirements**
+
+With $30k real money at stake, the system MUST be profitable every single day:
+
 ```
-1. Open Tradier Brokerage account (free, no minimum)
-2. Enable API access (free)
-3. Use sandbox for paper trading (unlimited, free)
-4. Test all strategies with fake money
-5. Only fund account when ready for real trading
-   Minimum: $2,000-5,000 for pattern day trading
-           $500-1,000 for casual trading
+Daily Risk Limits (Conservative):
+  - Maximum daily loss: $900 (3% of capital)
+  - Maximum position size: $1,500 (5% of capital)
+  - Maximum positions: 10 concurrent
+  - Stop loss: MANDATORY on every trade
+  - Position size via Kelly Criterion (conservative 50% of full Kelly)
 
-Monthly Cost (Tier 1 POC):
-  Account: $0
-  API access: $0
-  Paper trading: $0 (unlimited)
-  Real-time data: $0 (with funded account)
-  Total: $0 until live trading
+Daily Profitability Goals:
+  - Minimum target: $150/day (0.5% daily return)
+  - Realistic target: $300-600/day (1-2% daily return)
+  - Stretch target: $900+/day (3%+ daily return)
+
+Risk Management Strategy:
+  1. SIMULATE every trade before execution (Monte Carlo)
+  2. Only trade if expected value > $50
+  3. Only trade if probability of profit > 70%
+  4. HARD stop loss at 3% daily loss ($900)
+  5. Close all positions before market close (no overnight risk initially)
+  6. Conservative position sizing (50% Kelly)
+  7. Diversify across 5-10 uncorrelated trades
+  8. Real-time monitoring with automatic stop losses
 ```
 
-**Alternative: Interactive Brokers (IBKR)**
-- More professional, institutional-grade
-- Better for international trading
-- More complex API (steeper learning curve)
-- Small monthly fee for market data ($10-15)
-- Use for Tier 2/3 when scaling
+**Integration with SchwabFirstAPI:**
+```
+BigBrotherAnalytics will integrate with existing SchwabFirstAPI codebase:
+  - Reuse Schwab API connection logic
+  - Adapt market data retrieval patterns
+  - Extend options intelligence with ML predictions
+  - Add Market Intelligence and Correlation Tool signals
+  - Implement trinomial tree valuation
+  - Add explainability layer
+  - Real-time execution via Schwab API
 
-**Tier 2/3 Production Brokers:**
-- Multiple broker accounts for redundancy
-- IBKR for primary execution
-- Tradier for backup/options focus
-- Direct market access (DMA) for lowest latency
+Repository: https://github.com/oldboldpilot/SchwabFirstAPI
+```
+
+**Alternative Brokers (Future Tier 2/3):**
+
+| Broker | Use Case | When to Add |
+|--------|----------|-------------|
+| **Interactive Brokers** | Institutional-grade, international | Tier 2 (>$100K capital) |
+| **Tradier** | Backup/redundancy, options focus | Tier 2 (multi-broker) |
+| **TD Ameritrade** | Options analytics (thinkorswim platform) | Tier 2 (analysis) |
+
+**Tier 1 POC Broker: Charles Schwab (FINAL)**
+- Existing $30k margin account
+- Proven API access via SchwabFirstAPI
+- Free real-time market data
+- Full options support
+- Zero additional setup cost
+- Can begin real trading immediately after validation
 
 ### 5.3 Trading Strategies (Priority Order)
 
@@ -2444,7 +2488,7 @@ print(f"Analyzed 10 years of data in seconds, found {len(result)} correlations")
 
 **CI/CD:**
 - **GitHub Actions:** Automated testing and deployment
-- **CMake 3.28+:** Latest C++23 build system with modern features
+- **CMake 4.1.2+:** Latest C++23 build system with modern features
 - **Compilers (Latest and Greatest):**
   - **GCC 15+** or **Clang 18+** for full C++23 support and latest optimizations
   - **Rust 1.75+** for latest language features
@@ -2513,13 +2557,13 @@ source ~/.bashrc
 # Install latest GCC and binutils
 brew install gcc@15          # GCC 15 with C++23 support
 brew install binutils        # Latest GNU binutils
-brew install cmake           # CMake 3.28+
+brew install cmake           # CMake 4.1.2+
 brew install ninja           # Ninja build system
 
 # Verify installations
 gcc-15 --version             # Should show GCC 15.x
 ld --version                 # Should show latest binutils
-cmake --version              # Should show CMake 3.28+
+cmake --version              # Should show CMake 4.1.2+
 ```
 
 **2. Python 3.14+ with uv (Development Environment Manager)**
@@ -3676,9 +3720,10 @@ Annual Savings: $60,280
 | 0.7.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Complete Platform Architecture: Added Trading Decision Engine.** Created comprehensive architecture design document (3,900+ lines) for Intelligent Trading Decision Engine completing the three-pillar platform. **Key Feature: 100% Explainable AI - NOT a black box.** Every trading decision includes multi-level explanations (SHAP, attention visualization, decision trees, natural language summaries). Added mathematical foundations: Reinforcement Learning (PPO/DQN/A3C), Deep Neural Networks (Transformers/LSTMs), Graph Neural Networks for impact propagation. Documented complete explainability framework with 5 explanation levels from executive summary to full analysis. Added low-cost historical data collection (Yahoo Finance, FRED, SEC EDGAR - all free). Comprehensive charting stack: Lightweight Charts (TradingView-like), Plotly/Dash dashboards, Streamlit prototyping (all free, $0 cost). C++23 ultra-low latency order execution (< 10ms). Shared infrastructure design: all three tools on single 64-core server (cores 0-21: MI, 22-42: Correlation, 43-63: Trading). Portfolio optimization with Markowitz framework and Kelly Criterion. Message format with JSON+zstd compression (consistent across all tools). 4-6 week POC guide with simple rules → XGBoost+SHAP → RL+DNN progression. Total platform documentation: 13,300+ lines across 4 documents (PRD + 3 architecture docs). Zero additional hardware cost - complete platform on single eBay server ($3.9-9.3K). Emphasizes explainability, interpretability, and human understanding of all AI decisions. |
 | 0.8.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Systems Integration & Complete Platform Workflows.** Created comprehensive Systems Integration Architecture document (5,500+ lines) showing how all three tools work together. **Key Features: Causal chain tracking (Fed decision → rates → bank stocks), correlation chain prediction (NVDA ↑ → AMD follows with lag), sector-level analysis (track entire business sectors).** Added complete usage scenarios for budgets from $1K to $1M+ with detailed workflows. Self-simulation framework: simulate all trades before execution, only trade when profitable (Monte Carlo 1,000-10,000 scenarios). Profit explanation framework: analyze why trades were profitable with attribution analysis. Mistake analysis & learning loop: classify mistakes, identify patterns, update models, validate improvements. Daily operation workflow: pre-market → execution → monitoring → analysis → learning. Budget-driven strategy selection: automatic allocation based on capital size. Tier 1/2/3 deployment specifications with Tier 1 focus (existing computer, $0 cost). Complete hardware/software architecture diagrams. Integration communication patterns showing loose coupling. Weekly learning cycle with backtest validation. Total documentation: 18,830+ lines across 5 documents (PRD + 4 architecture docs). Platform is self-improving, self-explaining, and budget-aware. All integration patterns preserve explainability and enable continuous learning from both successes and mistakes. |
 | 0.9.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Berkeley PGAS Components & Validation Framework.** Added complete UPC++ and Berkeley Distributed Components installation via Ansible playbook (based on ClusterSetupAndConfigs repository). Installs GASNet-EX 2024.5.0, UPC++ 2024.3.0, Berkeley UPC, and OpenSHMEM with automated configuration. Created playbooks/install-upcxx-berkeley.yml with verification and testing. Added playbooks/README.md documenting all playbooks and PGAS installation. Updated PRD and all architecture documents with Berkeley components references and ClusterSetupAndConfigs links. **Added comprehensive backtesting & validation framework** to systems integration: 7-level validation (unit tests → integration → historical backtest → walk-forward → Monte Carlo → paper trading → limited live). DuckDB-based backtesting processes 10 years of data in seconds. Walk-forward validation prevents overfitting. Complete validation checklist with must-pass criteria (Sharpe > 1.5, win rate > 55%, max DD < 20%). Only deploy real money after ALL validation levels pass. Emphasizes rigorous testing before production. References ClusterSetupAndConfigs repo for complete cluster management and PGAS deployment details. Total documentation: 19,400+ lines (added 570 lines of validation/PGAS content). |
-| 1.0.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **PLANNING PHASE COMPLETE - All-in-One Installation.** Created comprehensive Ansible playbook (complete-tier1-setup.yml, 500+ lines) that installs ENTIRE Tier 1 environment in one command. Single playbook installs: Homebrew, GCC 15 (C++23), Python 3.14+, uv package manager, CMake 3.28+, Ninja, OpenMP, OpenMPI 5.x, UPC++ 2024.3.0, GASNet-EX 2024.5.0, Intel MKL, NVIDIA CUDA 12.3 (auto-detects GPU), PostgreSQL 16 with TimescaleDB/AGE/pgvector extensions, Redis, DuckDB, PyTorch with CUDA, Hugging Face Transformers, Stable-Baselines3, XGBoost, SHAP, spaCy, all data collection tools (yfinance, FRED API, Scrapy, Playwright), visualization tools (Plotly, Streamlit, Dash), monitoring (Prometheus, Sentry), complete environment configuration, verification script, and QUICKSTART.md guide. Installation time: 2-4 hours. Cost: $0 (100% open-source). **PLANNING PHASE COMPLETE:** All documentation (20,000+ lines), all architecture documents (5 docs), all Ansible playbooks (3 playbooks), complete technology stack specified, ready for Tier 1 POC implementation. Platform status: Design complete, implementation ready, zero initial investment required. |
+| 1.0.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **PLANNING PHASE COMPLETE - All-in-One Installation.** Created comprehensive Ansible playbook (complete-tier1-setup.yml, 500+ lines) that installs ENTIRE Tier 1 environment in one command. Single playbook installs: Homebrew, GCC 15 (C++23), Python 3.14+, uv package manager, CMake 4.1.2+, Ninja, OpenMP, OpenMPI 5.x, UPC++ 2024.3.0, GASNet-EX 2024.5.0, Intel MKL, NVIDIA CUDA 12.3 (auto-detects GPU), PostgreSQL 16 with TimescaleDB/AGE/pgvector extensions, Redis, DuckDB, PyTorch with CUDA, Hugging Face Transformers, Stable-Baselines3, XGBoost, SHAP, spaCy, all data collection tools (yfinance, FRED API, Scrapy, Playwright), visualization tools (Plotly, Streamlit, Dash), monitoring (Prometheus, Sentry), complete environment configuration, verification script, and QUICKSTART.md guide. Installation time: 2-4 hours. Cost: $0 (100% open-source). **PLANNING PHASE COMPLETE:** All documentation (20,000+ lines), all architecture documents (5 docs), all Ansible playbooks (3 playbooks), complete technology stack specified, ready for Tier 1 POC implementation. Platform status: Design complete, implementation ready, zero initial investment required. |
 | 1.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Final Updates: CUDA 13.0, uv Standardization, Uninstall Capability.** Updated all playbooks and documentation to use latest NVIDIA CUDA Toolkit 13.0 (was 12.3). Standardized ALL Python package management to use uv (NOT pip) throughout playbooks and documentation - emphasizes 10-100x speed improvement. Fixed complete-tier1-setup.yml for cross-platform compatibility (Ubuntu, RHEL, WSL2) with OS-specific package names, paths, and service management. Added systemd detection for WSL compatibility (graceful fallback to manual service start). Created uninstall-tier1.yml playbook (200+ lines) for clean removal with data backup, optional Homebrew/data preservation. Added idempotency documentation - playbook safe to re-run, won't duplicate installations. Updated playbooks/README.md with uninstall instructions, idempotency notes, and current technology versions. Updated PRD Section 9.6.1.3 with CUDA 13.0 references and uv emphasis. Clarified installation strategy: Homebrew for toolchain (GCC, Python, CMake, MPI), uv for ALL Python packages, system package managers only for OS-specific components (PostgreSQL, Redis). Complete platform ready for one-command installation on Ubuntu, RHEL, or WSL2 with ability to cleanly uninstall. |
 | 1.2.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Trading Instruments, Options Valuation, and Broker Selection.** Added comprehensive Section 5.2.4 to PRD specifying ALL supported trading instruments: stock order types (market, limit, stop, trailing stop, GTC, FOK, IOC), stock trade types (long, short, pairs, basket, DCA), money market instruments (MMF, T-Bills, commercial paper for cash management), and complete options strategies (basic calls/puts, vertical spreads, calendar spreads, diagonal spreads, straddles, strangles, iron condors, butterflies, delta-neutral, gamma scalping, theta harvesting, ratio spreads, synthetics). **Added complete options valuation methods with C++23 implementations:** Trinomial tree model (PRIMARY for American options) with full mathematical foundation, OpenMP parallelization, early exercise logic. Black-Scholes model (SECONDARY for European short-term <30 days) with analytic Greeks formulas using Intel MKL. Model selection logic (automatic choice based on option type and expiry). Parallel portfolio pricing with OpenMP. **Added Tier 1 POC broker evaluation:** Comprehensive comparison of 7 brokers (Tradier, IBKR, TD Ameritrade, Alpaca, Robinhood, E*TRADE, Schwab) with account minimums, commissions, API access, options support, and suitability ratings. **RECOMMENDED Tradier for POC:** $0 minimum, free API, full options support, free real-time data, $0.35/contract, unlimited paper trading. Complete Tradier setup guide for Tier 1 POC. Added to Trading Decision Engine architecture (Section 14b): Complete C++23 trinomial tree implementation (500+ lines), Black-Scholes with MKL integration, automatic model selection, portfolio-level parallel pricing. Mathematical formulas included for both methods. Platform now has complete options trading capability specification ready for implementation. Total new content: 700+ lines across PRD and architecture doc. |
+| 1.3.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Schwab API Integration & CMake 4.1.2 Update.** Created comprehensive Schwab API Integration architecture document (schwab-api-integration.md, 500+ lines) documenting C++23 implementation design for existing $30k Schwab account. **Updated broker from Tradier to Schwab** for Tier 1 POC due to existing account and SchwabFirstAPI integration. Added complete OAuth 2.0 authentication flow with token refresh strategies (proactive/reactive/hybrid). Documented secure credential storage options (environment variables, encrypted config, system keyring, HSM). C++23 module design for schwab.api.client with std::jthread for background token refresh, std::atomic for thread-safe tokens. Rate limiting with token bucket algorithm. HTTP client library evaluation (cpr RECOMMENDED). Complete data structures for options chains, orders, positions. Security implications for $30k real money documented. Implementation phases: OAuth → Market Data → Trading → Integration (4 weeks). **Updated ALL CMake references from 3.28 to 4.1.2** across all documentation and playbooks (better C++23 modules support). Updated playbooks/complete-tier1-setup.yml comments and README.md. Schwab integration references SchwabFirstAPI repository for OAuth patterns and credential management. Emphasizes this is DESIGN DOCUMENTATION (no code implemented yet). Added link to Schwab integration guide in PRD Section 5.2.4. Platform ready for C++23 Schwab API implementation with rigorous security and risk management for real money trading. Total documentation: 22,200+ lines (added 800+ lines). |
 
 ---
 

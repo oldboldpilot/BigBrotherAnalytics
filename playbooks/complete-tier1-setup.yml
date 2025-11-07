@@ -6,7 +6,7 @@
 #   - Homebrew (package manager)
 #   - GCC 15 with C++23 support
 #   - Python 3.14+ with uv environment manager
-#   - CMake 3.28+, Ninja build system
+#   - CMake 4.1.2+, Ninja build system
 #   - OpenMP, OpenMPI 5.x
 #   - UPC++ 2024.3.0 and GASNet-EX (PGAS)
 #   - Intel MKL (Math Kernel Library)
@@ -195,7 +195,7 @@
         name:
           - gcc@{{ gcc_version }}     # GCC 15 with C++23
           - binutils                   # Latest GNU binutils
-          - cmake                      # CMake 3.28+
+          - cmake                      # CMake 4.1.2+
           - ninja                      # Ninja build system
           - make                       # GNU Make
           - autoconf                   # Autotools
@@ -918,7 +918,7 @@
 
           ### Compilers & Build Tools
           - GCC {{ gcc_version }} with C++23 support
-          - CMake 3.28+, Ninja build system
+          - CMake 4.1.2+, Ninja build system
           - Latest GNU binutils
 
           ### Parallel Computing

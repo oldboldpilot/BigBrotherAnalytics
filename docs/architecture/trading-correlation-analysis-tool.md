@@ -2758,7 +2758,7 @@ trading-correlation-tool/
 
 ```cmake
 # File: CMakeLists.txt
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 4.1.2)
 project(TradingCorrelationTool VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 # C++23 standard

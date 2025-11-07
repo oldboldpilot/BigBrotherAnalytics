@@ -13,7 +13,7 @@ This directory contains Ansible playbooks for automated deployment and configura
 
 **Compilers & Build Tools:**
 - GCC 15 with full C++23 support
-- CMake 3.28+, Ninja build system
+- CMake 4.1.2+, Ninja build system
 - Latest GNU binutils
 - Autotools (autoconf, automake, libtool)
 

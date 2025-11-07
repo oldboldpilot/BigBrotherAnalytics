@@ -2397,33 +2397,624 @@ class ExplainableImpactGNN(nn.Module):
 
 ---
 
-## 13. Quick Proof-of-Concept Guide
+## 13. Tier 1 POC Implementation Guide
 
-### 13.1 POC Timeline (4-6 Weeks, $0 Cost)
+### 13.1 POC Overview - REAL MONEY with Schwab ($30k Account)
+
+**⚠️ CRITICAL DIFFERENCE FROM TYPICAL POC:**
+
+This is NOT paper trading - this is REAL MONEY ($30,000 Schwab margin account).
+- **Daily profitability is ESSENTIAL**
+- **Risk management is MANDATORY**
+- **Extensive backtesting BEFORE any live trade**
+- **C++23 core implementation** (not Python prototypes)
+- **Production-quality code from day one**
+
+**POC Strategy:**
+1. Build C++23 core engine with options valuation
+2. Backtest rigorously on 10 years of data
+3. Validate with walk-forward analysis
+4. Simulate extensively (100K+ scenarios)
+5. Deploy with conservative risk limits
+6. Target $150-300/day profit (0.5-1% daily)
+
+### 13.2 POC Timeline (8-12 Weeks, Real Money at Stake)
 
 ```mermaid
 gantt
-    title Trading Decision Engine POC Timeline
+    title Trading Decision Engine POC - Real Money ($30k Schwab)
     dateFormat  YYYY-MM-DD
-    section Data Collection
-    Free historical data           :2025-11-07, 3d
-    Data cleaning & storage        :3d
-    section Simple Models
-    Basic buy/sell signals         :5d
-    Simple decision rules          :3d
-    section ML Models
-    Train simple RL agent          :7d
-    Train DNN predictor            :5d
-    section Explainability
-    Implement SHAP                 :4d
-    Add human summaries            :3d
-    section Visualization
-    Setup Plotly dashboard         :4d
-    Add real-time charts           :3d
-    section Validation
-    Backtest strategies            :7d
-    Measure performance            :3d
+    section Infrastructure (Week 1-2)
+    Install Tier 1 environment     :2025-11-07, 3d
+    Schwab API integration         :4d
+    C++23 core engine setup        :4d
+    section Options Valuation (Week 3-4)
+    Trinomial tree C++23           :5d
+    Black-Scholes C++23            :3d
+    Greeks calculation             :3d
+    Portfolio pricer               :3d
+    section Backtesting (Week 5-7)
+    Collect 10 years data          :2d
+    Implement backtest engine      :7d
+    Walk-forward validation        :7d
+    Optimize parameters            :7d
+    section Simulation (Week 8-9)
+    Monte Carlo simulator          :5d
+    Risk management engine         :5d
+    Daily profit validation        :5d
+    section Integration (Week 10-11)
+    MI + Correlation signals       :7d
+    ML ensemble (RL+DNN+GNN)       :7d
+    Explainability layer           :4d
+    section Live Deployment (Week 12+)
+    Small position testing         :7d
+    Scale to full strategy         :ongoing
 ```
+
+### 13.3 POC Phase 1: C++23 Core Engine (Weeks 1-4)
+
+**Focus: Build production-quality C++23 core, NOT Python prototypes**
+
+```cpp
+// File: src/poc/core_engine.cpp
+// C++23 core trading engine for Schwab POC
+// Using C++23 modules for clean architecture
+
+module;
+
+#include <expected>
+#include <vector>
+#include <string>
+
+export module trading.poc.core;
+
+import trading.valuation.trinomial;
+import trading.valuation.blackscholes;
+import trading.execution.schwab_api;
+import trading.risk.manager;
+
+export namespace trading::poc {
+
+class CoreTradingEngine {
+private:
+    SchwabAPIClient schwab_;
+    TrinomialTreePricer trinomial_pricer_;
+    BlackScholesPricer bs_pricer_;
+    RiskManager risk_manager_;
+
+public:
+    CoreTradingEngine(const std::string& schwab_api_key)
+        : schwab_(schwab_api_key),
+          risk_manager_(30000.0)  // $30k account
+    {
+        // Initialize with strict risk limits
+        risk_manager_.set_max_daily_loss(900.0);      // $900 max loss
+        risk_manager_.set_max_position_size(1500.0);   // $1500 max position
+    }
+
+    // Main trading loop (called each market day)
+    auto run_daily_trading() -> std::expected<DailyResults, Error> {
+
+        // 1. Get signals from Market Intelligence and Correlation tools
+        auto signals = fetch_signals_from_tools();
+
+        // 2. For each signal, evaluate options
+        std::vector<TradeOpportunity> opportunities;
+
+        for (const auto& signal : signals) {
+            // Get options chain from Schwab
+            auto options_chain = schwab_.get_options_chain(signal.symbol);
+
+            // Price all viable options using trinomial tree
+            for (const auto& option : options_chain) {
+                auto price = trinomial_pricer_.price_option(option.params);
+                auto greeks = trinomial_pricer_.calculate_greeks(option.params);
+
+                if (is_mispriced(price.value(), option.market_price, greeks.value())) {
+                    opportunities.push_back({
+                        .option = option,
+                        .fair_value = price.value(),
+                        .market_price = option.market_price,
+                        .greeks = greeks.value(),
+                        .signal = signal
+                    });
+                }
+            }
+        }
+
+        // 3. Simulate all opportunities before executing
+        auto validated_trades = simulate_and_validate(opportunities);
+
+        // 4. Execute only if profitable
+        DailyResults results;
+        for (const auto& trade : validated_trades) {
+            if (trade.expected_pnl > 50.0 &&  // Min $50 expected profit
+                trade.prob_profit > 0.70) {    // Min 70% probability
+
+                // Final risk check
+                auto risk_check = risk_manager_.check_trade_risk(trade);
+
+                if (risk_check.approved) {
+                    // Execute via Schwab API
+                    auto order = schwab_.submit_order(trade);
+                    results.executed_trades.push_back(order);
+                }
+            }
+        }
+
+        return results;
+    }
+
+private:
+    auto simulate_and_validate(const std::vector<TradeOpportunity>& opportunities)
+        -> std::vector<ValidatedTrade> {
+
+        // Monte Carlo simulation (10,000 scenarios)
+        // Only approve trades with positive expected value
+        // ...
+    }
+};
+
+} // module trading.poc.core
+```
+
+**CMake Configuration for C++23 Modules:**
+
+```cmake
+# File: CMakeLists.txt
+cmake_minimum_required(VERSION 4.1.2)
+project(BigBrotherAnalytics_POC VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable C++23 modules
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
+# Compiler flags
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    add_compile_options(
+        -fmodules-ts          # Enable modules
+        -std=c++23
+        -O3
+        -march=native
+        -fopenmp              # OpenMP for parallel pricing
+    )
+endif()
+
+# Find required libraries
+find_package(MPI REQUIRED)
+find_package(OpenMP REQUIRED)
+find_package(MKL REQUIRED)
+find_package(CUDAToolkit 13.0 REQUIRED)
+find_package(PostgreSQL REQUIRED)
+find_package(CURL REQUIRED)
+
+# Source files (with modules)
+add_executable(trading_poc
+    src/poc/core_engine.cpp
+    src/poc/main.cpp
+    src/valuation/trinomial_tree.cpp
+    src/valuation/black_scholes.cpp
+    src/execution/schwab_api.cpp
+    src/risk/risk_manager.cpp
+)
+
+target_link_libraries(trading_poc
+    PRIVATE
+        OpenMP::OpenMP_CXX
+        MKL::MKL
+        CUDA::cublas
+        CUDA::cudart
+        CURL::libcurl
+        PostgreSQL::PostgreSQL
+)
+
+# C++23 module interface files
+target_sources(trading_poc
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            src/modules/trading.valuation.trinomial.cppm
+            src/modules/trading.valuation.blackscholes.cppm
+            src/modules/trading.execution.schwab_api.cppm
+            src/modules/trading.risk.manager.cppm
+            src/modules/trading.poc.core.cppm
+)
+```
+
+### 13.4 POC Phase 2: Rigorous Backtesting (Weeks 5-7)
+
+**⚠️ MANDATORY BEFORE LIVE TRADING WITH $30K:**
+
+```cpp
+// File: src/poc/backtest_validator.cpp
+// Rigorous backtesting before deploying real money
+
+#include <duckdb.hpp>
+#include <expected>
+
+export module trading.poc.backtest;
+
+import trading.poc.core;
+
+export namespace trading::poc {
+
+class BacktestValidator {
+public:
+    auto validate_strategy_comprehensive() -> std::expected<ValidationResults, Error> {
+
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+        std::cout << "CRITICAL: Validating with $30k real money at stake\n";
+        std::cout << "═══════════════════════════════════════════════════════════\n\n";
+
+        // Level 1: Historical backtest (10 years)
+        auto backtest = run_historical_backtest("2014-01-01", "2024-12-31");
+
+        if (!backtest.has_value()) {
+            return std::unexpected(backtest.error());
+        }
+
+        std::cout << "Level 1: Historical Backtest (10 years)\n";
+        std::cout << "  Sharpe Ratio: " << backtest->sharpe_ratio << "\n";
+        std::cout << "  Win Rate: " << backtest->win_rate << "\n";
+        std::cout << "  Max Drawdown: " << backtest->max_drawdown << "\n";
+
+        // MUST PASS criteria
+        if (backtest->sharpe_ratio < 1.5 ||
+            backtest->win_rate < 0.55 ||
+            backtest->max_drawdown < -0.20) {
+
+            std::cout << "\n✗ VALIDATION FAILED - DO NOT TRADE WITH REAL MONEY\n";
+            std::cout << "  Improve algorithms before deploying $30k\n";
+
+            return std::unexpected(Error::ValidationFailed);
+        }
+
+        std::cout << "  ✓ Historical backtest PASSED\n\n";
+
+        // Level 2: Walk-forward validation
+        auto walk_forward = run_walk_forward_validation(12, 3);  // 12mo train, 3mo test
+
+        std::cout << "Level 2: Walk-Forward Validation\n";
+        std::cout << "  Consistency Rate: " << walk_forward->consistency_rate << "\n";
+
+        if (walk_forward->consistency_rate < 0.70) {
+            std::cout << "\n✗ VALIDATION FAILED - Strategy not consistent\n";
+            return std::unexpected(Error::InconsistentStrategy);
+        }
+
+        std::cout << "  ✓ Walk-forward validation PASSED\n\n";
+
+        // Level 3: Monte Carlo stress testing
+        auto monte_carlo = run_monte_carlo_stress_test(100000);  // 100K scenarios
+
+        std::cout << "Level 3: Monte Carlo Stress Test (100K scenarios)\n";
+        std::cout << "  Prob(Daily Profit): " << monte_carlo->prob_daily_profit << "\n";
+        std::cout << "  Worst Case (1%): $" << monte_carlo->worst_case_1pct << "\n";
+
+        if (monte_carlo->prob_daily_profit < 0.65) {
+            std::cout << "\n✗ VALIDATION FAILED - Daily profit probability too low\n";
+            return std::unexpected(Error::LowWinProbability);
+        }
+
+        std::cout << "  ✓ Monte Carlo stress test PASSED\n\n";
+
+        // Level 4: Daily profitability check
+        auto daily_sim = simulate_daily_trading(30);  // Simulate 30 days
+
+        std::cout << "Level 4: Daily Trading Simulation (30 days)\n";
+        std::cout << "  Profitable Days: " << daily_sim->profitable_days << " of 30\n";
+        std::cout << "  Avg Daily P&L: $" << daily_sim->avg_daily_pnl << "\n";
+
+        if (daily_sim->profitable_days < 20) {  // Must be profitable 2/3 of days
+            std::cout << "\n✗ VALIDATION FAILED - Not profitable enough daily\n";
+            return std::unexpected(Error::InsufficientDailyProfitability);
+        }
+
+        std::cout << "  ✓ Daily profitability simulation PASSED\n\n";
+
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+        std::cout << "✓ ALL VALIDATION LEVELS PASSED\n";
+        std::cout << "  Strategy validated for $30k real money trading\n";
+        std::cout << "  Expected daily profit: $" << daily_sim->avg_daily_pnl << "\n";
+        std::cout << "  Ready to deploy with Schwab account\n";
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+
+        return ValidationResults{
+            .backtest = *backtest,
+            .walk_forward = *walk_forward,
+            .monte_carlo = *monte_carlo,
+            .daily_simulation = *daily_sim,
+            .approved = true
+        };
+    }
+
+private:
+    // Implement validation methods using DuckDB for fast queries
+    // ...
+};
+
+} // module trading.poc.backtest
+```
+
+### 13.5 POC Phase 3: Schwab API Integration (Weeks 8-9)
+
+**Integration with existing SchwabFirstAPI repository:**
+
+```cpp
+// File: src/execution/schwab_api_client.cpp
+// Schwab API integration based on SchwabFirstAPI patterns
+
+export module trading.execution.schwab_api;
+
+import <string>;
+import <expected>;
+import <curl/curl.h>;
+import <nlohmann/json.hpp>;
+
+export namespace trading::execution {
+
+class SchwabAPIClient {
+private:
+    std::string api_key_;
+    std::string api_secret_;
+    std::string access_token_;
+    std::string account_number_;
+
+public:
+    SchwabAPIClient(
+        const std::string& api_key,
+        const std::string& api_secret,
+        const std::string& account_number
+    ) : api_key_(api_key),
+        api_secret_(api_secret),
+        account_number_(account_number)
+    {
+        // OAuth authentication (reuse patterns from SchwabFirstAPI)
+        authenticate();
+    }
+
+    // Get options chain (adapted from SchwabFirstAPI)
+    auto get_options_chain(const std::string& symbol)
+        -> std::expected<OptionsChain, Error> {
+
+        // Schwab API endpoint
+        std::string url = "https://api.schwabapi.com/marketdata/v1/chains";
+        url += "?symbol=" + symbol;
+        url += "&contractType=ALL";
+        url += "&includeQuotes=TRUE";
+
+        auto response = make_authenticated_request(url);
+
+        if (!response.has_value()) {
+            return std::unexpected(response.error());
+        }
+
+        // Parse JSON response
+        auto chain = parse_options_chain(response.value());
+
+        return chain;
+    }
+
+    // Submit order (use patterns from SchwabFirstAPI)
+    auto submit_options_order(
+        const std::string& symbol,
+        const std::string& option_symbol,
+        int quantity,
+        double limit_price,
+        const std::string& side  // "BUY_TO_OPEN", "SELL_TO_CLOSE"
+    ) -> std::expected<OrderConfirmation, Error> {
+
+        nlohmann::json order_spec{
+            {"orderType", "LIMIT"},
+            {"session", "NORMAL"},
+            {"duration", "DAY"},
+            {"orderStrategyType", "SINGLE"},
+            {"price", limit_price},
+            {"orderLegCollection", nlohmann::json::array({
+                {
+                    {"instruction", side},
+                    {"quantity", quantity},
+                    {"instrument", {
+                        {"symbol", option_symbol},
+                        {"assetType", "OPTION"}
+                    }}
+                }
+            })}
+        };
+
+        // Submit to Schwab
+        std::string url = "https://api.schwabapi.com/trader/v1/accounts/"
+                         + account_number_ + "/orders";
+
+        auto response = make_authenticated_post(url, order_spec.dump());
+
+        if (!response.has_value()) {
+            return std::unexpected(response.error());
+        }
+
+        return parse_order_confirmation(response.value());
+    }
+
+    // Get account details (positions, buying power)
+    auto get_account_details() -> std::expected<AccountInfo, Error> {
+
+        std::string url = "https://api.schwabapi.com/trader/v1/accounts/" + account_number_;
+
+        auto response = make_authenticated_request(url);
+
+        if (!response.has_value()) {
+            return std::unexpected(response.error());
+        }
+
+        return parse_account_info(response.value());
+    }
+
+private:
+    // OAuth flow (adapt from SchwabFirstAPI)
+    void authenticate() {
+        // Implement Schwab OAuth 2.0 flow
+        // Based on existing SchwabFirstAPI implementation
+        // ...
+    }
+
+    auto make_authenticated_request(const std::string& url)
+        -> std::expected<std::string, Error> {
+
+        // CURL request with OAuth token
+        // ...
+    }
+};
+
+} // module trading.execution.schwab_api
+```
+
+### 13.6 POC Phase 4: Daily Profitability Validation (Weeks 10-12)
+
+**Before deploying $30k, validate daily profitability:**
+
+```cpp
+// File: src/poc/daily_profit_validator.cpp
+// Ensure daily profitability before risking real money
+
+export module trading.poc.daily_validator;
+
+export namespace trading::poc {
+
+class DailyProfitValidator {
+public:
+    auto validate_daily_profitability(int num_days = 30)
+        -> std::expected<DailyValidation, Error> {
+
+        std::cout << "Simulating " << num_days << " days of trading...\n";
+        std::cout << "Account: $30,000\n";
+        std::cout << "Daily profit target: $150-300\n\n";
+
+        std::vector<DailyResult> daily_results;
+        double cumulative_pnl = 0.0;
+
+        for (int day = 0; day < num_days; ++day) {
+            // Simulate full day of trading
+            auto day_result = simulate_single_day(30000.0 + cumulative_pnl);
+
+            daily_results.push_back(day_result);
+            cumulative_pnl += day_result.pnl;
+
+            std::cout << "Day " << (day + 1) << ": "
+                      << (day_result.pnl > 0 ? "+" : "")
+                      << "$" << day_result.pnl
+                      << " (Cumulative: $" << cumulative_pnl << ")\n";
+        }
+
+        // Analyze results
+        int profitable_days = std::count_if(
+            daily_results.begin(),
+            daily_results.end(),
+            [](const auto& r) { return r.pnl > 0; }
+        );
+
+        double avg_daily_pnl = cumulative_pnl / num_days;
+        double win_rate = static_cast<double>(profitable_days) / num_days;
+
+        std::cout << "\n";
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+        std::cout << "DAILY PROFITABILITY VALIDATION\n";
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+        std::cout << "Profitable Days: " << profitable_days << " of " << num_days
+                  << " (" << (win_rate * 100) << "%)\n";
+        std::cout << "Avg Daily P&L: $" << avg_daily_pnl << "\n";
+        std::cout << "Total P&L: $" << cumulative_pnl << "\n";
+        std::cout << "Daily Return: " << (avg_daily_pnl / 30000.0 * 100) << "%\n";
+
+        // MUST achieve 60%+ profitable days
+        if (win_rate < 0.60) {
+            std::cout << "\n✗ FAILED: Not profitable enough for $30k real money\n";
+            std::cout << "  Need 60%+ profitable days, got " << (win_rate * 100) << "%\n";
+            std::cout << "  DO NOT DEPLOY WITH REAL MONEY\n";
+            std::cout << "═══════════════════════════════════════════════════════════\n";
+
+            return std::unexpected(Error::InsufficientDailyProfitability);
+        }
+
+        // MUST average $150+/day
+        if (avg_daily_pnl < 150.0) {
+            std::cout << "\n✗ FAILED: Daily profit too low for $30k account\n";
+            std::cout << "  Need $150+/day average, got $" << avg_daily_pnl << "\n";
+            std::cout << "  DO NOT DEPLOY WITH REAL MONEY\n";
+            std::cout << "═══════════════════════════════════════════════════════════\n";
+
+            return std::unexpected(Error::ProfitTargetNotMet);
+        }
+
+        std::cout << "\n✓ VALIDATION PASSED - Ready for $30k deployment\n";
+        std::cout << "  Daily win rate: " << (win_rate * 100) << "%\n";
+        std::cout << "  Expected daily profit: $" << avg_daily_pnl << "\n";
+        std::cout << "  Risk: Well-managed with stop losses\n";
+        std::cout << "═══════════════════════════════════════════════════════════\n";
+
+        return DailyValidation{
+            .profitable_days = profitable_days,
+            .total_days = num_days,
+            .win_rate = win_rate,
+            .avg_daily_pnl = avg_daily_pnl,
+            .total_pnl = cumulative_pnl,
+            .approved = true
+        };
+    }
+};
+
+} // module trading.poc.daily_validator
+```
+
+### 13.7 POC Success Criteria (REAL MONEY - Higher Bar)
+
+**Before deploying $30k Schwab account:**
+
+✅ **MANDATORY Validation Criteria:**
+- [ ] Historical backtest: Sharpe > 2.0 (higher than typical 1.5)
+- [ ] Win rate: > 60% (higher than typical 55%)
+- [ ] Max drawdown: < 15% (tighter than typical 20%)
+- [ ] Walk-forward: > 75% consistency (higher than typical 70%)
+- [ ] Daily profitability: > 60% of days profitable
+- [ ] Average daily profit: > $150/day (0.5% of $30k)
+- [ ] Monte Carlo: Prob(daily profit) > 65%
+- [ ] Risk management: All stop losses working correctly
+- [ ] Explainability: Every trade fully explained
+- [ ] Schwab API: All order types working
+- [ ] Real-time monitoring: Functional
+- [ ] Emergency stop: Can halt all trading instantly
+
+**Only deploy with $30k after ALL criteria met with margin of safety!**
+
+### 13.8 POC Technology Stack (C++23 Core)
+
+**Core Implementation (C++23 with Modules):**
+- Valuation engine: C++23 (trinomial tree, Black-Scholes)
+- Risk management: C++23 (microsecond latency)
+- Order execution: C++23 (Schwab API integration)
+- Portfolio tracking: C++23 with OpenMP
+- Backtesting: C++23 with DuckDB C++ API
+
+**ML/AI (PyTorch + CUDA):**
+- RL agents: PyTorch C++ API (libtorch)
+- DNN models: PyTorch with CUDA 13.0
+- GNN: PyTorch Geometric
+- Training: Python, inference: C++ via libtorch
+
+**Math Libraries:**
+- Intel MKL: All BLAS, LAPACK, FFT, statistics
+- CUDA: cuBLAS for matrix operations
+- OpenMP: Parallel pricing
+
+**Build System:**
+- CMake 4.1.2+ with C++23 modules support
+- GCC 15 with -fmodules-ts
+- Ninja for fast builds
+
+**NOT a Python prototype - production C++23 from day one!**
+
+---
 
 ### 13.2 POC Phase 1: Simple Decision Logic (Week 1)
 
@@ -3884,7 +4475,7 @@ Explainability:
 
 ```cmake
 # File: CMakeLists.txt
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 4.1.2)
 project(IntelligentTradingDecisionEngine VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
