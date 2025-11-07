@@ -2331,13 +2331,34 @@ brew install binutils        # Latest GNU binutils
 brew install cmake           # CMake 3.28+
 brew install ninja           # Ninja build system
 brew install open-mpi        # OpenMPI 5.x
-brew install upcxx           # UPC++ for PGAS
+
+# UPC++ and Berkeley Distributed Components (PGAS)
+# RECOMMENDED: Use Ansible playbook for complete installation
+# See: BigBrotherAnalytics/playbooks/install-upcxx-berkeley.yml
+
+# Option 1: Quick install via Homebrew
+brew install upcxx           # Basic UPC++ installation
+
+# Option 2: Complete Berkeley PGAS stack (GASNet-EX + UPC++ + BUPC)
+# For production deployment and cluster configurations:
+# See: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+# Complete guide: ClusterSetupAndConfigs/DEPLOYMENT_GUIDE.md
+#
+# Installs:
+#   - GASNet-EX 2024.5.0 (high-performance communication)
+#   - UPC++ 2024.3.0 (PGAS programming model)
+#   - Berkeley UPC (optional, legacy support)
+#   - OpenSHMEM 1.5.2 (optional)
+
+# Automated installation:
+ansible-playbook playbooks/install-upcxx-berkeley.yml
 
 # Verify installations
 gcc-15 --version             # GCC 15.x
 ld --version                 # Latest binutils
 cmake --version              # CMake 3.28+
 mpirun --version             # OpenMPI 5.x
+upcxx --version              # UPC++ 2024.3.0
 ```
 
 #### 7.6.3 Python 3.14+ with uv (Fast Package Manager)

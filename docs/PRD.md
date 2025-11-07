@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 0.8.0
+**Version:** 0.9.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
 **Author:** Olumuyiwa Oluwasanmi
@@ -2355,8 +2355,48 @@ int main(int argc, char** argv) {
 mpic++ -std=c++23 test_mpi.cpp -o test_mpi
 mpirun -np 4 ./test_mpi
 
-# Install UPC++ (Unified Parallel C++)
-brew install upcxx           # Or build from source
+# Install UPC++ and Berkeley Distributed Components (PGAS)
+# RECOMMENDED: Use Ansible playbook for automated installation
+# See: playbooks/install-upcxx-berkeley.yml
+
+# Quick install via Homebrew (simpler)
+brew install upcxx           # Basic UPC++ installation
+
+# OR: Complete Berkeley components installation (GASNet-EX + UPC++ + BUPC)
+# For full PGAS stack, see: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+# Complete installation guide in ClusterSetupAndConfigs/DEPLOYMENT_GUIDE.md
+
+# Automated installation with Ansible:
+ansible-playbook playbooks/install-upcxx-berkeley.yml
+
+# This installs:
+#   - GASNet-EX 2024.5.0 (communication layer)
+#   - UPC++ 2024.3.0 (PGAS programming model)
+#   - Berkeley UPC (optional, for legacy code)
+#   - OpenSHMEM 1.5.2 (optional)
+# All configured for MPI conduit and optimized for performance
+
+# Manual installation (if not using Ansible):
+# Download and install GASNet-EX
+wget https://gasnet.lbl.gov/download/GASNet-2024.5.0.tar.gz
+tar xzf GASNet-2024.5.0.tar.gz
+cd GASNet-2024.5.0
+./configure --prefix=/opt/berkeley/gasnet --enable-mpi --enable-par \
+    CC=$(brew --prefix)/bin/gcc CXX=$(brew --prefix)/bin/g++
+make -j $(nproc) && make install
+
+# Download and install UPC++
+wget https://bitbucket.org/berkeleylab/upcxx/downloads/upcxx-2024.3.0.tar.gz
+tar xzf upcxx-2024.3.0.tar.gz
+cd upcxx-2024.3.0
+./install /opt/berkeley/upcxx --with-gasnet=/opt/berkeley/gasnet
+
+# Set environment variables
+export UPCXX_INSTALL=/opt/berkeley/upcxx
+export PATH=/opt/berkeley/upcxx/bin:$PATH
+export LD_LIBRARY_PATH=/opt/berkeley/upcxx/lib:$LD_LIBRARY_PATH
+
+# Verify installation
 upcxx --version
 
 # Test UPC++
@@ -2370,6 +2410,9 @@ int main() {
 }' > test_upcxx.cpp
 upcxx -std=c++23 test_upcxx.cpp -o test_upcxx
 upcxx-run -n 4 ./test_upcxx
+
+# For complete cluster setup and advanced configurations:
+# See: https://github.com/oldboldpilot/ClusterSetupAndConfigs
 ```
 
 **4. CUDA and PyTorch**
@@ -2502,9 +2545,13 @@ ansible --version
           - cmake
           - ninja
           - open-mpi
-          - upcxx
         state: latest
       become_user: "{{ ansible_user_id }}"
+
+    - name: Install UPC++ and Berkeley Distributed Components (PGAS)
+      include_tasks: ../playbooks/install-upcxx-berkeley.yml
+      # Installs: GASNet-EX, UPC++, Berkeley UPC
+      # See: https://github.com/oldboldpilot/ClusterSetupAndConfigs for details
 
     - name: Install uv (Python package manager)
       shell: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -3367,6 +3414,7 @@ Annual Savings: $60,280
 | 0.6.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Major Addition: Complete Architecture Documents for Both Core Tools.** Created comprehensive architecture design documents for Market Intelligence Engine and Trading Correlation Analysis Tool with 6,000+ lines of technical specifications. Added Tier 1 deployment stack with Homebrew (GCC 15+), uv (Python 3.14+), Ansible automation, OpenShift/Kubernetes support. Documented C++23/MPI/OpenMP/UPC++ implementations with fluent composable APIs. Added CUDA/cuBLAS/Intel MKL acceleration strategies. Created eBay hardware procurement guide for 64-128 core enterprise servers ($3-9K vs $20-40K new, 80-90% savings). Documented shared infrastructure design (both tools on same server, $3.5-9.7K total vs $7-19K separate). Added loose coupling architecture with API-only communication. Created 2-4 week POC guides using Python/DuckDB/CUDA before C++23 production implementation. Includes 20+ Mermaid diagrams, OpenAPI 3.0 specs, complete database schemas, and ready-to-execute code examples. Emphasizes consistent toolset across tools for maintainability. Total documentation: Market Intelligence (1,900 lines), Correlation Tool (3,300 lines). |
 | 0.7.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Complete Platform Architecture: Added Trading Decision Engine.** Created comprehensive architecture design document (3,900+ lines) for Intelligent Trading Decision Engine completing the three-pillar platform. **Key Feature: 100% Explainable AI - NOT a black box.** Every trading decision includes multi-level explanations (SHAP, attention visualization, decision trees, natural language summaries). Added mathematical foundations: Reinforcement Learning (PPO/DQN/A3C), Deep Neural Networks (Transformers/LSTMs), Graph Neural Networks for impact propagation. Documented complete explainability framework with 5 explanation levels from executive summary to full analysis. Added low-cost historical data collection (Yahoo Finance, FRED, SEC EDGAR - all free). Comprehensive charting stack: Lightweight Charts (TradingView-like), Plotly/Dash dashboards, Streamlit prototyping (all free, $0 cost). C++23 ultra-low latency order execution (< 10ms). Shared infrastructure design: all three tools on single 64-core server (cores 0-21: MI, 22-42: Correlation, 43-63: Trading). Portfolio optimization with Markowitz framework and Kelly Criterion. Message format with JSON+zstd compression (consistent across all tools). 4-6 week POC guide with simple rules → XGBoost+SHAP → RL+DNN progression. Total platform documentation: 13,300+ lines across 4 documents (PRD + 3 architecture docs). Zero additional hardware cost - complete platform on single eBay server ($3.9-9.3K). Emphasizes explainability, interpretability, and human understanding of all AI decisions. |
 | 0.8.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Systems Integration & Complete Platform Workflows.** Created comprehensive Systems Integration Architecture document (5,500+ lines) showing how all three tools work together. **Key Features: Causal chain tracking (Fed decision → rates → bank stocks), correlation chain prediction (NVDA ↑ → AMD follows with lag), sector-level analysis (track entire business sectors).** Added complete usage scenarios for budgets from $1K to $1M+ with detailed workflows. Self-simulation framework: simulate all trades before execution, only trade when profitable (Monte Carlo 1,000-10,000 scenarios). Profit explanation framework: analyze why trades were profitable with attribution analysis. Mistake analysis & learning loop: classify mistakes, identify patterns, update models, validate improvements. Daily operation workflow: pre-market → execution → monitoring → analysis → learning. Budget-driven strategy selection: automatic allocation based on capital size. Tier 1/2/3 deployment specifications with Tier 1 focus (existing computer, $0 cost). Complete hardware/software architecture diagrams. Integration communication patterns showing loose coupling. Weekly learning cycle with backtest validation. Total documentation: 18,830+ lines across 5 documents (PRD + 4 architecture docs). Platform is self-improving, self-explaining, and budget-aware. All integration patterns preserve explainability and enable continuous learning from both successes and mistakes. |
+| 0.9.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Berkeley PGAS Components & Validation Framework.** Added complete UPC++ and Berkeley Distributed Components installation via Ansible playbook (based on ClusterSetupAndConfigs repository). Installs GASNet-EX 2024.5.0, UPC++ 2024.3.0, Berkeley UPC, and OpenSHMEM with automated configuration. Created playbooks/install-upcxx-berkeley.yml with verification and testing. Added playbooks/README.md documenting all playbooks and PGAS installation. Updated PRD and all architecture documents with Berkeley components references and ClusterSetupAndConfigs links. **Added comprehensive backtesting & validation framework** to systems integration: 7-level validation (unit tests → integration → historical backtest → walk-forward → Monte Carlo → paper trading → limited live). DuckDB-based backtesting processes 10 years of data in seconds. Walk-forward validation prevents overfitting. Complete validation checklist with must-pass criteria (Sharpe > 1.5, win rate > 55%, max DD < 20%). Only deploy real money after ALL validation levels pass. Emphasizes rigorous testing before production. References ClusterSetupAndConfigs repo for complete cluster management and PGAS deployment details. Total documentation: 19,400+ lines (added 570 lines of validation/PGAS content). |
 
 ---
 

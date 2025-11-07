@@ -1,0 +1,295 @@
+---
+# BigBrotherAnalytics - UPC++ and Berkeley Distributed Components Installation
+# Based on: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+#
+# This playbook installs:
+# - GASNet-EX 2024.5.0
+# - UPC++ 2024.3.0
+# - Berkeley UPC (BUPC)
+# - OpenSHMEM 1.5.2
+#
+# For complete details, see: https://github.com/oldboldpilot/ClusterSetupAndConfigs/blob/main/DEPLOYMENT_GUIDE.md
+
+- name: Install UPC++ and Berkeley Distributed Components
+  hosts: all
+  become: yes
+  vars:
+    gasnet_version: "2024.5.0"
+    upcxx_version: "2024.3.0"
+    openshmem_version: "1.5.2"
+    install_prefix: "/opt/berkeley"
+    homebrew_prefix: "/home/linuxbrew/.linuxbrew"
+    num_build_jobs: 16
+
+  tasks:
+    - name: Ensure Homebrew is installed
+      stat:
+        path: "{{ homebrew_prefix }}/bin/brew"
+      register: homebrew_check
+
+    - name: Install Homebrew if not present
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      become_user: "{{ ansible_user_id }}"
+      when: not homebrew_check.stat.exists
+
+    - name: Install build dependencies via Homebrew
+      homebrew:
+        name:
+          - gcc@15
+          - binutils
+          - open-mpi
+          - python@3.14
+        state: latest
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Create Berkeley components installation directory
+      file:
+        path: "{{ install_prefix }}"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: '0755'
+
+    # GASNet-EX Installation (Communication layer for UPC++)
+    - name: Download GASNet-EX {{ gasnet_version }}
+      get_url:
+        url: "https://gasnet.lbl.gov/download/GASNet-{{ gasnet_version }}.tar.gz"
+        dest: "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Extract GASNet-EX
+      unarchive:
+        src: "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Configure GASNet-EX with MPI conduit
+      shell: |
+        cd /tmp/GASNet-{{ gasnet_version }}
+        ./configure \
+          --prefix={{ install_prefix }}/gasnet \
+          --enable-mpi \
+          --enable-par \
+          --enable-pshm \
+          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
+          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++ \
+          CC={{ homebrew_prefix }}/bin/gcc \
+          CXX={{ homebrew_prefix }}/bin/g++
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: "/tmp/GASNet-{{ gasnet_version }}/Makefile"
+
+    - name: Build and install GASNet-EX
+      shell: |
+        cd /tmp/GASNet-{{ gasnet_version }}
+        make -j {{ num_build_jobs }}
+        make install
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: "{{ install_prefix }}/gasnet/bin/gasnetrun_mpi"
+
+    # UPC++ Installation
+    - name: Download UPC++ {{ upcxx_version }}
+      get_url:
+        url: "https://bitbucket.org/berkeleylab/upcxx/downloads/upcxx-{{ upcxx_version }}.tar.gz"
+        dest: "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Extract UPC++
+      unarchive:
+        src: "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Install UPC++
+      shell: |
+        cd /tmp/upcxx-{{ upcxx_version }}
+        ./install {{ install_prefix }}/upcxx \
+          --with-gasnet={{ install_prefix }}/gasnet \
+          --with-cc={{ homebrew_prefix }}/bin/gcc \
+          --with-cxx={{ homebrew_prefix }}/bin/g++ \
+          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
+          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: "{{ install_prefix }}/upcxx/bin/upcxx"
+
+    # Berkeley UPC Installation (Optional - for legacy code)
+    - name: Download Berkeley UPC
+      get_url:
+        url: "https://upc.lbl.gov/download/release/berkeley_upc-2023.12.0.tar.gz"
+        dest: "/tmp/berkeley_upc-2023.12.0.tar.gz"
+      become_user: "{{ ansible_user_id }}"
+      when: install_berkeley_upc | default(false)
+
+    - name: Extract Berkeley UPC
+      unarchive:
+        src: "/tmp/berkeley_upc-2023.12.0.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ ansible_user_id }}"
+      when: install_berkeley_upc | default(false)
+
+    - name: Configure and install Berkeley UPC
+      shell: |
+        cd /tmp/berkeley_upc-2023.12.0
+        ./configure \
+          --prefix={{ install_prefix }}/bupc \
+          --with-gasnet={{ install_prefix }}/gasnet \
+          --with-multiconf=mpi \
+          CC={{ homebrew_prefix }}/bin/gcc \
+          CXX={{ homebrew_prefix }}/bin/g++
+        make -j {{ num_build_jobs }}
+        make install
+      become_user: "{{ ansible_user_id }}"
+      args:
+        creates: "{{ install_prefix }}/bupc/bin/upcc"
+      when: install_berkeley_upc | default(false)
+
+    # OpenSHMEM Installation (Optional)
+    - name: Install OpenSHMEM via Homebrew
+      homebrew:
+        name: oshmem
+        state: latest
+      become_user: "{{ ansible_user_id }}"
+      when: install_openshmem | default(false)
+
+    # Environment Configuration
+    - name: Create Berkeley components environment file
+      copy:
+        dest: /etc/profile.d/berkeley_components.sh
+        content: |
+          # Berkeley Distributed Components Environment
+          # Installed via: https://github.com/oldboldpilot/BigBrotherAnalytics
+
+          export BERKELEY_PREFIX={{ install_prefix }}
+          export GASNET_HOME={{ install_prefix }}/gasnet
+          export UPCXX_INSTALL={{ install_prefix }}/upcxx
+
+          # Add to PATH
+          export PATH={{ install_prefix }}/upcxx/bin:{{ install_prefix }}/gasnet/bin:$PATH
+
+          # Library paths
+          export LD_LIBRARY_PATH={{ install_prefix }}/upcxx/lib:{{ install_prefix }}/gasnet/lib:$LD_LIBRARY_PATH
+
+          # UPC++ specific
+          export UPCXX_GASNET_CONDUIT=mpi
+          export UPCXX_NETWORK=mpi
+
+          # Homebrew tools
+          export CC={{ homebrew_prefix }}/bin/gcc
+          export CXX={{ homebrew_prefix }}/bin/g++
+          export FC={{ homebrew_prefix }}/bin/gfortran
+        mode: '0644'
+
+    # Verification
+    - name: Verify GASNet-EX installation
+      shell: |
+        source /etc/profile.d/berkeley_components.sh
+        gasnetrun_mpi --version
+      register: gasnet_version_output
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Verify UPC++ installation
+      shell: |
+        source /etc/profile.d/berkeley_components.sh
+        upcxx --version
+      register: upcxx_version_output
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Display installation verification
+      debug:
+        msg: |
+          GASNet-EX: {{ gasnet_version_output.stdout }}
+          UPC++: {{ upcxx_version_output.stdout }}
+
+    # Test UPC++ with simple program
+    - name: Create UPC++ test program
+      copy:
+        dest: /tmp/test_upcxx.cpp
+        content: |
+          #include <upcxx/upcxx.hpp>
+          #include <iostream>
+
+          int main() {
+              upcxx::init();
+              std::cout << "Hello from UPC++ rank " << upcxx::rank_me()
+                        << " of " << upcxx::rank_n() << std::endl;
+              upcxx::finalize();
+              return 0;
+          }
+        mode: '0644'
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Compile UPC++ test program
+      shell: |
+        source /etc/profile.d/berkeley_components.sh
+        {{ install_prefix }}/upcxx/bin/upcxx -std=c++23 /tmp/test_upcxx.cpp -o /tmp/test_upcxx
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Run UPC++ test program
+      shell: |
+        source /etc/profile.d/berkeley_components.sh
+        {{ install_prefix }}/upcxx/bin/upcxx-run -n 4 /tmp/test_upcxx
+      register: upcxx_test_output
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Display UPC++ test results
+      debug:
+        msg: |
+          UPC++ Test Output:
+          {{ upcxx_test_output.stdout }}
+
+    # Cleanup
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
+        - "/tmp/GASNet-{{ gasnet_version }}"
+        - "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
+        - "/tmp/upcxx-{{ upcxx_version }}"
+        - /tmp/test_upcxx.cpp
+        - /tmp/test_upcxx
+      when: cleanup_temp_files | default(true)
+
+    - name: Installation complete message
+      debug:
+        msg: |
+          ═══════════════════════════════════════════════════════════
+          Berkeley Distributed Components Installation Complete!
+          ═══════════════════════════════════════════════════════════
+
+          Installed Components:
+            ✓ GASNet-EX {{ gasnet_version }} → {{ install_prefix }}/gasnet
+            ✓ UPC++ {{ upcxx_version }} → {{ install_prefix }}/upcxx
+
+          Environment configured in: /etc/profile.d/berkeley_components.sh
+
+          Usage:
+            source /etc/profile.d/berkeley_components.sh
+            upcxx -std=c++23 myprogram.cpp -o myprogram
+            upcxx-run -n 4 ./myprogram
+
+          Reference:
+            Complete details: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+
+          Next Steps:
+            1. Source environment: source /etc/profile.d/berkeley_components.sh
+            2. Compile BigBrotherAnalytics C++ components
+            3. Run with: upcxx-run -n <ranks> ./program
+
+          ═══════════════════════════════════════════════════════════
+
+# Usage:
+# ansible-playbook playbooks/install-upcxx-berkeley.yml
+#
+# With options:
+# ansible-playbook playbooks/install-upcxx-berkeley.yml \
+#   -e "install_berkeley_upc=true" \
+#   -e "install_openshmem=true" \
+#   -e "num_build_jobs=32"
