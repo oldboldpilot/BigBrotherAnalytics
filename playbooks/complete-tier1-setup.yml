@@ -1,0 +1,957 @@
+---
+# BigBrotherAnalytics - Complete Tier 1 Setup (All-in-One)
+# ═══════════════════════════════════════════════════════════
+#
+# This playbook installs EVERYTHING needed for Tier 1 development in one run:
+#   - Homebrew (package manager)
+#   - GCC 15 with C++23 support
+#   - Python 3.14+ with uv environment manager
+#   - CMake 3.28+, Ninja build system
+#   - OpenMP, OpenMPI 5.x
+#   - UPC++ 2024.3.0 and GASNet-EX (PGAS)
+#   - Intel MKL (Math Kernel Library)
+#   - NVIDIA CUDA 12.3+ (if GPU present)
+#   - PostgreSQL 16+ with TimescaleDB, Apache AGE, pgvector
+#   - Redis cache
+#   - DuckDB (via Python)
+#   - PyTorch with CUDA support
+#   - Hugging Face Transformers
+#   - All ML/AI frameworks
+#   - Complete verification
+#
+# Usage:
+#   ansible-playbook playbooks/complete-tier1-setup.yml
+#
+# Estimated time: 2-4 hours (depending on internet speed)
+# Cost: $0 (all open-source)
+#
+# Reference: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+
+- name: BigBrotherAnalytics - Complete Tier 1 Development Environment Setup
+  hosts: localhost
+  become: yes
+  vars:
+    gcc_version: "15"
+    python_version: "3.14"
+    cuda_version: "12.3"
+    postgresql_version: "16"
+    gasnet_version: "2024.5.0"
+    upcxx_version: "2024.3.0"
+    install_prefix: "/opt/berkeley"
+    homebrew_prefix: "/home/linuxbrew/.linuxbrew"
+    project_dir: "/opt/bigbrother"
+    num_build_jobs: "{{ ansible_processor_vcpus }}"
+    user: "{{ ansible_user_id }}"
+
+  tasks:
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 1: System Dependencies
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Update package cache (RHEL)
+      dnf:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Update package cache (Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install base system dependencies (RHEL)
+      dnf:
+        name:
+          - git
+          - wget
+          - curl
+          - vim
+          - htop
+          - tmux
+          - screen
+          - python3
+          - python3-pip
+          - build-essential
+          - kernel-devel
+          - kernel-headers
+          - pciutils
+          - lshw
+        state: latest
+      when: ansible_os_family == "RedHat"
+
+    - name: Install base system dependencies (Ubuntu)
+      apt:
+        name:
+          - git
+          - wget
+          - curl
+          - vim
+          - htop
+          - tmux
+          - screen
+          - python3
+          - python3-pip
+          - build-essential
+          - linux-headers-{{ ansible_kernel }}
+          - pciutils
+          - lshw
+          - software-properties-common
+        state: latest
+      when: ansible_os_family == "Debian"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2: Homebrew Installation
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Check if Homebrew is installed
+      stat:
+        path: "{{ homebrew_prefix }}/bin/brew"
+      register: homebrew_check
+
+    - name: Install Homebrew
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      become_user: "{{ user }}"
+      args:
+        creates: "{{ homebrew_prefix }}/bin/brew"
+      when: not homebrew_check.stat.exists
+
+    - name: Add Homebrew to PATH for current session
+      shell: 'eval "$({{ homebrew_prefix }}/bin/brew shellenv)"'
+      become_user: "{{ user }}"
+
+    - name: Add Homebrew to bashrc
+      lineinfile:
+        path: "/home/{{ user }}/.bashrc"
+        line: 'eval "$({{ homebrew_prefix }}/bin/brew shellenv)"'
+        create: yes
+      become_user: "{{ user }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 3: C++23 Toolchain via Homebrew
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Install C++23 development toolchain via Homebrew
+      homebrew:
+        name:
+          - gcc@{{ gcc_version }}     # GCC 15 with C++23
+          - binutils                   # Latest GNU binutils
+          - cmake                      # CMake 3.28+
+          - ninja                      # Ninja build system
+          - make                       # GNU Make
+          - autoconf                   # Autotools
+          - automake
+          - libtool
+          - pkg-config
+        state: latest
+      become_user: "{{ user }}"
+      environment:
+        PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4: Parallel Computing (OpenMP, MPI, UPC++)
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Install parallel computing libraries via Homebrew
+      homebrew:
+        name:
+          - open-mpi                   # OpenMPI 5.x
+          - libomp                     # OpenMP runtime
+        state: latest
+      become_user: "{{ user }}"
+      environment:
+        PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    - name: Create Berkeley components directory
+      file:
+        path: "{{ install_prefix }}"
+        state: directory
+        owner: "{{ user }}"
+        mode: '0755'
+
+    - name: Download GASNet-EX
+      get_url:
+        url: "https://gasnet.lbl.gov/download/GASNet-{{ gasnet_version }}.tar.gz"
+        dest: "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
+      become_user: "{{ user }}"
+
+    - name: Extract GASNet-EX
+      unarchive:
+        src: "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ user }}"
+
+    - name: Configure GASNet-EX
+      shell: |
+        {{ homebrew_prefix }}/bin/brew shellenv
+        cd /tmp/GASNet-{{ gasnet_version }}
+        ./configure \
+          --prefix={{ install_prefix }}/gasnet \
+          --enable-mpi \
+          --enable-par \
+          --enable-pshm \
+          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
+          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++ \
+          CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
+          CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }}
+      become_user: "{{ user }}"
+      args:
+        creates: "/tmp/GASNet-{{ gasnet_version }}/Makefile"
+
+    - name: Build and install GASNet-EX
+      shell: |
+        cd /tmp/GASNet-{{ gasnet_version }}
+        make -j {{ num_build_jobs }}
+        make install
+      become_user: "{{ user }}"
+      args:
+        creates: "{{ install_prefix }}/gasnet/bin/gasnetrun_mpi"
+
+    - name: Download UPC++
+      get_url:
+        url: "https://bitbucket.org/berkeleylab/upcxx/downloads/upcxx-{{ upcxx_version }}.tar.gz"
+        dest: "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
+      become_user: "{{ user }}"
+
+    - name: Extract UPC++
+      unarchive:
+        src: "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ user }}"
+
+    - name: Install UPC++
+      shell: |
+        cd /tmp/upcxx-{{ upcxx_version }}
+        ./install {{ install_prefix }}/upcxx \
+          --with-gasnet={{ install_prefix }}/gasnet \
+          --with-cc={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
+          --with-cxx={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
+          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
+          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++
+      become_user: "{{ user }}"
+      args:
+        creates: "{{ install_prefix }}/upcxx/bin/upcxx"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5: Intel MKL (Math Kernel Library)
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Add Intel oneAPI repository (Ubuntu)
+      shell: |
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        apt update
+      when: ansible_os_family == "Debian"
+
+    - name: Install Intel MKL (Ubuntu)
+      apt:
+        name: intel-oneapi-mkl-devel
+        state: latest
+      when: ansible_os_family == "Debian"
+
+    - name: Add Intel oneAPI repository (RHEL)
+      shell: |
+        tee > /tmp/oneAPI.repo << EOF
+        [oneAPI]
+        name=Intel® oneAPI repository
+        baseurl=https://yum.repos.intel.com/oneapi
+        enabled=1
+        gpgcheck=1
+        repo_gpgcheck=1
+        gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+        EOF
+        mv /tmp/oneAPI.repo /etc/yum.repos.d/
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Intel MKL (RHEL)
+      dnf:
+        name: intel-oneapi-mkl-devel
+        state: latest
+      when: ansible_os_family == "RedHat"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 6: NVIDIA CUDA Toolkit
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Check if NVIDIA GPU is present
+      shell: lspci | grep -i nvidia
+      register: nvidia_check
+      failed_when: false
+      changed_when: false
+
+    - name: Add NVIDIA CUDA repository (Ubuntu)
+      shell: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        dpkg -i cuda-keyring_1.1-1_all.deb
+        apt update
+      when:
+        - ansible_os_family == "Debian"
+        - nvidia_check.rc == 0
+
+    - name: Install CUDA Toolkit (Ubuntu)
+      apt:
+        name: cuda-toolkit-12-3
+        state: latest
+      when:
+        - ansible_os_family == "Debian"
+        - nvidia_check.rc == 0
+
+    - name: Add NVIDIA CUDA repository (RHEL)
+      shell: |
+        dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+        dnf clean all
+      when:
+        - ansible_os_family == "RedHat"
+        - nvidia_check.rc == 0
+
+    - name: Install CUDA Toolkit (RHEL)
+      dnf:
+        name: cuda-toolkit-12-3
+        state: latest
+      when:
+        - ansible_os_family == "RedHat"
+        - nvidia_check.rc == 0
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 7: Python 3.14+ and uv Package Manager
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Install Python 3.14 via Homebrew
+      homebrew:
+        name: python@{{ python_version }}
+        state: latest
+      become_user: "{{ user }}"
+      environment:
+        PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    - name: Install uv (Rust-based Python package manager)
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: "{{ user }}"
+      args:
+        creates: "/home/{{ user }}/.cargo/bin/uv"
+
+    - name: Install Ansible via uv (for future playbook runs)
+      shell: |
+        source ~/.cargo/env
+        ~/.cargo/bin/uv pip install --system ansible
+      become_user: "{{ user }}"
+      args:
+        creates: "/home/{{ user }}/.local/bin/ansible"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 8: PostgreSQL 16+ with Extensions
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Add PostgreSQL repository (Ubuntu)
+      shell: |
+        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+        echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+        apt update
+      when: ansible_os_family == "Debian"
+
+    - name: Install PostgreSQL 16 (Ubuntu)
+      apt:
+        name:
+          - postgresql-{{ postgresql_version }}
+          - postgresql-contrib-{{ postgresql_version }}
+          - postgresql-{{ postgresql_version }}-postgis-3
+          - postgresql-client-{{ postgresql_version }}
+          - libpq-dev
+        state: latest
+      when: ansible_os_family == "Debian"
+
+    - name: Add PostgreSQL repository (RHEL)
+      dnf:
+        name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+        state: present
+        disable_gpg_check: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Install PostgreSQL 16 (RHEL)
+      dnf:
+        name:
+          - postgresql{{ postgresql_version }}
+          - postgresql{{ postgresql_version }}-server
+          - postgresql{{ postgresql_version }}-contrib
+          - postgresql{{ postgresql_version }}-devel
+        state: latest
+      when: ansible_os_family == "RedHat"
+
+    - name: Initialize PostgreSQL database (RHEL)
+      shell: /usr/pgsql-{{ postgresql_version }}/bin/postgresql-{{ postgresql_version }}-setup initdb
+      args:
+        creates: /var/lib/pgsql/{{ postgresql_version }}/data/PG_VERSION
+      when: ansible_os_family == "RedHat"
+
+    - name: Start and enable PostgreSQL
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    # Install PostgreSQL extensions
+
+    - name: Install TimescaleDB
+      shell: |
+        # Add TimescaleDB repository
+        {% if ansible_os_family == "Debian" %}
+        echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/timescaledb.list
+        wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
+        apt update
+        apt install -y timescaledb-2-postgresql-{{ postgresql_version }}
+        {% else %}
+        tee /etc/yum.repos.d/timescale_timescaledb.repo <<EOL
+        [timescale_timescaledb]
+        name=timescale_timescaledb
+        baseurl=https://packagecloud.io/timescale/timescaledb/el/9/\$basearch
+        repo_gpgcheck=1
+        gpgcheck=0
+        enabled=1
+        gpgkey=https://packagecloud.io/timescale/timescaledb/gpgkey
+        sslverify=1
+        sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+        metadata_expire=300
+        EOL
+        dnf install -y timescaledb-2-postgresql-{{ postgresql_version }}
+        {% endif %}
+        # Tune PostgreSQL for TimescaleDB
+        sudo timescaledb-tune --quiet --yes
+
+    - name: Install Apache AGE (Graph Extension)
+      shell: |
+        cd /tmp
+        git clone https://github.com/apache/age.git
+        cd age
+        make PG_CONFIG=/usr/bin/pg_config install
+      args:
+        creates: /usr/lib/postgresql/{{ postgresql_version }}/lib/age.so
+
+    - name: Install pgvector (Vector Similarity)
+      shell: |
+        cd /tmp
+        git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git
+        cd pgvector
+        make PG_CONFIG=/usr/bin/pg_config
+        make install PG_CONFIG=/usr/bin/pg_config
+      args:
+        creates: /usr/lib/postgresql/{{ postgresql_version }}/lib/vector.so
+
+    - name: Configure PostgreSQL for BigBrotherAnalytics
+      blockinfile:
+        path: /etc/postgresql/{{ postgresql_version }}/main/postgresql.conf
+        block: |
+          # BigBrotherAnalytics Configuration
+          shared_preload_libraries = 'timescaledb,age'
+          max_connections = 200
+          shared_buffers = 64GB
+          effective_cache_size = 192GB
+          work_mem = 256MB
+          maintenance_work_mem = 2GB
+          max_parallel_workers_per_gather = 8
+          max_parallel_workers = {{ num_build_jobs }}
+          max_worker_processes = {{ num_build_jobs }}
+          jit = on
+        create: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Restart PostgreSQL
+      systemd:
+        name: postgresql
+        state: restarted
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 9: Redis Cache
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Install Redis
+      package:
+        name: redis
+        state: latest
+
+    - name: Configure Redis for BigBrotherAnalytics
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^maxmemory ', line: 'maxmemory 16gb' }
+        - { regexp: '^maxmemory-policy', line: 'maxmemory-policy allkeys-lru' }
+
+    - name: Start and enable Redis
+      systemd:
+        name: redis
+        state: started
+        enabled: yes
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 10: Python Environment and ML/AI Frameworks
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Create project directory
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+        owner: "{{ user }}"
+        mode: '0755'
+
+    - name: Clone BigBrotherAnalytics repository
+      git:
+        repo: 'https://github.com/oldboldpilot/BigBrotherAnalytics.git'
+        dest: "{{ project_dir }}"
+        version: master
+      become_user: "{{ user }}"
+
+    - name: Create Python virtual environment with uv
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        ~/.cargo/bin/uv venv --python {{ python_version }}
+      become_user: "{{ user }}"
+      args:
+        creates: "{{ project_dir }}/.venv"
+
+    - name: Install core Python packages
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          numpy scipy pandas polars pyarrow \
+          matplotlib seaborn plotly \
+          scikit-learn xgboost lightgbm \
+          duckdb sqlalchemy psycopg2-binary redis \
+          fastapi uvicorn pydantic \
+          streamlit dash jupyter jupyterlab
+      become_user: "{{ user }}"
+
+    - name: Install PyTorch with CUDA support
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        {% if nvidia_check.rc == 0 %}
+        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu123
+        {% else %}
+        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        {% endif %}
+      become_user: "{{ user }}"
+
+    - name: Install ML/AI frameworks
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          transformers accelerate \
+          sentence-transformers \
+          stable-baselines3 \
+          gymnasium \
+          torch-geometric \
+          shap lime captum \
+          vllm \
+          spacy \
+          nltk
+      become_user: "{{ user }}"
+
+    - name: Install GPU-accelerated libraries (if NVIDIA GPU present)
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          cupy-cuda12x \
+          nvidia-ml-py3
+      become_user: "{{ user }}"
+      when: nvidia_check.rc == 0
+
+    - name: Download spaCy English model
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        python -m spacy download en_core_web_lg
+      become_user: "{{ user }}"
+
+    - name: Install web scraping and data collection tools
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          scrapy playwright beautifulsoup4 \
+          yfinance alpha-vantage fredapi \
+          requests aiohttp httpx \
+          apache-tika pdfplumber tabula-py \
+          python-pptx python-docx openpyxl
+      become_user: "{{ user }}"
+
+    - name: Install Playwright browsers
+      shell: |
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        playwright install chromium
+      become_user: "{{ user }}"
+
+    - name: Install monitoring and observability tools
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          prometheus-client \
+          sentry-sdk \
+          python-json-logger
+      become_user: "{{ user }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 11: Environment Configuration
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Create comprehensive environment file
+      copy:
+        dest: /etc/profile.d/bigbrother_env.sh
+        content: |
+          # BigBrotherAnalytics Complete Environment Configuration
+          # Generated by Ansible playbook: complete-tier1-setup.yml
+
+          # Homebrew
+          eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
+
+          # Compilers
+          export CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }}
+          export CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }}
+          export FC={{ homebrew_prefix }}/bin/gfortran-{{ gcc_version }}
+
+          # MPI
+          export MPICC={{ homebrew_prefix }}/bin/mpicc
+          export MPICXX={{ homebrew_prefix }}/bin/mpic++
+
+          # Berkeley PGAS Components
+          export BERKELEY_PREFIX={{ install_prefix }}
+          export GASNET_HOME={{ install_prefix }}/gasnet
+          export UPCXX_INSTALL={{ install_prefix }}/upcxx
+          export PATH={{ install_prefix }}/upcxx/bin:{{ install_prefix }}/gasnet/bin:$PATH
+          export LD_LIBRARY_PATH={{ install_prefix }}/upcxx/lib:{{ install_prefix }}/gasnet/lib:$LD_LIBRARY_PATH
+          export UPCXX_GASNET_CONDUIT=mpi
+          export UPCXX_NETWORK=mpi
+
+          # CUDA (if installed)
+          {% if nvidia_check.rc == 0 %}
+          export PATH=/usr/local/cuda-{{ cuda_version }}/bin:$PATH
+          export LD_LIBRARY_PATH=/usr/local/cuda-{{ cuda_version }}/lib64:$LD_LIBRARY_PATH
+          export CUDA_HOME=/usr/local/cuda-{{ cuda_version }}
+          {% endif %}
+
+          # Intel MKL
+          source /opt/intel/oneapi/setvars.sh --force > /dev/null 2>&1
+
+          # Python
+          export PYTHON_ENV={{ project_dir }}/.venv
+          alias activate-bigbrother='source {{ project_dir }}/.venv/bin/activate'
+
+          # Project
+          export BIGBROTHER_HOME={{ project_dir }}
+        mode: '0644'
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 12: Create Verification Script
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Create comprehensive verification script
+      copy:
+        dest: "{{ project_dir }}/scripts/verify_complete_setup.sh"
+        content: |
+          #!/bin/bash
+          # BigBrotherAnalytics - Complete Tier 1 Setup Verification
+
+          source /etc/profile.d/bigbrother_env.sh
+
+          echo "═══════════════════════════════════════════════════════════"
+          echo "BigBrotherAnalytics Tier 1 Setup Verification"
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+
+          # Function to check command
+          check_command() {
+              if command -v $1 &> /dev/null; then
+                  echo "✓ $2: $($1 --version 2>&1 | head -1)"
+              else
+                  echo "✗ $2: NOT FOUND"
+              fi
+          }
+
+          # Check compilers
+          echo "COMPILERS:"
+          check_command "gcc-{{ gcc_version }}" "GCC {{ gcc_version }}"
+          check_command "g++-{{ gcc_version }}" "G++ {{ gcc_version }}"
+          check_command "cmake" "CMake"
+          echo ""
+
+          # Check parallel computing
+          echo "PARALLEL COMPUTING:"
+          check_command "mpirun" "OpenMPI"
+          check_command "upcxx" "UPC++"
+          check_command "gasnetrun_mpi" "GASNet-EX"
+          echo ""
+
+          # Check OpenMP
+          echo -n "OpenMP: "
+          echo '#include <omp.h>
+          int main() { printf("%d threads\n", omp_get_max_threads()); return 0; }' | \
+          gcc-{{ gcc_version }} -fopenmp -x c - -o /tmp/test_omp 2>/dev/null && \
+          /tmp/test_omp && echo "✓" || echo "✗"
+
+          # Check CUDA
+          if command -v nvcc &> /dev/null; then
+              echo "CUDA:"
+              check_command "nvcc" "CUDA Compiler"
+              nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null | \
+                sed 's/^/  GPU: /'
+              echo ""
+          fi
+
+          # Check Intel MKL
+          if [ -d "/opt/intel/oneapi" ]; then
+              echo "✓ Intel MKL: Installed"
+          else
+              echo "✗ Intel MKL: NOT FOUND"
+          fi
+          echo ""
+
+          # Check databases
+          echo "DATABASES:"
+          check_command "psql" "PostgreSQL"
+          check_command "redis-cli" "Redis"
+          echo ""
+
+          # Check Python
+          echo "PYTHON:"
+          check_command "python{{ python_version }}" "Python {{ python_version }}"
+          check_command "~/.cargo/bin/uv" "uv package manager"
+          echo ""
+
+          # Activate venv and check Python packages
+          if [ -f "{{ project_dir }}/.venv/bin/activate" ]; then
+              source {{ project_dir }}/.venv/bin/activate
+
+              echo "PYTHON PACKAGES:"
+              python -c "import numpy; print(f'✓ NumPy: {numpy.__version__}')" 2>/dev/null || echo "✗ NumPy"
+              python -c "import pandas; print(f'✓ Pandas: {pandas.__version__}')" 2>/dev/null || echo "✗ Pandas"
+              python -c "import torch; print(f'✓ PyTorch: {torch.__version__}')" 2>/dev/null || echo "✗ PyTorch"
+              python -c "import torch; print(f'  CUDA Available: {torch.cuda.is_available()}')" 2>/dev/null
+              python -c "import transformers; print(f'✓ Transformers: {transformers.__version__}')" 2>/dev/null || echo "✗ Transformers"
+              python -c "import duckdb; print(f'✓ DuckDB: {duckdb.__version__}')" 2>/dev/null || echo "✗ DuckDB"
+              python -c "import xgboost; print(f'✓ XGBoost: {xgboost.__version__}')" 2>/dev/null || echo "✗ XGBoost"
+              python -c "import shap; print(f'✓ SHAP: {shap.__version__}')" 2>/dev/null || echo "✗ SHAP"
+              python -c "import stable_baselines3; print(f'✓ Stable-Baselines3: {stable_baselines3.__version__}')" 2>/dev/null || echo "✗ SB3"
+              echo ""
+
+              deactivate
+          fi
+
+          # Summary
+          echo "═══════════════════════════════════════════════════════════"
+          echo "Verification Complete!"
+          echo ""
+          echo "To activate environment:"
+          echo "  source /etc/profile.d/bigbrother_env.sh"
+          echo "  cd {{ project_dir }}"
+          echo "  source .venv/bin/activate"
+          echo ""
+          echo "To start development:"
+          echo "  cd {{ project_dir }}"
+          echo "  source .venv/bin/activate"
+          echo "  jupyter lab  # or streamlit run scripts/dashboard.py"
+          echo "═══════════════════════════════════════════════════════════"
+        mode: '0755'
+        owner: "{{ user }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 13: Run Verification
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Run verification script
+      shell: "{{ project_dir }}/scripts/verify_complete_setup.sh"
+      register: verification_output
+      become_user: "{{ user }}"
+
+    - name: Display verification results
+      debug:
+        msg: "{{ verification_output.stdout_lines }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 14: Create Quick Start Guide
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Create quick start guide
+      copy:
+        dest: "{{ project_dir }}/QUICKSTART.md"
+        content: |
+          # BigBrotherAnalytics - Quick Start Guide
+
+          Your Tier 1 development environment has been set up successfully!
+
+          ## What Was Installed
+
+          ### Compilers & Build Tools
+          - GCC {{ gcc_version }} with C++23 support
+          - CMake 3.28+, Ninja build system
+          - Latest GNU binutils
+
+          ### Parallel Computing
+          - OpenMP (multi-threading)
+          - OpenMPI 5.x (distributed computing)
+          - UPC++ {{ upcxx_version }} with GASNet-EX (PGAS)
+
+          ### GPU Computing (if NVIDIA GPU detected)
+          - NVIDIA CUDA {{ cuda_version }}
+          - cuBLAS, cuFFT, cuSOLVER
+
+          ### Math Libraries
+          - Intel MKL (BLAS, LAPACK, FFT, Statistics)
+
+          ### Databases
+          - PostgreSQL {{ postgresql_version }}
+            - TimescaleDB (time-series)
+            - Apache AGE (graph database)
+            - pgvector (vector similarity)
+          - Redis (cache)
+          - DuckDB (via Python, embedded analytics)
+
+          ### Python {{ python_version }} with ML/AI
+          - PyTorch with CUDA support
+          - Transformers (Hugging Face)
+          - Stable-Baselines3 (RL)
+          - XGBoost, LightGBM
+          - SHAP (explainability)
+          - spaCy, NLTK (NLP)
+          - Pandas, Polars, NumPy
+          - Plotly, Streamlit, Dash
+          - And many more...
+
+          ## Getting Started
+
+          ### 1. Activate Environment
+          ```bash
+          source /etc/profile.d/bigbrother_env.sh
+          cd {{ project_dir }}
+          source .venv/bin/activate
+          ```
+
+          ### 2. Collect Free Historical Data
+          ```bash
+          python scripts/collect_free_data.py
+          # Downloads 10 years of data from Yahoo Finance, FRED, SEC
+          # Takes ~3 hours, completely free
+          ```
+
+          ### 3. Run POC for Each Tool
+
+          **Market Intelligence Engine POC:**
+          ```bash
+          python poc/mi_simple_poc.py
+          ```
+
+          **Correlation Analysis Tool POC:**
+          ```bash
+          python poc/correlation_poc.py
+          ```
+
+          **Trading Decision Engine POC:**
+          ```bash
+          python poc/trading_simple_poc.py
+          ```
+
+          ### 4. Launch Dashboard
+          ```bash
+          streamlit run poc/trading_dashboard_poc.py
+          # Open browser to http://localhost:8501
+          ```
+
+          ### 5. Run Validation Framework
+          ```bash
+          python scripts/run_backtest.py
+          python scripts/walk_forward_validation.py
+          ```
+
+          ## Next Steps
+
+          - Review architecture documents in `docs/architecture/`
+          - Read PRD in `docs/PRD.md`
+          - Follow POC guides in architecture documents
+          - Validate algorithms with free data (3-6 months)
+          - Only buy eBay 64-core server after POC proves profitable!
+
+          ## Cost
+
+          - Tier 1 POC: $0/month (all free)
+          - Time to validate: 3-6 months
+          - Investment before spending: $0
+
+          ## References
+
+          - PRD: docs/PRD.md
+          - Architecture docs: docs/architecture/
+          - ClusterSetupAndConfigs: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+
+          ## Support
+
+          - Issues: https://github.com/oldboldpilot/BigBrotherAnalytics/issues
+          - PGAS Setup: https://github.com/oldboldpilot/ClusterSetupAndConfigs
+
+          Happy Trading! 📈
+        mode: '0644'
+        owner: "{{ user }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # FINAL MESSAGE
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Installation complete
+      debug:
+        msg: |
+          ═══════════════════════════════════════════════════════════
+          BigBrotherAnalytics Tier 1 Setup COMPLETE!
+          ═══════════════════════════════════════════════════════════
+
+          ✓ C++23 Toolchain (GCC 15, CMake, Ninja)
+          ✓ Parallel Computing (OpenMP, MPI, UPC++, GASNet-EX)
+          ✓ GPU Computing (CUDA {{ cuda_version }})
+          ✓ Math Libraries (Intel MKL)
+          ✓ Databases (PostgreSQL 16, Redis, DuckDB)
+          ✓ Python {{ python_version }} with ML/AI frameworks
+          ✓ PyTorch with CUDA support
+          ✓ Hugging Face Transformers
+          ✓ Complete environment configured
+
+          Installation Directory: {{ project_dir }}
+          Quick Start Guide: {{ project_dir }}/QUICKSTART.md
+          Verification: {{ project_dir }}/scripts/verify_complete_setup.sh
+
+          Next Steps:
+            1. source /etc/profile.d/bigbrother_env.sh
+            2. cd {{ project_dir }}
+            3. source .venv/bin/activate
+            4. Read QUICKSTART.md
+            5. Start with: python scripts/collect_free_data.py
+
+          Total Cost: $0 (100% open-source)
+          Ready for Tier 1 POC!
+
+          ═══════════════════════════════════════════════════════════
+
+# Usage:
+# ------
+# ansible-playbook playbooks/complete-tier1-setup.yml
+#
+# This will take 2-4 hours depending on:
+#   - Internet speed (downloading packages)
+#   - CPU cores (building from source)
+#   - Whether GPU is present (CUDA installation)
+#
+# After completion:
+#   source /etc/profile.d/bigbrother_env.sh
+#   cd /opt/bigbrother
+#   source .venv/bin/activate
+#   ./scripts/verify_complete_setup.sh

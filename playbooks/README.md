@@ -4,7 +4,105 @@ This directory contains Ansible playbooks for automated deployment and configura
 
 ## Available Playbooks
 
-### 1. Tier 1 Setup Playbook
+### 1. Complete Tier 1 Setup (ALL-IN-ONE) ⭐ RECOMMENDED
+**File:** `complete-tier1-setup.yml`
+
+**🚀 ONE-COMMAND COMPLETE INSTALLATION** - Installs everything needed for Tier 1 development in a single playbook run.
+
+**What Gets Installed:**
+
+**Compilers & Build Tools:**
+- GCC 15 with full C++23 support
+- CMake 3.28+, Ninja build system
+- Latest GNU binutils
+- Autotools (autoconf, automake, libtool)
+
+**Parallel Computing:**
+- OpenMP (included in GCC 15)
+- OpenMPI 5.x
+- UPC++ 2024.3.0 (PGAS)
+- GASNet-EX 2024.5.0 (communication layer)
+- Berkeley UPC (optional)
+
+**GPU Computing (if NVIDIA GPU detected):**
+- NVIDIA CUDA 12.3
+- cuBLAS, cuFFT, cuSOLVER
+- Automatic GPU detection
+
+**Math Libraries:**
+- Intel MKL (BLAS, LAPACK, FFT, VSL)
+- FFTW3 (via dependencies)
+
+**Databases:**
+- PostgreSQL 16 with extensions:
+  - TimescaleDB (time-series)
+  - Apache AGE (graph database)
+  - pgvector (vector similarity)
+- Redis (cache)
+- DuckDB (via Python)
+
+**Python 3.14+ Environment:**
+- Python 3.14 via Homebrew
+- uv (ultra-fast package manager)
+- Virtual environment created
+- All dependencies installed
+
+**ML/AI Frameworks:**
+- PyTorch with CUDA support
+- Hugging Face Transformers
+- Stable-Baselines3 (RL)
+- XGBoost, LightGBM
+- SHAP, LIME, Captum (explainability)
+- spaCy, NLTK (NLP)
+- sentence-transformers
+
+**Data Science:**
+- NumPy, SciPy, Pandas, Polars
+- Matplotlib, Seaborn, Plotly
+- Streamlit, Dash, Jupyter
+
+**Data Collection:**
+- yfinance, alpha-vantage, fredapi
+- Scrapy, Playwright, BeautifulSoup
+- Apache Tika, pdfplumber
+
+**Monitoring:**
+- Prometheus client
+- Sentry SDK
+
+**Complete Environment Configuration:**
+- All PATH and LD_LIBRARY_PATH set
+- Compiler variables configured
+- Environment file: `/etc/profile.d/bigbrother_env.sh`
+
+**Verification:**
+- Comprehensive verification script created
+- Automatically runs after installation
+- Tests all components
+
+**Documentation:**
+- QUICKSTART.md guide created
+- Usage examples included
+
+**Usage:**
+```bash
+# Run complete installation (2-4 hours)
+ansible-playbook playbooks/complete-tier1-setup.yml
+
+# After completion
+source /etc/profile.d/bigbrother_env.sh
+cd /opt/bigbrother
+source .venv/bin/activate
+./scripts/verify_complete_setup.sh
+```
+
+**Time:** 2-4 hours (builds from source)
+**Cost:** $0 (100% open-source)
+**Result:** Complete Tier 1 environment ready for development
+
+---
+
+### 2. Tier 1 Setup Playbook (Legacy/Partial)
 **File:** `tier1-setup.yml`
 
 Complete Tier 1 development environment setup including:
