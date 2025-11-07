@@ -1,8 +1,8 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 1.3.0
+**Version:** 1.4.0
 **Date:** November 6, 2025
-**Status:** Draft - Planning Phase Complete, Ready for Implementation
+**Status:** Final - Planning Phase Complete, Implementation Ready
 **Author:** Olumuyiwa Oluwasanmi
 
 ---
@@ -1551,6 +1551,11 @@ The systems integration document includes:
 - **Mistake analysis & learning**: Analyze losses, identify patterns, update models
 - **Daily operation workflows**: Complete integration of all three tools
 - **Weekly learning cycle**: Continuous improvement from successes and failures
+- **🆕 Hypothetical scenario planning**: Propose "what-if" scenarios, generate trading strategies with complete justification and success probabilities, monitor in real-time, store for human retrieval
+
+**📋 Additional Integration Documents:**
+- **[Schwab API Integration Guide](./architecture/schwab-api-integration.md)**: Complete C++23 implementation design for Schwab Developer API with OAuth 2.0 token management, secure credential storage, rate limiting, and integration patterns from SchwabFirstAPI repository
+- **[Database Strategy Analysis](./architecture/database-strategy-analysis.md)**: DuckDB-First vs PostgreSQL comparison with decision scenarios and migration strategy
 
 ### 6.1 Key Integration Features
 
@@ -1627,6 +1632,68 @@ Generate sector ETF trades vs individual stocks
 - Learning: Continuous model refinement
 
 For complete scenarios with explanations, causal chains, and learning examples, see the **[Systems Integration Architecture](./architecture/systems-integration.md)**.
+
+### 6.3 Hypothetical Scenario Planning (What-If Analysis)
+
+**🆕 NEW CAPABILITY:** Generate hypothetical scenarios that haven't occurred yet and propose trading strategies in real-time.
+
+**Example Scenarios:**
+- "What if Fed announces emergency rate cut of 0.5%?"
+- "What if China blockades Taiwan?"
+- "What if FDA approves Alzheimer's breakthrough drug?"
+- "What if Congress passes major climate legislation?"
+
+**System Response:**
+1. Builds complete causal chain (multi-hop analysis)
+2. Identifies affected securities via correlation
+3. Finds historical precedents (similar events)
+4. Calculates success probabilities
+5. Proposes ranked trading strategies
+6. Generates complete justification with risk assessment
+7. Stores proposal in database for human retrieval
+8. Monitors news feeds for scenario occurrence
+9. Alerts when scenario detected
+10. Can auto-execute approved strategies
+
+**Output:**
+- Complete proposal with 5-10 proposed trades
+- Success probability for each trade (based on historical precedents)
+- Expected P&L and risk/reward ratios
+- Complete causal chain explanation
+- Human-readable justification
+- Retrievable via API: `/api/v1/scenarios/{proposal_id}`
+
+**See:** Systems Integration Architecture Section 13.5 for complete implementation design
+
+### 6.4 Database Strategy Decision: DuckDB-First
+
+**DECISION: Start with DuckDB, migrate to PostgreSQL only if profitable**
+
+**📋 Complete Analysis:** See **[Database Strategy Analysis](./architecture/database-strategy-analysis.md)** for comprehensive comparison with 10 decision scenarios.
+
+**Rationale:**
+- **Setup time:** DuckDB 30 seconds vs PostgreSQL 4-12 hours
+- **POC velocity:** 10x faster iteration with DuckDB
+- **Backtesting:** DuckDB 3-5x faster for analytics
+- **Risk:** Zero wasted effort if POC fails
+- **Migration:** 1-2 days when ready for PostgreSQL
+
+**Tier 1 POC (Months 1-4): DuckDB Only**
+- All data in DuckDB + Parquet files
+- Perfect for rapid iteration and backtesting
+- Zero database administration overhead
+- Focus on algorithms, not database tuning
+
+**Tier 2 Production (Month 5+, if profitable): Add PostgreSQL**
+- PostgreSQL: Real-time operational data (trades, positions)
+- DuckDB: Analytics and backtesting (historical data)
+- Dual database: Best of both worlds
+- Migration time: 1-2 days
+
+**Cost Savings:**
+- Don't invest time in PostgreSQL until profitability proven
+- Can fail fast and pivot if needed
+- PostgreSQL added only after validation
 
 ---
 
@@ -3724,6 +3791,7 @@ Annual Savings: $60,280
 | 1.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Final Updates: CUDA 13.0, uv Standardization, Uninstall Capability.** Updated all playbooks and documentation to use latest NVIDIA CUDA Toolkit 13.0 (was 12.3). Standardized ALL Python package management to use uv (NOT pip) throughout playbooks and documentation - emphasizes 10-100x speed improvement. Fixed complete-tier1-setup.yml for cross-platform compatibility (Ubuntu, RHEL, WSL2) with OS-specific package names, paths, and service management. Added systemd detection for WSL compatibility (graceful fallback to manual service start). Created uninstall-tier1.yml playbook (200+ lines) for clean removal with data backup, optional Homebrew/data preservation. Added idempotency documentation - playbook safe to re-run, won't duplicate installations. Updated playbooks/README.md with uninstall instructions, idempotency notes, and current technology versions. Updated PRD Section 9.6.1.3 with CUDA 13.0 references and uv emphasis. Clarified installation strategy: Homebrew for toolchain (GCC, Python, CMake, MPI), uv for ALL Python packages, system package managers only for OS-specific components (PostgreSQL, Redis). Complete platform ready for one-command installation on Ubuntu, RHEL, or WSL2 with ability to cleanly uninstall. |
 | 1.2.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Trading Instruments, Options Valuation, and Broker Selection.** Added comprehensive Section 5.2.4 to PRD specifying ALL supported trading instruments: stock order types (market, limit, stop, trailing stop, GTC, FOK, IOC), stock trade types (long, short, pairs, basket, DCA), money market instruments (MMF, T-Bills, commercial paper for cash management), and complete options strategies (basic calls/puts, vertical spreads, calendar spreads, diagonal spreads, straddles, strangles, iron condors, butterflies, delta-neutral, gamma scalping, theta harvesting, ratio spreads, synthetics). **Added complete options valuation methods with C++23 implementations:** Trinomial tree model (PRIMARY for American options) with full mathematical foundation, OpenMP parallelization, early exercise logic. Black-Scholes model (SECONDARY for European short-term <30 days) with analytic Greeks formulas using Intel MKL. Model selection logic (automatic choice based on option type and expiry). Parallel portfolio pricing with OpenMP. **Added Tier 1 POC broker evaluation:** Comprehensive comparison of 7 brokers (Tradier, IBKR, TD Ameritrade, Alpaca, Robinhood, E*TRADE, Schwab) with account minimums, commissions, API access, options support, and suitability ratings. **RECOMMENDED Tradier for POC:** $0 minimum, free API, full options support, free real-time data, $0.35/contract, unlimited paper trading. Complete Tradier setup guide for Tier 1 POC. Added to Trading Decision Engine architecture (Section 14b): Complete C++23 trinomial tree implementation (500+ lines), Black-Scholes with MKL integration, automatic model selection, portfolio-level parallel pricing. Mathematical formulas included for both methods. Platform now has complete options trading capability specification ready for implementation. Total new content: 700+ lines across PRD and architecture doc. |
 | 1.3.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Schwab API Integration & CMake 4.1.2 Update.** Created comprehensive Schwab API Integration architecture document (schwab-api-integration.md, 500+ lines) documenting C++23 implementation design for existing $30k Schwab account. **Updated broker from Tradier to Schwab** for Tier 1 POC due to existing account and SchwabFirstAPI integration. Added complete OAuth 2.0 authentication flow with token refresh strategies (proactive/reactive/hybrid). Documented secure credential storage options (environment variables, encrypted config, system keyring, HSM). C++23 module design for schwab.api.client with std::jthread for background token refresh, std::atomic for thread-safe tokens. Rate limiting with token bucket algorithm. HTTP client library evaluation (cpr RECOMMENDED). Complete data structures for options chains, orders, positions. Security implications for $30k real money documented. Implementation phases: OAuth → Market Data → Trading → Integration (4 weeks). **Updated ALL CMake references from 3.28 to 4.1.2** across all documentation and playbooks (better C++23 modules support). Updated playbooks/complete-tier1-setup.yml comments and README.md. Schwab integration references SchwabFirstAPI repository for OAuth patterns and credential management. Emphasizes this is DESIGN DOCUMENTATION (no code implemented yet). Added link to Schwab integration guide in PRD Section 5.2.4. Platform ready for C++23 Schwab API implementation with rigorous security and risk management for real money trading. Total documentation: 22,200+ lines (added 800+ lines). |
+| 1.4.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **FINAL: Scenario Planning & DuckDB-First Decision.** Added hypothetical scenario planning capability (Section 13.5 in Systems Integration, 700+ lines): propose "what-if" scenarios, system generates complete trading strategies with full causal chain justification, success probabilities based on historical precedents, real-time monitoring for scenario occurrence, human-retrievable proposals via API. Examples: Fed emergency cut, China-Taiwan conflict, FDA drug approval/ban, unemployment spike. **Created Database Strategy Analysis document** (database-strategy-analysis.md, 600+ lines) comparing DuckDB-first vs PostgreSQL approaches with 10 detailed scenarios. **DECISION: DuckDB-First for Tier 1 POC** - rationale: 30-second setup vs 4-12 hours, 10x faster iteration, 3-5x faster backtesting, zero risk if POC fails, proven 1-2 day migration path when profitable. Tier 1 uses DuckDB only, Tier 2 adds PostgreSQL for dual-database architecture. Updated PRD Section 6 with scenario planning overview and database decision. Added scenario proposal database schema (DuckDB), API endpoints for scenario management, real-time monitoring implementation. Platform now supports predictive scenario analysis with complete audit trail. **PLANNING PHASE OFFICIALLY COMPLETE** - all decisions made, all architecture documented, ready for C++23 implementation. Total documentation: 23,500+ lines across 7 architecture documents. Status: FINAL, implementation can begin. |
 
 ---
 

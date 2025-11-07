@@ -4098,6 +4098,715 @@ Query execution time: 2.3 seconds (scanned 10 years of data!)
 
 ---
 
+## 13.5. Scenario Planning & Hypothetical Proposal Engine
+
+### 13.5.1 What-If Scenario Generator
+
+**CRITICAL:** System can generate hypothetical scenarios that don't exist yet but are in the realm of possibility, then propose trading strategies with full justification in real-time.
+
+```mermaid
+graph TB
+    User[User Proposes<br/>Hypothetical Scenario] --> Parse[Parse Scenario<br/>Extract Key Elements]
+
+    Parse --> Analyze[Analyze Scenario<br/>Using All Three Tools]
+
+    Analyze --> MI[Market Intelligence<br/>Predict Impacts]
+    Analyze --> CORR[Correlation Tool<br/>Identify Affected Securities]
+    Analyze --> Historical[Historical Precedents<br/>Similar Events]
+
+    MI --> Causal[Build Causal Chain<br/>Event → Economy → Stocks]
+    CORR --> Chain[Build Correlation Chain<br/>Leader → Laggers]
+    Historical --> Probability[Calculate Probabilities<br/>Based on History]
+
+    Causal & Chain & Probability --> Opportunities[Generate Trade<br/>Opportunities]
+
+    Opportunities --> Evaluate[Evaluate Each Trade<br/>Expected Value]
+
+    Evaluate --> Simulate[Monte Carlo Simulation<br/>10K Scenarios]
+
+    Simulate --> Rank[Rank by Success<br/>Probability]
+
+    Rank --> Explain[Generate Complete<br/>Justification]
+
+    Explain --> Proposal[Complete Proposal<br/>Trades + Rationale]
+
+    Proposal --> Store[Store in Database<br/>Retrievable by Human]
+
+    style User fill:#afa,stroke:#333,stroke-width:2px
+    style Causal fill:#faa,stroke:#333,stroke-width:2px
+    style Proposal fill:#bbf,stroke:#333,stroke-width:2px
+```
+
+### 13.5.2 Scenario Proposal Engine Implementation
+
+```python
+# File: src/scenarios/proposal_engine.py
+# Generate hypothetical scenarios and propose trading strategies
+
+class ScenarioProposalEngine:
+    """
+    Generate hypothetical scenarios and propose trading strategies
+    with complete justification and success probabilities
+    """
+
+    def analyze_hypothetical_scenario(
+        self,
+        scenario_description: str,
+        user_id: str = None
+    ) -> dict:
+        """
+        Analyze a hypothetical scenario that hasn't happened yet
+
+        Example scenarios:
+          - "What if Fed raises rates by 0.5% next month?"
+          - "What if China invades Taiwan?"
+          - "What if AAPL misses earnings by 10%?"
+          - "What if new EV tax credit passes?"
+
+        Returns complete trading proposal with justifications
+        """
+
+        print(f"ANALYZING HYPOTHETICAL SCENARIO")
+        print(f"{'='*60}")
+        print(f"Scenario: {scenario_description}")
+        print(f"{'='*60}\n")
+
+        # 1. Parse scenario using NLP
+        scenario_parsed = self._parse_scenario_nlp(scenario_description)
+
+        # 2. Generate Market Intelligence prediction
+        mi_prediction = self._simulate_mi_impact(scenario_parsed)
+
+        # 3. Identify affected securities via correlation
+        affected_securities = self._identify_affected_via_correlation(
+            mi_prediction
+        )
+
+        # 4. Build complete causal chain
+        causal_chain = self._build_hypothetical_causal_chain(
+            scenario_parsed,
+            mi_prediction,
+            affected_securities
+        )
+
+        # 5. Find historical precedents
+        precedents = self._find_historical_precedents(scenario_parsed)
+
+        # 6. Calculate success probabilities
+        probabilities = self._calculate_scenario_probabilities(
+            precedents,
+            mi_prediction
+        )
+
+        # 7. Generate trading opportunities
+        opportunities = self._generate_trade_proposals(
+            causal_chain,
+            affected_securities,
+            probabilities
+        )
+
+        # 8. Simulate each proposed trade
+        simulated_trades = []
+        for opp in opportunities:
+            simulation = self._simulate_trade_monte_carlo(
+                opp,
+                num_scenarios=10000
+            )
+
+            simulated_trades.append({
+                'trade': opp,
+                'simulation': simulation,
+                'expected_pnl': simulation['expected_return'],
+                'probability_of_profit': simulation['prob_profit'],
+                'risk_reward_ratio': simulation['risk_reward']
+            })
+
+        # 9. Rank by expected value
+        ranked_trades = sorted(
+            simulated_trades,
+            key=lambda x: x['expected_pnl'],
+            reverse=True
+        )
+
+        # 10. Generate complete proposal with justification
+        proposal = self._generate_complete_proposal(
+            scenario_description,
+            causal_chain,
+            ranked_trades,
+            probabilities
+        )
+
+        # 11. Store in database for human retrieval
+        proposal_id = self._store_proposal(proposal, user_id)
+
+        # 12. Return proposal
+        return {
+            'proposal_id': proposal_id,
+            'scenario': scenario_description,
+            'causal_chain': causal_chain,
+            'proposed_trades': ranked_trades[:10],  # Top 10
+            'justification': proposal['justification'],
+            'success_probability': proposal['overall_probability'],
+            'expected_portfolio_impact': proposal['expected_impact'],
+            'risks': proposal['risks'],
+            'human_explanation': proposal['human_explanation'],
+            'timestamp': datetime.now(),
+            'retrievable_at': f"/api/v1/scenarios/{proposal_id}"
+        }
+
+    def _generate_complete_proposal(
+        self,
+        scenario: str,
+        causal_chain: dict,
+        ranked_trades: list,
+        probabilities: dict
+    ) -> dict:
+        """Generate human-readable proposal with complete justification"""
+
+        # Build justification
+        justification = f"""
+HYPOTHETICAL SCENARIO ANALYSIS
+═══════════════════════════════════════════════════════════
+
+SCENARIO: {scenario}
+
+CAUSAL CHAIN ANALYSIS:
+──────────────────────────────────────────────────────────
+"""
+
+        # Add each hop in causal chain
+        for i, hop in enumerate(causal_chain['hops'], 1):
+            justification += f"""
+HOP {i}: {hop['description']}
+  Confidence: {hop['confidence']:.1%}
+  Affected Entities: {len(hop['entities'])}
+  Mechanism: {hop['mechanism']}
+"""
+
+        justification += """
+PROPOSED TRADING STRATEGY:
+──────────────────────────────────────────────────────────
+"""
+
+        # Add top 5 trade proposals
+        for i, trade in enumerate(ranked_trades[:5], 1):
+            justification += f"""
+Trade {i}: {trade['trade']['action']} {trade['trade']['symbol']}
+  Expected P&L: ${trade['expected_pnl']:.2f}
+  Probability of Profit: {trade['probability_of_profit']:.1%}
+  Risk/Reward Ratio: {trade['risk_reward_ratio']:.2f}:1
+
+  JUSTIFICATION:
+    {trade['trade']['rationale']}
+
+  CAUSAL PATH:
+    {self._format_causal_path(trade['trade']['causal_steps'])}
+
+  SUCCESS PROBABILITY BREAKDOWN:
+    - Historical precedent: {trade['trade']['historical_accuracy']:.1%}
+    - Model confidence: {trade['trade']['model_confidence']:.1%}
+    - Signal strength: {trade['trade']['signal_strength']:.1%}
+    - Combined probability: {trade['probability_of_profit']:.1%}
+
+  RISKS:
+    - {trade['trade']['primary_risk']}
+    - {trade['trade']['secondary_risk']}
+
+"""
+
+        # Overall assessment
+        total_expected_pnl = sum(t['expected_pnl'] for t in ranked_trades[:5])
+        avg_prob_profit = sum(t['probability_of_profit'] for t in ranked_trades[:5]) / 5
+
+        justification += f"""
+OVERALL ASSESSMENT:
+──────────────────────────────────────────────────────────
+  Portfolio Expected P&L: ${total_expected_pnl:.2f}
+  Average Success Probability: {avg_prob_profit:.1%}
+  Number of Proposed Trades: 5
+  Recommended Position Sizing: Conservative (Kelly 50%)
+
+  CONFIDENCE IN SCENARIO ANALYSIS:
+    - Causal chain validated: {len(causal_chain['hops'])} hops
+    - Historical precedents found: {len(probabilities['precedents'])}
+    - Correlation confirmation: {probabilities['correlation_confidence']:.1%}
+    - Overall confidence: {probabilities['overall_confidence']:.1%}
+
+RECOMMENDATION:
+  {"EXECUTE strategy if scenario occurs" if total_expected_pnl > 0 else "AVOID - negative expected value"}
+
+  EXECUTION PLAN:
+    1. Monitor for scenario occurrence
+    2. If scenario confirms, execute top 3-5 trades
+    3. Start with smallest positions
+    4. Scale based on actual results
+    5. Maintain stop losses on all positions
+
+═══════════════════════════════════════════════════════════
+Proposal stored for human review and retrieval.
+Access via: /api/v1/scenarios/{proposal_id}
+═══════════════════════════════════════════════════════════
+"""
+
+        return {
+            'justification': justification,
+            'overall_probability': avg_prob_profit,
+            'expected_impact': total_expected_pnl,
+            'risks': self._compile_risks(ranked_trades),
+            'human_explanation': self._generate_executive_summary(
+                scenario,
+                total_expected_pnl,
+                avg_prob_profit
+            )
+        }
+
+    def _generate_executive_summary(
+        self,
+        scenario: str,
+        expected_pnl: float,
+        avg_prob: float
+    ) -> str:
+        """One-paragraph executive summary"""
+
+        return f"""
+EXECUTIVE SUMMARY: If the scenario "{scenario}" occurs, we propose executing
+5 correlated trades with expected total P&L of ${expected_pnl:.2f} and average
+success probability of {avg_prob:.1%}. The strategy is based on {
+len(self.causal_chain['hops'])} validated causal links and {
+len(self.historical_precedents)} historical precedents. All trades have defined
+stop losses and profit targets. Recommendation: {"EXECUTE if scenario occurs" if expected_pnl > 0 else "PASS - insufficient edge"}.
+"""
+
+# Example usage
+engine = ScenarioProposalEngine()
+
+# User proposes hypothetical scenario
+scenario = "What if the Fed announces emergency rate cut of 0.5% due to recession fears?"
+
+proposal = engine.analyze_hypothetical_scenario(scenario)
+
+print(proposal['human_explanation'])
+print("\n" + proposal['justification'])
+
+# Proposal is stored in database
+# Human can retrieve anytime via:
+#   GET /api/v1/scenarios/{proposal_id}
+```
+
+**Example Output:**
+
+```
+HYPOTHETICAL SCENARIO ANALYSIS
+═══════════════════════════════════════════════════════════
+
+SCENARIO: What if the Fed announces emergency rate cut of 0.5% due to recession fears?
+
+CAUSAL CHAIN ANALYSIS:
+──────────────────────────────────────────────────────────
+
+HOP 1: Fed cuts rates 0.5% (emergency action)
+  Confidence: 95% (based on Fed historical patterns)
+  Affected Entities: All interest-sensitive sectors
+  Mechanism: Direct monetary policy impact
+
+HOP 2: Interest rates decline sharply
+  Confidence: 98% (mechanical relationship)
+  Affected Entities: Bonds, REITs, Banks, Growth Tech
+  Mechanism: Discount rate changes, borrowing costs
+
+HOP 3: Sector-specific impacts
+  Confidence: 87% (based on last 5 emergency cuts)
+  Affected Entities:
+    - Growth Tech: POSITIVE (lower discount rates)
+    - Banks: MIXED (lower NIM, but loan demand up)
+    - REITs: POSITIVE (yield appeal vs bonds)
+    - Utilities: POSITIVE (bond-like characteristics)
+  Mechanism: Sector-specific discount rate sensitivity
+
+HOP 4: Individual stock impacts
+  Confidence: 72% (company-specific factors matter)
+  Affected Entities: 247 stocks with high rate sensitivity
+  Mechanism: Beta to interest rates, financial structure
+
+PROPOSED TRADING STRATEGY:
+──────────────────────────────────────────────────────────
+
+Trade 1: BUY Growth Tech Calls (QQQ or TQQQ)
+  Expected P&L: $487.00
+  Probability of Profit: 78%
+  Risk/Reward Ratio: 3.2:1
+
+  JUSTIFICATION:
+    Growth tech benefits most from rate cuts due to lower discount rates
+    for future cash flows. QQQ (Nasdaq 100 ETF) provides diversified exposure.
+    Historical: Last 3 emergency cuts → QQQ +8-12% within 30 days.
+
+  CAUSAL PATH:
+    Fed cuts 0.5% → Lower discount rates → Growth valuations ↑
+    → QQQ (tech-heavy) rises 8-10% → Call options gain 40-60%
+
+  SUCCESS PROBABILITY BREAKDOWN:
+    - Historical precedent: 85% (based on 5 emergency cuts since 2000)
+    - Model confidence: 82% (ML ensemble agrees)
+    - Signal strength: 67% (strong but not certain)
+    - Combined probability: 78%
+
+  RISKS:
+    - Recession worse than expected (cut not enough)
+    - Market already priced in rate cuts
+
+Trade 2: BUY REIT ETF (VNQ) - Moderate Position
+  Expected P&L: $324.00
+  Probability of Profit: 74%
+  Risk/Reward Ratio: 2.8:1
+
+  JUSTIFICATION:
+    REITs benefit from lower rates (yield appeal vs bonds increases).
+    Also benefit from lower borrowing costs for properties.
+
+  CAUSAL PATH:
+    Fed cuts 0.5% → Bond yields drop → REITs more attractive
+    → Capital flows to REITs → VNQ rises 5-7%
+
+  SUCCESS PROBABILITY: 74% (4 of last 5 emergency cuts)
+
+Trade 3: SELL Bank Stocks (Short or Puts on XLF)
+  Expected P&L: $156.00
+  Probability of Profit: 65%
+  Risk/Reward Ratio: 2.1:1
+
+  JUSTIFICATION:
+    Banks hurt by lower net interest margins (NIM compression).
+    Emergency cuts signal recession fear → loan defaults ↑.
+
+  CAUSAL PATH:
+    Fed emergency cut → Economic weakness signal → Bank stocks ↓
+    → Lower NIM → Earnings pressure → XLF declines 3-5%
+
+  RISKS:
+    - Market views as positive (liquidity injection)
+    - Already priced in
+
+OVERALL ASSESSMENT:
+──────────────────────────────────────────────────────────
+  Portfolio Expected P&L: $967.00 (from top 5 trades)
+  Average Success Probability: 72%
+  Number of Proposed Trades: 5
+  Recommended Position Sizing: Conservative (Kelly 50%)
+
+  CONFIDENCE IN SCENARIO ANALYSIS:
+    - Causal chain validated: 4 hops
+    - Historical precedents found: 5 emergency cuts since 2000
+    - Correlation confirmation: 83%
+    - Overall confidence: 76%
+
+RECOMMENDATION: EXECUTE strategy if scenario occurs
+
+  EXECUTION PLAN:
+    1. Monitor for Fed emergency meeting announcement
+    2. If 0.5% cut confirmed, execute within 1 hour
+    3. Start with 50% of planned positions
+    4. Scale up if first trades profitable
+    5. Maintain 3% stop loss on each position
+    6. Target exits: Growth Tech +40%, REITs +25%, Banks -15%
+
+═══════════════════════════════════════════════════════════
+Proposal ID: SCENARIO_20251106_001
+Stored for human review.
+Access via: /api/v1/scenarios/SCENARIO_20251106_001
+═══════════════════════════════════════════════════════════
+```
+
+### 13.5.3 Real-Time Scenario Monitoring
+
+**Once scenario is proposed, system monitors in real-time:**
+
+```python
+# File: src/scenarios/monitor.py
+# Monitor for proposed scenarios
+
+class ScenarioMonitor:
+    """Monitor for occurrence of proposed scenarios"""
+
+    def monitor_scenarios(self):
+        """
+        Real-time monitoring of all active scenario proposals
+
+        Checks:
+          - News feeds for scenario keywords
+          - Fed announcements
+          - Geopolitical events
+          - Legislative actions
+          - Corporate announcements
+        """
+
+        active_scenarios = self._get_active_scenarios()
+
+        for scenario in active_scenarios:
+            # Check if scenario is occurring
+            if self._scenario_is_occurring(scenario):
+                # Scenario detected!
+                self._alert_scenario_occurrence(scenario)
+
+                # Execute proposed trades (if approved)
+                if scenario['auto_execute']:
+                    self._execute_scenario_trades(scenario)
+                else:
+                    self._notify_user_for_approval(scenario)
+
+    def _scenario_is_occurring(self, scenario: dict) -> bool:
+        """Detect if hypothetical scenario is actually happening"""
+
+        # Scan news for scenario indicators
+        recent_news = get_recent_news(hours=1)
+
+        # Check for keywords
+        for keyword in scenario['trigger_keywords']:
+            if keyword in recent_news:
+                # Validate it matches scenario
+                if self._validate_scenario_match(scenario, recent_news):
+                    return True
+
+        # Check government APIs (Fed, Congress, etc.)
+        if 'fed' in scenario['type']:
+            fed_data = check_fred_api()
+            if self._fed_action_matches(fed_data, scenario):
+                return True
+
+        return False
+
+# Usage
+monitor = ScenarioMonitor()
+
+# Run continuously
+while trading_day_active():
+    monitor.monitor_scenarios()
+    time.sleep(60)  # Check every minute
+```
+
+### 13.5.4 Scenario Database Schema
+
+**Store all scenario proposals for human retrieval:**
+
+```sql
+-- DuckDB schema for scenario proposals
+
+CREATE TABLE scenario_proposals (
+    proposal_id VARCHAR PRIMARY KEY,
+    user_id VARCHAR,
+    scenario_description TEXT,
+    created_at TIMESTAMP,
+    status VARCHAR,  -- 'ACTIVE', 'OCCURRED', 'EXPIRED', 'EXECUTED'
+
+    -- Causal chain (JSON)
+    causal_chain JSON,
+
+    -- Proposed trades
+    proposed_trades JSON,  -- Array of trade objects
+
+    -- Justification
+    justification TEXT,
+    executive_summary TEXT,
+
+    -- Probabilities
+    overall_success_probability DOUBLE,
+    expected_portfolio_pnl DOUBLE,
+    risk_assessment JSON,
+
+    -- Monitoring
+    trigger_keywords JSON,  -- Array of keywords to monitor
+    auto_execute BOOLEAN,
+    occurred_at TIMESTAMP,
+    executed_at TIMESTAMP,
+
+    -- Results (if executed)
+    actual_pnl DOUBLE,
+    trades_executed INTEGER,
+    analysis_of_outcome TEXT
+);
+
+-- Scenario occurrences log
+CREATE TABLE scenario_occurrences (
+    occurrence_id VARCHAR PRIMARY KEY,
+    proposal_id VARCHAR,
+    detected_at TIMESTAMP,
+    confidence DOUBLE,  -- How sure we are it's the scenario
+    news_source TEXT,
+    validation_status VARCHAR,  -- 'CONFIRMED', 'FALSE_POSITIVE'
+
+    -- If executed
+    executed BOOLEAN,
+    execution_details JSON
+);
+
+-- Causal chain tracking (for retrieval)
+CREATE TABLE scenario_causal_chains (
+    chain_id VARCHAR PRIMARY KEY,
+    proposal_id VARCHAR,
+    hop_number INTEGER,
+    hop_description TEXT,
+    mechanism TEXT,
+    affected_entities JSON,
+    confidence DOUBLE,
+    historical_precedents JSON
+);
+
+-- Create indexes for fast retrieval
+CREATE INDEX idx_proposals_status ON scenario_proposals(status);
+CREATE INDEX idx_proposals_user ON scenario_proposals(user_id);
+CREATE INDEX idx_occurrences_proposal ON scenario_occurrences(proposal_id);
+```
+
+### 13.5.5 API Endpoints for Scenario Management
+
+```yaml
+# Scenario Proposal API
+
+/api/v1/scenarios/propose:
+  POST:
+    summary: Propose hypothetical scenario
+    requestBody:
+      scenario_description: "What if Fed cuts rates 0.5%?"
+      auto_execute: false
+    response:
+      proposal_id: "SCENARIO_20251106_001"
+      proposed_trades: [...]
+      justification: "..."
+      success_probability: 0.72
+
+/api/v1/scenarios/{proposal_id}:
+  GET:
+    summary: Retrieve scenario proposal with full justification
+    response:
+      scenario: "..."
+      causal_chain: {...}
+      proposed_trades: [...]
+      justification: "complete human-readable explanation"
+
+/api/v1/scenarios/active:
+  GET:
+    summary: Get all active scenario proposals being monitored
+
+/api/v1/scenarios/{proposal_id}/occurred:
+  POST:
+    summary: Mark scenario as occurred, execute trades
+
+/api/v1/scenarios/{proposal_id}/results:
+  GET:
+    summary: Get actual results if scenario executed
+```
+
+### 13.5.6 Example Hypothetical Scenarios
+
+**Scenario 1: Geopolitical**
+```
+Input: "What if China announces Taiwan blockade?"
+
+Causal Chain:
+  China blockade → Global trade disruption → Semiconductor supply crisis
+  → TSMC production impact → Tech stock decline → Safe havens rise
+
+Proposed Trades:
+  1. SHORT tech stocks (QQQ puts)
+  2. BUY defense stocks (LMT, RTX)
+  3. BUY gold (GLD)
+  4. BUY volatility (VIX calls)
+  5. SHORT semiconductors (SMH puts)
+
+Success Probability: 68% (based on prior geopolitical crises)
+Expected Portfolio Impact: +$2,340 (if scenario occurs)
+```
+
+**Scenario 2: Regulatory**
+```
+Input: "What if FDA bans popular diabetes drug class?"
+
+Causal Chain:
+  FDA ban → Companies lose major revenue → Stock decline
+  → Competitors benefit → Sector rotation
+
+Proposed Trades:
+  1. SHORT companies with drug (NVO puts, LLY puts)
+  2. BUY competitors without drug
+  3. BUY alternative therapy companies
+  4. Consider broader healthcare implications
+
+Success Probability: 71% (based on 3 prior drug class bans)
+```
+
+**Scenario 3: Economic**
+```
+Input: "What if unemployment jumps to 6% next month?"
+
+Causal Chain:
+  High unemployment → Recession confirmation → Fed cuts rates
+  → Flight to safety → Growth stocks decline → Defensive sectors rise
+
+Proposed Trades:
+  1. BUY defensive stocks (utilities, staples)
+  2. SHORT high-beta growth
+  3. BUY bonds (TLT)
+  4. Reduce overall market exposure
+  5. Increase cash position
+
+Success Probability: 65% (based on prior recessions)
+```
+
+### 13.5.7 Scenario Proposal Storage and Retrieval
+
+**Complete audit trail for humans:**
+
+```python
+# Retrieve scenario proposal
+scenario_id = "SCENARIO_20251106_001"
+
+# Get from DuckDB
+scenario = duckdb.execute(f"""
+    SELECT
+        scenario_description,
+        justification,
+        proposed_trades,
+        causal_chain,
+        overall_success_probability,
+        created_at
+    FROM scenario_proposals
+    WHERE proposal_id = '{scenario_id}'
+""").df()
+
+# Display to human
+print("="*60)
+print(f"SCENARIO PROPOSAL: {scenario_id}")
+print("="*60)
+print(f"\nScenario: {scenario['scenario_description'][0]}")
+print(f"Created: {scenario['created_at'][0]}")
+print(f"Success Probability: {scenario['overall_success_probability'][0]:.1%}")
+print(f"\n{scenario['justification'][0]}")
+
+# Retrieve causal chain details
+causal_chain = duckdb.execute(f"""
+    SELECT
+        hop_number,
+        hop_description,
+        mechanism,
+        confidence,
+        affected_entities
+    FROM scenario_causal_chains
+    WHERE proposal_id = '{scenario_id}'
+    ORDER BY hop_number
+""").df()
+
+print("\nCOMPLETE CAUSAL CHAIN:")
+for _, hop in causal_chain.iterrows():
+    print(f"  Hop {hop['hop_number']}: {hop['hop_description']}")
+    print(f"    Mechanism: {hop['mechanism']}")
+    print(f"    Confidence: {hop['confidence']:.1%}")
+    print(f"    Entities: {len(hop['affected_entities'])} affected\n")
+
+# Everything retrievable and explainable!
+```
+
+---
+
 ## 14. Technology Stack Integration
 
 ### 14.1 Complete Stack (Tier 1 → Tier 2)
