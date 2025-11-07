@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 0.7.0
+**Version:** 0.8.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
 **Author:** Olumuyiwa Oluwasanmi
@@ -1258,9 +1258,103 @@ The architecture document includes:
 
 ---
 
-## 6. Cross-Project Integration
+## 6. Systems Integration & Usage Scenarios
 
-### 6.1 Data Flow Architecture
+**📋 Complete Systems Integration Architecture:** For detailed integration workflows, causal chain tracking, correlation chain prediction, sector-level analysis, budget-driven scenarios, self-simulation, profit/loss explanation, and mistake learning, see the **[Systems Integration Architecture Document](./architecture/systems-integration.md)**.
+
+The systems integration document includes:
+- **Complete hardware/software architecture** for Tier 1/2/3 deployments
+- **Causal chain tracking**: Follow events from Fed decisions → Interest rates → Bank stocks
+- **Correlation chain prediction**: Use time-lagged correlations for predictive trading (NVDA ↑ → AMD follows in 15min)
+- **Sector-level impact analysis**: Track impacts across entire business sectors
+- **Budget-driven strategy selection**: Automatic allocation for $1K to $1M+ budgets
+- **Self-simulation framework**: Simulate all trades before execution (profitable from day one)
+- **Profit explanation**: Complete analysis of why trades were profitable
+- **Mistake analysis & learning**: Analyze losses, identify patterns, update models
+- **Daily operation workflows**: Complete integration of all three tools
+- **Weekly learning cycle**: Continuous improvement from successes and failures
+
+### 6.1 Key Integration Features
+
+**Causal Chain Following:**
+```
+Congress Passes Bill → Regulation Changes → Industry Impact → Company Stocks
+Fed Rate Decision → Interest Rates → Sector Effects → Individual Stocks
+Geopolitical Event → Commodity Prices → Supply Chain → Stock Prices
+FDA Approval → Direct Impact → Competitor Effects → Sector Movement
+```
+
+**Correlation Chain Prediction:**
+```
+Leader Stock Moves → Correlated Stock Follows (with lag)
+NVDA +5% (T0) → AMD +4.1% (T0+15min) → SMH +2.1% (T0+30min)
+JPM +2% → BAC +1.8% (lag 10min) → Regional Banks (lag 30min)
+```
+
+**Sector-Level Analysis:**
+```
+Event → Direct Companies → Competitors → Suppliers → Entire Sector
+Track correlations within sectors
+Generate sector ETF trades vs individual stocks
+```
+
+**Budget-Aware Trading:**
+- $1K: Focused options day trading (2-3 positions)
+- $10K: Mixed strategies, 5-10 positions
+- $100K: Diversified long-term, 15-25 positions
+- $1M: Multi-strategy, 30-50 positions
+
+**Self-Simulation (Validate Before Execute):**
+- Monte Carlo simulation (1,000-10,000 scenarios)
+- Only execute trades with positive expected value
+- Probability of profit calculated
+- Worst-case/best-case analysis
+- Profitable from day one approach
+
+**Full Explainability:**
+- Every trade: Why we took it
+- Every profit: Why we made money
+- Every loss: What went wrong, how to improve
+- Model updates based on mistakes
+- Continuous learning loop
+
+### 6.2 Usage Scenario Examples
+
+**Scenario 1: Small Budget ($1,000)**
+- Strategy: Options day trading
+- Positions: 2-3 simultaneous
+- Timeframe: Intra-day only
+- Expected: 3-5% daily returns
+- Explainability: Full trade-by-trade analysis
+
+**Scenario 2: Medium Budget ($10,000)**
+- Strategy: Mixed (short-term + options)
+- Positions: 5-10 diversified
+- Timeframe: 1-30 days
+- Expected: 2-3% weekly returns
+- Learning: Weekly model updates from mistakes
+
+**Scenario 3: Large Budget ($100,000)**
+- Strategy: Long-term + tactical
+- Positions: 15-25 diversified
+- Timeframe: 1-12 months
+- Expected: 12-15% annual (beat S&P 500)
+- Analysis: Quarterly attribution and learning
+
+**Scenario 4: Institutional ($1,000,000)**
+- Strategy: Multi-strategy portfolio
+- Positions: 30-50 diversified
+- All timeframes: Day/short/long
+- Compliance: Full audit trail
+- Learning: Continuous model refinement
+
+For complete scenarios with explanations, causal chains, and learning examples, see the **[Systems Integration Architecture](./architecture/systems-integration.md)**.
+
+---
+
+## 7. Cross-Project Integration Details
+
+### 7.1 Data Flow Architecture
 
 ```
 Market Intelligence Engine
@@ -3272,6 +3366,7 @@ Annual Savings: $60,280
 | 0.5.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Critical Addition: Zero-Fee Rapid Deployment Strategy.** Added DuckDB as embedded analytics database for instant prototyping without infrastructure setup. Created comprehensive "Quick Start" section with zero-subscription deployment path using only free data sources (Yahoo Finance, Alpha Vantage free tier, FRED, SEC, all government APIs). Added phased cost structure: $0/month Months 1-2 (validation), $200/month Month 3 (if validated), $250-1K Month 4+ (if profitable). Updated cost comparison to show three tiers: Enterprise ($300K/year), Production ($3-12K/year), Zero-Fee ($0/year initial). Includes complete code examples for DuckDB usage, Parquet file queries, and correlation analysis. Emphasizes validate-then-scale approach to minimize financial risk. |
 | 0.6.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Major Addition: Complete Architecture Documents for Both Core Tools.** Created comprehensive architecture design documents for Market Intelligence Engine and Trading Correlation Analysis Tool with 6,000+ lines of technical specifications. Added Tier 1 deployment stack with Homebrew (GCC 15+), uv (Python 3.14+), Ansible automation, OpenShift/Kubernetes support. Documented C++23/MPI/OpenMP/UPC++ implementations with fluent composable APIs. Added CUDA/cuBLAS/Intel MKL acceleration strategies. Created eBay hardware procurement guide for 64-128 core enterprise servers ($3-9K vs $20-40K new, 80-90% savings). Documented shared infrastructure design (both tools on same server, $3.5-9.7K total vs $7-19K separate). Added loose coupling architecture with API-only communication. Created 2-4 week POC guides using Python/DuckDB/CUDA before C++23 production implementation. Includes 20+ Mermaid diagrams, OpenAPI 3.0 specs, complete database schemas, and ready-to-execute code examples. Emphasizes consistent toolset across tools for maintainability. Total documentation: Market Intelligence (1,900 lines), Correlation Tool (3,300 lines). |
 | 0.7.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Complete Platform Architecture: Added Trading Decision Engine.** Created comprehensive architecture design document (3,900+ lines) for Intelligent Trading Decision Engine completing the three-pillar platform. **Key Feature: 100% Explainable AI - NOT a black box.** Every trading decision includes multi-level explanations (SHAP, attention visualization, decision trees, natural language summaries). Added mathematical foundations: Reinforcement Learning (PPO/DQN/A3C), Deep Neural Networks (Transformers/LSTMs), Graph Neural Networks for impact propagation. Documented complete explainability framework with 5 explanation levels from executive summary to full analysis. Added low-cost historical data collection (Yahoo Finance, FRED, SEC EDGAR - all free). Comprehensive charting stack: Lightweight Charts (TradingView-like), Plotly/Dash dashboards, Streamlit prototyping (all free, $0 cost). C++23 ultra-low latency order execution (< 10ms). Shared infrastructure design: all three tools on single 64-core server (cores 0-21: MI, 22-42: Correlation, 43-63: Trading). Portfolio optimization with Markowitz framework and Kelly Criterion. Message format with JSON+zstd compression (consistent across all tools). 4-6 week POC guide with simple rules → XGBoost+SHAP → RL+DNN progression. Total platform documentation: 13,300+ lines across 4 documents (PRD + 3 architecture docs). Zero additional hardware cost - complete platform on single eBay server ($3.9-9.3K). Emphasizes explainability, interpretability, and human understanding of all AI decisions. |
+| 0.8.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Systems Integration & Complete Platform Workflows.** Created comprehensive Systems Integration Architecture document (5,500+ lines) showing how all three tools work together. **Key Features: Causal chain tracking (Fed decision → rates → bank stocks), correlation chain prediction (NVDA ↑ → AMD follows with lag), sector-level analysis (track entire business sectors).** Added complete usage scenarios for budgets from $1K to $1M+ with detailed workflows. Self-simulation framework: simulate all trades before execution, only trade when profitable (Monte Carlo 1,000-10,000 scenarios). Profit explanation framework: analyze why trades were profitable with attribution analysis. Mistake analysis & learning loop: classify mistakes, identify patterns, update models, validate improvements. Daily operation workflow: pre-market → execution → monitoring → analysis → learning. Budget-driven strategy selection: automatic allocation based on capital size. Tier 1/2/3 deployment specifications with Tier 1 focus (existing computer, $0 cost). Complete hardware/software architecture diagrams. Integration communication patterns showing loose coupling. Weekly learning cycle with backtest validation. Total documentation: 18,830+ lines across 5 documents (PRD + 4 architecture docs). Platform is self-improving, self-explaining, and budget-aware. All integration patterns preserve explainability and enable continuous learning from both successes and mistakes. |
 
 ---
 
