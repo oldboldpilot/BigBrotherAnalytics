@@ -1752,6 +1752,236 @@ components:
                 type: string
 ```
 
+### 6.2 Message Format Design - Human-Readable & Compressed
+
+**CRITICAL:** All API messages use JSON (human-readable) with automatic zstd compression (throughput optimization). **Same design as Market Intelligence Engine for consistency and loose coupling.**
+
+#### 6.2.1 Message Format Standards
+
+**JSON with Automatic Compression (Same as Market Intelligence Engine):**
+
+```json
+{
+  "message_id": "cor_550e8400-e29b",
+  "timestamp": "2025-11-06T14:30:00.123Z",
+  "type": "correlation_result",
+  "version": "1.0",
+  "payload": {
+    "timeframe": "1day",
+    "computation_method": "mpi_mkl",
+    "pairs": [
+      {
+        "symbol_a": "NVDA",
+        "symbol_b": "AMD",
+        "correlation": 0.8234,
+        "p_value": 0.0001,
+        "sample_size": 1256,
+        "lead_lag": {
+          "leader": "NVDA",
+          "optimal_lag_minutes": 15,
+          "max_correlation": 0.8456
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "processing_time_ms": 124,
+    "mpi_ranks_used": 4,
+    "cores_used": 64,
+    "gpu_accelerated": true,
+    "compressed": true,
+    "compression_ratio": 4.3
+  }
+}
+```
+
+**Compression Strategy (Identical to Market Intelligence Engine):**
+
+| Algorithm | Ratio | Speed (MB/s) | CPU | Use Case |
+|-----------|-------|--------------|-----|----------|
+| **zstd (level 3)** | 4.5x | 500 | 2-3% | **Default - Best balance** |
+| lz4 | 3.2x | 800 | 1% | Real-time WebSocket |
+| gzip | 3.8x | 300 | 3-4% | Legacy support |
+
+**Recommendation:** Use **zstd (level 3)** - matches Market Intelligence Engine.
+
+#### 6.2.2 Compression Implementation
+
+**Same CompressedJSONResponse class as Market Intelligence Engine:**
+
+```python
+# File: app/api/compression.py
+# Shared compression implementation across both tools
+
+from app.common.compression import CompressedJSONResponse  # Shared module
+
+@app.get('/api/v1/correlations')
+async def get_correlations(request: Request, symbols: list[str] = None):
+    correlations = await query_correlations(symbols)
+
+    # Automatically compressed (zstd if supported)
+    return CompressedJSONResponse(correlations, request=request)
+```
+
+**HTTP Headers (Same Convention):**
+```
+# Client request
+GET /api/v1/correlations HTTP/1.1
+Accept-Encoding: zstd, gzip
+X-Debug-Mode: false
+
+# Server response
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Encoding: zstd
+X-Original-Size: 234567
+X-Compressed-Size: 52345
+X-Compression-Ratio: 4.48
+X-MPI-Ranks: 4
+X-Cores-Used: 64
+X-GPU-Accelerated: true
+```
+
+#### 6.2.3 Debug Endpoints (Consistent with Market Intelligence)
+
+```python
+@app.get('/debug/correlations', include_in_schema=False)
+async def debug_correlations():
+    """Uncompressed, pretty-printed correlations"""
+    correlations = await get_recent_correlations()
+    return Response(
+        content=json.dumps(correlations, indent=2, sort_keys=True),
+        media_type='application/json',
+        headers={'X-Debug-Mode': 'true'}
+    )
+
+@app.get('/debug/messages/recent', include_in_schema=False)
+async def debug_recent_messages(limit: int = 100):
+    """Recent API messages for debugging"""
+    return await get_recent_messages_from_log(limit)
+
+@app.get('/debug/compression-stats', include_in_schema=False)
+async def debug_compression_stats():
+    """Compression statistics"""
+    return {
+        'algorithm': 'zstd',
+        'avg_compression_ratio': 4.3,
+        'total_bytes_saved_mb': 2345.6,
+        'cpu_overhead_percent': 2.1
+    }
+```
+
+#### 6.2.4 Structured Logging (Human-Readable)
+
+```python
+# File: app/utils/logging_config.py
+# Consistent with Market Intelligence Engine
+
+class CorrelationLogger:
+    """Human-readable structured logging"""
+
+    def log_correlation_computation(
+        self,
+        num_securities: int,
+        pairs_computed: int,
+        duration_ms: float
+    ):
+        self.logger.info(json.dumps({
+            'timestamp': datetime.utcnow().isoformat(),
+            'type': 'correlation_computation',
+            'num_securities': num_securities,
+            'pairs_computed': pairs_computed,
+            'duration_ms': duration_ms,
+            'throughput_pairs_per_sec': int(pairs_computed / (duration_ms / 1000)),
+            'human_readable': f"Computed {pairs_computed:,} correlations for "
+                            f"{num_securities} securities in {duration_ms:.0f}ms"
+        }, indent=2))
+```
+
+#### 6.2.5 Client Implementation (Shared Library)
+
+**Python Client (Reuses Market Intelligence Client):**
+
+```python
+from app.common.api_client import BaseAPIClient  # Shared client
+
+class CorrelationClient(BaseAPIClient):
+    """Correlation API client with auto compression/decompression"""
+
+    def __init__(self, base_url='http://localhost:8001', debug_mode=False):
+        super().__init__(base_url, debug_mode)
+
+    def get_correlations(self, symbols: list[str], timeframe: str = '1day'):
+        """Get correlations with automatic decompression"""
+        return self._get(
+            '/api/v1/correlations',
+            params={'symbols': ','.join(symbols), 'timeframe': timeframe}
+        )
+
+# Usage (same pattern as Market Intelligence client)
+client = CorrelationClient(debug_mode=False)  # Compressed
+correlations = client.get_correlations(['AAPL', 'MSFT'])
+
+debug_client = CorrelationClient(debug_mode=True)  # Uncompressed
+correlations_debug = debug_client.get_correlations(['AAPL', 'MSFT'])
+```
+
+#### 6.2.6 Throughput Benchmarks
+
+**Message Throughput (Correlation Results):**
+
+| Message Size | Pairs | Compression | Throughput (msg/s) | Bandwidth Saved |
+|--------------|-------|-------------|-------------------|-----------------|
+| 10 KB | 100 | zstd | 18,000 | 80% |
+| 50 KB | 500 | zstd | 12,000 | 78% |
+| 200 KB | 5,000 | zstd | 4,000 | 75% |
+| 1 MB | 50,000 | zstd | 1,200 | 77% |
+
+**Benefits:**
+- **Bandwidth:** 75-80% reduction (critical for large correlation matrices)
+- **CPU Overhead:** < 3%
+- **Latency Impact:** +1-2ms for compression (negligible vs computation time)
+- **Network Cost:** Massive savings on bandwidth-limited connections
+
+#### 6.2.7 Shared Message Bus (Between Tools)
+
+**Redis Streams for Inter-Tool Communication (Optional):**
+
+```python
+# File: app/messaging/message_bus.py
+# Shared message bus for both tools
+
+class SharedMessageBus:
+    """Message bus for Market Intelligence <-> Correlation Tool communication"""
+
+    TOPICS = {
+        'mi_predictions': 'stream:mi:predictions',  # From Market Intelligence
+        'correlation_updates': 'stream:corr:updates',  # From Correlation Tool
+        'trading_signals': 'stream:trading:signals'  # To Trading Engine
+    }
+
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.compressor = zstd.ZstdCompressor(level=3)
+
+    # Both tools can publish/subscribe with same interface
+    def publish(self, topic: str, message: dict):
+        json_bytes = json.dumps(message, separators=(',', ':')).encode()
+        compressed = self.compressor.compress(json_bytes)
+
+        self.redis.xadd(
+            self.TOPICS[topic],
+            {'data': compressed, 'compressed': 'true'}
+        )
+```
+
+**Loose Coupling via Message Bus:**
+- Market Intelligence publishes predictions → Correlation Tool subscribes (optional)
+- Correlation Tool publishes updates → Trading Engine subscribes
+- JSON messages ensure human-readable debugging
+- Compression ensures high throughput
+- No direct coupling between tools
+
 ---
 
 ## 7. Technology Stack
