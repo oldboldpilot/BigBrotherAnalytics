@@ -13,12 +13,12 @@ logging:
   console: true
   max_file_size_mb: 100
   max_files: 10
-
+# Real Details
 # Schwab API Configuration
 schwab:
   client_id: "${SCHWAB_CLIENT_ID}"
   client_secret: "${SCHWAB_CLIENT_SECRET}"
-  redirect_uri: "https://localhost:8080/callback"
+  redirect_uri: "https://127.0.0.1:8182"
   account_id: "${SCHWAB_ACCOUNT_ID}"
   rate_limit_per_minute: 120
 

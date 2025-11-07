@@ -1,0 +1,273 @@
+#pragma once
+
+#include "../utils/types.hpp"
+#include "../correlation_engine/options_pricing.hpp"
+#include "../trading_decision/strategy.hpp"
+#include "../risk_management/risk_manager.hpp"
+
+#include <vector>
+#include <map>
+#include <memory>
+#include <chrono>
+
+namespace bigbrother::backtest {
+
+using namespace types;
+
+/**
+ * Backtest Configuration
+ */
+struct BacktestConfig {
+    Timestamp start_date;
+    Timestamp end_date;
+    double initial_capital;
+    double commission_per_trade;
+    double slippage_bps;            // Slippage in basis points
+    bool allow_short_selling;
+    bool reinvest_profits;
+    std::string data_frequency;     // "1min", "5min", "1day"
+
+    [[nodiscard]] auto validate() const noexcept -> Result<void>;
+};
+
+/**
+ * Simulated Fill
+ *
+ * Represents how an order would have been filled historically
+ */
+struct SimulatedFill {
+    std::string order_id;
+    std::string symbol;
+    Quantity quantity;
+    Price fill_price;
+    double commission;
+    double slippage;
+    Timestamp fill_time;
+
+    [[nodiscard]] auto totalCost() const noexcept -> double {
+        return fill_price * static_cast<double>(std::abs(quantity)) +
+               commission + slippage;
+    }
+};
+
+/**
+ * Backtest Trade
+ *
+ * Complete record of a simulated trade
+ */
+struct BacktestTrade {
+    std::string trade_id;
+    std::string symbol;
+    std::string strategy;
+
+    // Entry
+    Timestamp entry_time;
+    Price entry_price;
+    Quantity quantity;
+    double entry_cost;
+
+    // Exit
+    Timestamp exit_time;
+    Price exit_price;
+    double exit_proceeds;
+
+    // P&L
+    double gross_pnl;
+    double net_pnl;           // After commissions and slippage
+    double return_percent;
+
+    // Hold time
+    Duration hold_time_us;
+
+    // Rationale
+    std::string entry_rationale;
+    std::string exit_rationale;
+
+    [[nodiscard]] auto holdTimeDays() const noexcept -> double {
+        return static_cast<double>(hold_time_us) / (1'000'000.0 * 86400.0);
+    }
+
+    [[nodiscard]] auto isWinner() const noexcept -> bool {
+        return net_pnl > 0.0;
+    }
+};
+
+/**
+ * Backtest Performance Metrics
+ */
+struct BacktestMetrics {
+    // Returns
+    double total_return;
+    double total_return_percent;
+    double annualized_return;
+    double cagr;  // Compound Annual Growth Rate
+
+    // Risk-adjusted returns
+    double sharpe_ratio;
+    double sortino_ratio;
+    double calmar_ratio;
+
+    // Drawdown
+    double max_drawdown;
+    double max_drawdown_percent;
+    Duration max_drawdown_duration_us;
+
+    // Trade statistics
+    int64_t total_trades;
+    int64_t winning_trades;
+    int64_t losing_trades;
+    double win_rate;
+
+    // P&L statistics
+    double total_gross_pnl;
+    double total_net_pnl;
+    double total_commissions;
+    double total_slippage;
+    double avg_win;
+    double avg_loss;
+    double largest_win;
+    double largest_loss;
+
+    // Risk metrics
+    double profit_factor;        // Gross profit / Gross loss
+    double expectancy;            // Average $ per trade
+    double kelly_criterion;       // Optimal position size
+    double var_95;                // Value at Risk (95%)
+
+    // Time metrics
+    Duration total_time_in_market_us;
+    double avg_hold_time_days;
+    double max_hold_time_days;
+
+    // Strategy breakdown
+    std::map<std::string, double> pnl_by_strategy;
+    std::map<std::string, double> win_rate_by_strategy;
+
+    [[nodiscard]] auto passesThresholds() const noexcept -> bool {
+        // Per PRD success criteria
+        return total_return > 0.0 &&
+               win_rate >= 0.60 &&         // 60% win rate
+               sharpe_ratio >= 2.0 &&      // Sharpe > 2.0
+               max_drawdown_percent <= 0.15;  // Max DD < 15%
+    }
+
+    [[nodiscard]] auto meetsTargets() const noexcept -> bool {
+        // Target: $150/day profit on $30k account
+        double const target_daily_return = 150.0 / 30'000.0;  // 0.5% per day
+
+        return annualized_return / 252.0 >= target_daily_return &&
+               passesThresholds();
+    }
+};
+
+/**
+ * Order Simulator
+ *
+ * Simulates how orders would have been filled using historical data
+ */
+class OrderSimulator {
+public:
+    /**
+     * Simulate market order fill
+     *
+     * Fills at next bar's open price + slippage
+     */
+    [[nodiscard]] static auto simulateMarketOrder(
+        Order const& order,
+        Bar const& next_bar,
+        double commission_per_trade,
+        double slippage_bps
+    ) noexcept -> SimulatedFill;
+
+    /**
+     * Simulate limit order fill
+     *
+     * Fills only if limit price is touched
+     */
+    [[nodiscard]] static auto simulateLimitOrder(
+        Order const& order,
+        std::vector<Bar> const& bars,
+        double commission_per_trade,
+        double slippage_bps
+    ) noexcept -> std::optional<SimulatedFill>;
+
+    /**
+     * Simulate stop order fill
+     */
+    [[nodiscard]] static auto simulateStopOrder(
+        Order const& order,
+        std::vector<Bar> const& bars,
+        double commission_per_trade,
+        double slippage_bps
+    ) noexcept -> std::optional<SimulatedFill>;
+
+private:
+    [[nodiscard]] static auto calculateSlippage(
+        Price price,
+        Quantity quantity,
+        double slippage_bps
+    ) noexcept -> double;
+};
+
+/**
+ * Backtest Engine
+ *
+ * Runs historical simulations to validate trading strategies
+ */
+class BacktestEngine {
+public:
+    explicit BacktestEngine(BacktestConfig config);
+    ~BacktestEngine();
+
+    // Delete copy, allow move
+    BacktestEngine(BacktestEngine const&) = delete;
+    auto operator=(BacktestEngine const&) = delete;
+    BacktestEngine(BacktestEngine&&) noexcept;
+    auto operator=(BacktestEngine&&) noexcept -> BacktestEngine&;
+
+    /**
+     * Load historical data
+     */
+    [[nodiscard]] auto loadHistoricalData(
+        std::vector<std::string> const& symbols,
+        std::string const& data_path
+    ) -> Result<void>;
+
+    /**
+     * Add strategy to backtest
+     */
+    auto addStrategy(std::unique_ptr<strategy::IStrategy> strategy) -> void;
+
+    /**
+     * Run backtest
+     *
+     * @return Backtest metrics
+     */
+    [[nodiscard]] auto run() -> Result<BacktestMetrics>;
+
+    /**
+     * Get all trades
+     */
+    [[nodiscard]] auto getTrades() const noexcept -> std::vector<BacktestTrade> const&;
+
+    /**
+     * Get equity curve (account value over time)
+     */
+    [[nodiscard]] auto getEquityCurve() const noexcept
+        -> std::vector<std::pair<Timestamp, double>> const&;
+
+    /**
+     * Export results to CSV
+     */
+    [[nodiscard]] auto exportTrades(std::string const& filename) const
+        -> Result<void>;
+
+    [[nodiscard]] auto exportMetrics(std::string const& filename) const
+        -> Result<void>;
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> pImpl_;
+};
+
+} // namespace bigbrother::backtest
