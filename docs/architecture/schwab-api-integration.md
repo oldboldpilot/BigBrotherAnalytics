@@ -8,6 +8,21 @@
 
 ---
 
+## ⚠️ DATABASE STRATEGY UPDATE (November 6, 2025)
+
+**IMPORTANT:** For **Tier 1 POC (Weeks 1-12)**, we are using **DuckDB-First approach**:
+
+- ✅ **Tier 1 POC:** Use DuckDB EXCLUSIVELY (zero setup, instant start)
+- ⏸️  **Tier 2 Production:** Add PostgreSQL ONLY after proving profitability (Month 5+, optional)
+- 📋 **See detailed analysis:** [Database Strategy Analysis](./database-strategy-analysis.md)
+
+**For Tier 1 implementation:**
+- Store Schwab API data (quotes, orders, positions, account info) in DuckDB
+- DuckDB provides full ACID compliance for financial data
+- PostgreSQL is deferred to Tier 2 (only if POC proves profitable)
+
+---
+
 ## 1. Overview
 
 This document outlines the design and implications for integrating the Schwab API with BigBrotherAnalytics using C++23. This is for the Tier 1 POC with the existing $30,000 Schwab margin account.

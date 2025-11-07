@@ -11,13 +11,17 @@
 #   - UPC++ 2024.3.0 and GASNet-EX (PGAS)
 #   - Intel MKL (Math Kernel Library)
 #   - NVIDIA CUDA 12.3+ (if GPU present)
-#   - PostgreSQL 16+ with TimescaleDB, Apache AGE, pgvector
-#   - Redis cache
-#   - DuckDB (via Python)
+#   - DuckDB (via Python) - PRIMARY DATABASE FOR TIER 1
+#   - Redis cache (optional, for caching)
 #   - PyTorch with CUDA support
 #   - Hugging Face Transformers
 #   - All ML/AI frameworks
 #   - Complete verification
+#
+# NOTE: PostgreSQL is NOT installed in Tier 1 POC!
+#       We use DuckDB-first approach for rapid validation.
+#       Add PostgreSQL later (Tier 2) only after proving profitability.
+#       See docs/architecture/database-strategy-analysis.md for rationale.
 #
 # Supported Operating Systems:
 #   ✓ Red Hat Enterprise Linux (RHEL) 9+
@@ -400,211 +404,72 @@
         creates: "/home/{{ user }}/.local/bin/ansible"
 
     # ═══════════════════════════════════════════════════════════
-    # SECTION 8: PostgreSQL 16+ with Extensions
+    # SECTION 8: DuckDB (Embedded Analytics Database)
     # ═══════════════════════════════════════════════════════════
-
-    - name: Add PostgreSQL repository (Ubuntu)
-      shell: |
-        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-        echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-        apt update
-      when: ansible_os_family == "Debian"
-
-    - name: Install PostgreSQL 16 (Ubuntu)
-      apt:
-        name:
-          - postgresql-{{ postgresql_version }}
-          - postgresql-contrib-{{ postgresql_version }}
-          - postgresql-{{ postgresql_version }}-postgis-3
-          - postgresql-client-{{ postgresql_version }}
-          - libpq-dev
-        state: latest
-      when: ansible_os_family == "Debian"
-
-    - name: Add PostgreSQL repository (RHEL)
-      dnf:
-        name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
-        state: present
-        disable_gpg_check: yes
-      when: ansible_os_family == "RedHat"
-
-    - name: Install PostgreSQL 16 (RHEL)
-      dnf:
-        name:
-          - postgresql{{ postgresql_version }}
-          - postgresql{{ postgresql_version }}-server
-          - postgresql{{ postgresql_version }}-contrib
-          - postgresql{{ postgresql_version }}-devel
-        state: latest
-      when: ansible_os_family == "RedHat"
-
-    - name: Initialize PostgreSQL database (RHEL)
-      shell: /usr/pgsql-{{ postgresql_version }}/bin/postgresql-{{ postgresql_version }}-setup initdb
-      args:
-        creates: /var/lib/pgsql/{{ postgresql_version }}/data/PG_VERSION
-      when: ansible_os_family == "RedHat"
-
-    - name: Start and enable PostgreSQL (systemd)
-      systemd:
-        name: "{% if ansible_os_family == 'Debian' %}postgresql{% else %}postgresql-{{ postgresql_version }}{% endif %}"
-        state: started
-        enabled: yes
-      when: systemd_check.rc == 0
-
-    - name: Start PostgreSQL manually (WSL without systemd)
-      shell: |
-        {% if ansible_os_family == "Debian" %}
-        sudo -u postgres /usr/lib/postgresql/{{ postgresql_version }}/bin/pg_ctl -D /var/lib/postgresql/{{ postgresql_version }}/main start
-        {% else %}
-        sudo -u postgres /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl -D /var/lib/pgsql/{{ postgresql_version }}/data start
-        {% endif %}
-      when: systemd_check.rc != 0
-
-    # Install PostgreSQL extensions
-
-    - name: Install TimescaleDB
-      shell: |
-        # Add TimescaleDB repository
-        {% if ansible_os_family == "Debian" %}
-        echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/timescaledb.list
-        wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
-        apt update
-        apt install -y timescaledb-2-postgresql-{{ postgresql_version }}
-        {% else %}
-        tee /etc/yum.repos.d/timescale_timescaledb.repo <<EOL
-        [timescale_timescaledb]
-        name=timescale_timescaledb
-        baseurl=https://packagecloud.io/timescale/timescaledb/el/9/\$basearch
-        repo_gpgcheck=1
-        gpgcheck=0
-        enabled=1
-        gpgkey=https://packagecloud.io/timescale/timescaledb/gpgkey
-        sslverify=1
-        sslcacert=/etc/pki/tls/certs/ca-bundle.crt
-        metadata_expire=300
-        EOL
-        dnf install -y timescaledb-2-postgresql-{{ postgresql_version }}
-        {% endif %}
-        # Tune PostgreSQL for TimescaleDB
-        sudo timescaledb-tune --quiet --yes
-
-    - name: Install Apache AGE (Graph Extension)
-      shell: |
-        cd /tmp
-        git clone https://github.com/apache/age.git
-        cd age
-        make PG_CONFIG=/usr/bin/pg_config install
-      args:
-        creates: /usr/lib/postgresql/{{ postgresql_version }}/lib/age.so
-
-    - name: Install pgvector (Vector Similarity)
-      shell: |
-        cd /tmp
-        git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git
-        cd pgvector
-        make PG_CONFIG=/usr/bin/pg_config
-        make install PG_CONFIG=/usr/bin/pg_config
-      args:
-        creates: /usr/lib/postgresql/{{ postgresql_version }}/lib/vector.so
-
-    - name: Find PostgreSQL config file
-      shell: |
-        {% if ansible_os_family == "Debian" %}
-        echo "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
-        {% else %}
-        echo "/var/lib/pgsql/{{ postgresql_version }}/data/postgresql.conf"
-        {% endif %}
-      register: pg_conf_path
-      changed_when: false
-
-    - name: Configure PostgreSQL for BigBrotherAnalytics
-      blockinfile:
-        path: "{{ pg_conf_path.stdout }}"
-        block: |
-          # BigBrotherAnalytics Configuration
-          shared_preload_libraries = 'timescaledb,age'
-          max_connections = 200
-          shared_buffers = 16GB
-          effective_cache_size = 48GB
-          work_mem = 256MB
-          maintenance_work_mem = 2GB
-          max_parallel_workers_per_gather = 8
-          max_parallel_workers = {{ num_build_jobs }}
-          max_worker_processes = {{ num_build_jobs }}
-          jit = on
-        create: yes
-        marker: "# {mark} BIGBROTHER ANSIBLE MANAGED BLOCK"
-
-    - name: Get PostgreSQL service name
-      shell: |
-        {% if ansible_os_family == "Debian" %}
-        echo "postgresql"
-        {% else %}
-        echo "postgresql-{{ postgresql_version }}"
-        {% endif %}
-      register: pg_service_name
-      changed_when: false
-
-    - name: Restart PostgreSQL
-      systemd:
-        name: "{{ pg_service_name.stdout }}"
-        state: restarted
+    # NOTE: DuckDB is installed via Python (uv) in SECTION 10
+    #       No separate installation needed - it's embedded!
+    #       PostgreSQL skipped for Tier 1 POC - add later if profitable
 
     # ═══════════════════════════════════════════════════════════
-    # SECTION 9: Redis Cache
+    # SECTION 9: Redis Cache (Optional - for caching only)
     # ═══════════════════════════════════════════════════════════
+    # NOTE: Redis is optional for Tier 1. Can skip to reduce complexity.
+    #       Uncomment if you need caching, otherwise DuckDB handles everything.
 
-    - name: Install Redis (Ubuntu)
-      apt:
-        name: redis-server
-        state: latest
-      when: ansible_os_family == "Debian"
+    # Commented out for Tier 1 POC - Redis is optional
+    # Uncomment if you need caching layer
+    # - name: Install Redis (Ubuntu)
+    #   apt:
+    #     name: redis-server
+    #     state: latest
+    #   when: ansible_os_family == "Debian"
 
-    - name: Install Redis (RHEL)
-      dnf:
-        name: redis
-        state: latest
-      when: ansible_os_family == "RedHat"
+    # - name: Install Redis (RHEL)
+    #   dnf:
+    #     name: redis
+    #     state: latest
+    #   when: ansible_os_family == "RedHat"
 
-    - name: Find Redis config file
-      shell: |
-        {% if ansible_os_family == "Debian" %}
-        echo "/etc/redis/redis.conf"
-        {% else %}
-        echo "/etc/redis/redis.conf"
-        {% endif %}
-      register: redis_conf_path
-      changed_when: false
+    # Commented out for Tier 1 POC - Redis is optional
+    # - name: Find Redis config file
+    #   shell: |
+    #     {% if ansible_os_family == "Debian" %}
+    #     echo "/etc/redis/redis.conf"
+    #     {% else %}
+    #     echo "/etc/redis/redis.conf"
+    #     {% endif %}
+    #   register: redis_conf_path
+    #   changed_when: false
 
-    - name: Configure Redis for BigBrotherAnalytics
-      lineinfile:
-        path: "{{ redis_conf_path.stdout }}"
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
-      loop:
-        - { regexp: '^maxmemory ', line: 'maxmemory 16gb' }
-        - { regexp: '^maxmemory-policy', line: 'maxmemory-policy allkeys-lru' }
+    # - name: Configure Redis for BigBrotherAnalytics
+    #   lineinfile:
+    #     path: "{{ redis_conf_path.stdout }}"
+    #     regexp: "{{ item.regexp }}"
+    #     line: "{{ item.line }}"
+    #   loop:
+    #     - { regexp: '^maxmemory ', line: 'maxmemory 16gb' }
+    #     - { regexp: '^maxmemory-policy', line: 'maxmemory-policy allkeys-lru' }
 
-    - name: Get Redis service name
-      shell: |
-        {% if ansible_os_family == "Debian" %}
-        echo "redis-server"
-        {% else %}
-        echo "redis"
-        {% endif %}
-      register: redis_service_name
-      changed_when: false
+    # - name: Get Redis service name
+    #   shell: |
+    #     {% if ansible_os_family == "Debian" %}
+    #     echo "redis-server"
+    #     {% else %}
+    #     echo "redis"
+    #     {% endif %}
+    #   register: redis_service_name
+    #   changed_when: false
 
-    - name: Start and enable Redis (systemd)
-      systemd:
-        name: "{{ redis_service_name.stdout }}"
-        state: started
-        enabled: yes
-      when: systemd_check.rc == 0
+    # - name: Start and enable Redis (systemd)
+    #   systemd:
+    #     name: "{{ redis_service_name.stdout }}"
+    #     state: started
+    #     enabled: yes
+    #   when: systemd_check.rc == 0
 
-    - name: Start Redis manually (WSL without systemd)
-      shell: "redis-server {{ redis_conf_path.stdout }} --daemonize yes"
-      when: systemd_check.rc != 0
+    # - name: Start Redis manually (WSL without systemd)
+    #   shell: "redis-server {{ redis_conf_path.stdout }} --daemonize yes"
+    #   when: systemd_check.rc != 0
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 10: Python Environment and ML/AI Frameworks
@@ -642,10 +507,12 @@
           numpy scipy pandas polars pyarrow \
           matplotlib seaborn plotly \
           scikit-learn xgboost lightgbm \
-          duckdb sqlalchemy psycopg2-binary redis \
+          duckdb sqlalchemy \
           fastapi uvicorn pydantic \
           streamlit dash jupyter jupyterlab
       become_user: "{{ user }}"
+      # NOTE: Removed psycopg2-binary (PostgreSQL) and redis for Tier 1
+      #       DuckDB is the primary database - zero setup, embedded!
 
     - name: Install PyTorch with CUDA 13.0 support
       shell: |
@@ -843,8 +710,8 @@
 
           # Check databases
           echo "DATABASES:"
-          check_command "psql" "PostgreSQL"
-          check_command "redis-cli" "Redis"
+          echo "  DuckDB: Embedded (check via Python below)"
+          echo "  Note: PostgreSQL/Redis skipped for Tier 1 POC"
           echo ""
 
           # Check Python
@@ -934,12 +801,14 @@
           - Intel MKL (BLAS, LAPACK, FFT, Statistics)
 
           ### Databases
-          - PostgreSQL {{ postgresql_version }}
-            - TimescaleDB (time-series)
-            - Apache AGE (graph database)
-            - pgvector (vector similarity)
-          - Redis (cache)
-          - DuckDB (via Python, embedded analytics)
+          - DuckDB (via Python, embedded analytics) - PRIMARY DATABASE
+            - Zero setup, instant start
+            - Perfect for backtesting and analytics
+            - ACID compliant, handles real-time trading
+
+          Note: PostgreSQL/Redis not installed in Tier 1 POC
+                Add later (Tier 2) only after proving profitability
+                See docs/architecture/database-strategy-analysis.md
 
           ### Python {{ python_version }} with ML/AI
           - PyTorch with CUDA support
@@ -1041,11 +910,14 @@
           ✓ Parallel Computing (OpenMP, MPI, UPC++, GASNet-EX)
           ✓ GPU Computing (CUDA {{ cuda_version }})
           ✓ Math Libraries (Intel MKL)
-          ✓ Databases (PostgreSQL 16, Redis, DuckDB)
+          ✓ Database (DuckDB - embedded, zero setup)
           ✓ Python {{ python_version }} with ML/AI frameworks
           ✓ PyTorch with CUDA support
           ✓ Hugging Face Transformers
           ✓ Complete environment configured
+
+          NOTE: Using DuckDB-first approach for rapid validation
+                PostgreSQL/Redis deferred until Tier 2 (after profitability)
 
           Installation Directory: {{ project_dir }}
           Quick Start Guide: {{ project_dir }}/QUICKSTART.md

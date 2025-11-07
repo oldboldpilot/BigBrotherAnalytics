@@ -8,6 +8,22 @@
 
 ---
 
+## ⚠️ DATABASE STRATEGY UPDATE (November 6, 2025)
+
+**IMPORTANT:** This document references PostgreSQL in database schemas and architecture diagrams. However, for **Tier 1 POC (Weeks 1-12)**, we are using **DuckDB-First approach**:
+
+- ✅ **Tier 1 POC:** Use DuckDB EXCLUSIVELY (zero setup, instant start, perfect for validation)
+- ⏸️  **Tier 2 Production:** Add PostgreSQL ONLY after proving profitability (Month 5+, optional)
+- 📋 **See detailed analysis:** [Database Strategy Analysis](./database-strategy-analysis.md)
+
+**For Tier 1 implementation:**
+- Replace all PostgreSQL references with DuckDB
+- Use Parquet files for archival storage
+- PostgreSQL schemas shown below are for Tier 2 reference only
+- Migration from DuckDB to PostgreSQL: 1-2 days when needed
+
+---
+
 ## Table of Contents
 
 1. [Overview](#1-overview)

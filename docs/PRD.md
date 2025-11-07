@@ -35,17 +35,30 @@ BigBrotherAnalytics is a **high-performance**, AI-powered trading intelligence p
 - **Free government data** - FRED, SEC, Congress, FDA, EPA, HHS APIs (all free)
 - **Affordable market data** - Polygon.io ($200-500/month) instead of Bloomberg Terminal ($24,000/year)
 
-**🔧 Unified Technology Stack:**
-- **Dual Database Strategy:**
-  - **DuckDB** for rapid development, analytics, and data exploration (zero setup, embedded)
-  - **PostgreSQL 16+** for production with extensions:
-    - **TimescaleDB** for time-series (replaces InfluxDB, QuestDB)
-    - **pgvector** for semantic search (replaces Pinecone, Weaviate)
-    - **Apache AGE** for graph data (replaces Neo4j)
-- **Reduces complexity** - One database to maintain, tune, backup, and monitor
-- **Easier operations** - Single connection pool, unified query language, consistent backups
-- **Performance** - In-memory caching, parallel queries, JIT compilation
-- **Rapid prototyping** - DuckDB for instant analytics without server setup
+**🔧 DuckDB-First Database Strategy:**
+- **Tier 1 POC (Months 1-4): DuckDB ONLY**
+  - **Zero setup** - Embedded database, no server configuration
+  - **Instant start** - 30 seconds to working database
+  - **Perfect for validation** - Fast backtesting, rapid iteration
+  - **Full ACID compliance** - Safe for financial data
+  - **Production-ready** - Handles real-time trading at POC scale
+  - **See detailed analysis:** [docs/architecture/database-strategy-analysis.md](./architecture/database-strategy-analysis.md)
+
+- **Tier 2 Production (Month 5+, after proving profitability): Dual Database**
+  - **DuckDB** continues for analytics, backtesting, model training
+  - **PostgreSQL 16+** added for operational data with extensions:
+    - **TimescaleDB** for high-frequency time-series
+    - **pgvector** for semantic search
+    - **Apache AGE** for impact graphs
+  - **Migration time:** 1-2 days (well-tested path)
+  - **Best of both worlds** - DuckDB for analytics, PostgreSQL for operations
+
+**Why DuckDB-First:**
+- Reduces POC complexity by 90%
+- 12+ hours saved on database setup
+- 5-10x faster iteration during validation
+- Zero risk - add PostgreSQL only after proving profitability
+- Focus on algorithms, not database administration
 
 **📊 Comprehensive Data Coverage:**
 - **15+ government agencies** - Congress, Treasury, USDA, FDA, EPA, HHS, and more
@@ -218,10 +231,10 @@ print(f"Found {len(result)} highly correlated pairs")
 
 **Only pay for data when your strategies show promise:**
 
-1. **Month 1-2:** Free data only, prove concepts
+1. **Month 1-2:** Free data only, prove concepts with DuckDB
 2. **Month 3:** Add Polygon.io ($200/month) if backtests are positive
 3. **Month 4:** Add NewsAPI business tier ($449/month) if news strategies work
-4. **Month 5+:** Add PostgreSQL for real-time trading operations
+4. **Month 5+:** Optionally add PostgreSQL for enhanced real-time operations (DuckDB sufficient for most cases)
 
 **Progressive Cost Structure:**
 - **Weeks 1-4:** $0/month (free data only)
@@ -231,11 +244,12 @@ print(f"Found {len(result)} highly correlated pairs")
 
 ### Quick Start Technology Stack (Zero Setup)
 
-**Database & Storage:**
-- ✅ **DuckDB** - Embedded analytics (no setup)
-- ✅ **Parquet files** - Efficient storage on disk
+**Database & Storage (Tier 1 POC):**
+- ✅ **DuckDB** - PRIMARY DATABASE (embedded, zero setup, ACID compliant)
+- ✅ **Parquet files** - Efficient columnar storage
 - ✅ **pandas/polars** - Data manipulation
-- ⏸️  PostgreSQL - Add later for production
+- ⏸️  PostgreSQL - DEFERRED to Tier 2 (only after proving profitability)
+- ⏸️  Redis - OPTIONAL (DuckDB handles caching needs for POC)
 
 **Data Collection:**
 - ✅ **yfinance** - Free Yahoo Finance data
@@ -278,7 +292,8 @@ print(f"Found {len(result)} highly correlated pairs")
 
 **Month 4+: Scale**
 - Add paid data sources incrementally
-- Deploy PostgreSQL for production
+- Continue with DuckDB (sufficient for most trading at this scale)
+- Optionally add PostgreSQL for Tier 2 features (migration: 1-2 days)
 - Real money trading (small amounts)
 - Scale up as profitability proven
 
@@ -2082,9 +2097,11 @@ Trading Decision Engine    Correlation Tool
 - **NumPy with MKL:** Vectorized operations
 - **Polars:** Fast DataFrame library (Rust-based, similar performance to DuckDB)
 
-### 9.5 Unified Database Layer (DuckDB + PostgreSQL Strategy)
+### 9.5 Database Strategy (DuckDB-First Approach)
 
-**DUAL DATABASE APPROACH:** Use DuckDB for rapid development and analytics, PostgreSQL for production operations. This provides instant prototyping capabilities with zero setup while maintaining enterprise-grade production infrastructure.
+**DUCKDB-FIRST APPROACH FOR TIER 1:** Start with DuckDB exclusively (zero setup, instant start). Add PostgreSQL ONLY in Tier 2 after proving profitability. This eliminates setup complexity and allows focus on algorithm validation.
+
+**IMPORTANT:** See [docs/architecture/database-strategy-analysis.md](./architecture/database-strategy-analysis.md) for detailed decision analysis and migration strategy.
 
 ### 9.5.1 DuckDB - Embedded Analytics Database (Rapid Development)
 
@@ -2163,21 +2180,25 @@ news = con.execute("SELECT * FROM 'data/news/*.csv'").df()
 con.execute("SELECT * FROM result WHERE close > 100").df()
 ```
 
-**Transition Strategy:**
-- **Phase 1 (Weeks 1-4):** Use DuckDB exclusively for rapid development
-- **Phase 2 (Months 2-3):** Add PostgreSQL for real-time trading operations
-- **Phase 3 (Months 4+):** DuckDB for analytics, PostgreSQL for operations
-- **Long-term:** Both databases serving different purposes
+**Transition Strategy (DuckDB-First):**
+- **Tier 1 POC (Weeks 1-12):** Use DuckDB EXCLUSIVELY for rapid development and validation
+- **Decision Point (Month 4):** Evaluate profitability - only proceed if proven
+- **Tier 2 Production (Month 5+, OPTIONAL):** Add PostgreSQL for enhanced operations
+- **Long-term (if scaled):** DuckDB for analytics, PostgreSQL for high-frequency operations
+- **Note:** Many traders continue with DuckDB-only successfully at POC scale
 
-### 9.5.2 PostgreSQL - Production Database
+### 9.5.2 PostgreSQL - Production Database (Tier 2 Only, Optional)
 
-**Primary Database: PostgreSQL 16+**
-- **Production operations** after initial prototyping phase
-- **Core relational database** for all structured data
-- **Proven performance** at scale
-- **ACID compliance** for trading operations
+**DEFERRED TO TIER 2:** PostgreSQL is NOT installed in Tier 1 POC. Add only after proving profitability (Month 5+).
+
+**PostgreSQL 16+ Features (when added):**
+- **Production operations** for high-frequency trading at scale
+- **Core relational database** for operational data (trades, positions)
+- **Proven performance** at institutional scale
+- **ACID compliance** for financial operations
 - **Rich ecosystem** of tools and extensions
 - **Zero licensing cost**
+- **Migration from DuckDB:** 1-2 days
 
 **Critical Extensions:**
 
