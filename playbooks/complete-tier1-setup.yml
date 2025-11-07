@@ -5,7 +5,7 @@
 # This playbook installs EVERYTHING needed for Tier 1 development in one run:
 #   - Homebrew (package manager)
 #   - GCC 15 with C++23 support
-#   - Python 3.14+ with uv environment manager
+#   - Python 3.13+ with uv project manager
 #   - CMake 4.1.2+, Ninja build system
 #   - OpenMP, OpenMPI 5.x
 #   - UPC++ 2024.3.0 and GASNet-EX (PGAS)
@@ -16,7 +16,9 @@
 #   - PyTorch with CUDA support
 #   - Hugging Face Transformers
 #   - All ML/AI frameworks
-#   - Static analysis tools (mypy, pylint, pytype, clang-tidy, cppcheck)
+#   - Static analysis tools (mypy, pylint, clang-tidy, cppcheck)
+#   - pybind11 for C++23/Python integration (GIL-free performance)
+#   - Maven 3.9+ and OpenJDK 25 (for document processing with Tika)
 #   - Complete verification
 #
 # NOTE: PostgreSQL is NOT installed in Tier 1 POC!
@@ -33,7 +35,7 @@
 #   ✓ CentOS Stream 9+
 #
 # Installation Strategy:
-#   - Homebrew: Primary method for GCC 15, Python 3.14, CMake, Ansible, MPI
+#   - Homebrew: Primary method for GCC 15, Python 3.13, CMake, Rust, uv, MPI
 #     (Provides latest versions, consistent across all OSes)
 #   - System Package Manager (dnf/apt): Only for OS-specific packages
 #     (PostgreSQL, Redis, kernel headers, system utilities)
@@ -71,7 +73,7 @@
       executable: /bin/bash
   vars:
     gcc_version: "15"
-    python_version: "3.14"
+    python_version: "3.13"
     cuda_version: "13.0"              # Latest CUDA Toolkit
     pytorch_cuda_version: "cu130"      # PyTorch CUDA version string
     postgresql_version: "16"
@@ -232,10 +234,23 @@
           - cppcheck                   # C++ static analyzer
           - rustup                     # Rust toolchain manager
           - rust                       # Rust compiler (installed via rustup)
+          - maven                      # Maven (includes OpenJDK)
         state: latest
       become_user: "{{ user }}"
       environment:
         PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    - name: Create GCC symlinks (for MPI/PGAS compatibility)
+      file:
+        src: "{{ homebrew_prefix }}/bin/{{ item.src }}"
+        dest: "{{ homebrew_prefix }}/bin/{{ item.dest }}"
+        state: link
+        force: yes
+      loop:
+        - { src: 'gcc-{{ gcc_version }}', dest: 'gcc' }
+        - { src: 'g++-{{ gcc_version }}', dest: 'g++' }
+        - { src: 'gfortran-{{ gcc_version }}', dest: 'gfortran' }
+      # NOTE: Required for OpenMPI/PGAS - they expect unversioned compiler names
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 4: Parallel Computing (OpenMP, MPI, UPC++)
@@ -577,14 +592,16 @@
       # NOTE: Using uv project management - no venv needed!
       #       All code runs with: uv run python script.py
 
-    - name: Install Python static analysis tools via uv
+    - name: Install Python static analysis tools and pybind11 via uv
       shell: |
         cd {{ project_dir }}
         {{ homebrew_prefix }}/bin/uv add --dev \
-          mypy pylint pytype \
-          black isort flake8 \
-          pre-commit
+          mypy pylint black isort flake8 \
+          pre-commit \
+          pybind11
       become_user: "{{ user }}"
+      # NOTE: pytype skipped - has Python 3.13 compatibility issues
+      # NOTE: pybind11 enables C++23/Python integration for GIL-free performance
 
     - name: Install PyTorch via uv (CPU version for WSL2)
       shell: |
@@ -620,7 +637,7 @@
           scrapy playwright beautifulsoup4 \
           yfinance alpha-vantage fredapi \
           requests aiohttp httpx \
-          apache-tika pdfplumber tabula-py \
+          tika pdfplumber tabula-py \
           python-pptx python-docx openpyxl
       become_user: "{{ user }}"
 
@@ -653,14 +670,16 @@
           # Homebrew
           eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
 
-          # Compilers
-          export CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }}
-          export CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }}
-          export FC={{ homebrew_prefix }}/bin/gfortran-{{ gcc_version }}
+          # Compilers (use symlinks for MPI/PGAS compatibility)
+          export CC={{ homebrew_prefix }}/bin/gcc
+          export CXX={{ homebrew_prefix }}/bin/g++
+          export FC={{ homebrew_prefix }}/bin/gfortran
 
           # MPI
           export MPICC={{ homebrew_prefix }}/bin/mpicc
           export MPICXX={{ homebrew_prefix }}/bin/mpic++
+          export OMPI_CC={{ homebrew_prefix }}/bin/gcc
+          export OMPI_CXX={{ homebrew_prefix }}/bin/g++
 
           # Static Analysis Tools
           export PATH={{ homebrew_prefix }}/opt/llvm/bin:$PATH
