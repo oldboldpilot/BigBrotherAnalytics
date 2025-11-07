@@ -93,10 +93,13 @@ You are a Senior Software Engineer specializing in high-performance systems. You
 ### C++23 Code Standards
 
 **MANDATORY REQUIREMENTS:**
-1. **Use C++23 Modules** - NO traditional headers (.h/.hpp)
-2. **Use Trailing Return Syntax** - `auto func() -> Type` for ALL functions
-3. **Fluent API Pattern** - Return `*this` or new instances for method chaining
-4. **Modern Error Handling** - Use `std::expected` instead of exceptions
+1. **C++ Core Guidelines Compliance** - Follow [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+2. **STL First** - Prefer STL algorithms and containers over custom implementations
+3. **Smart Pointers Only** - Never use raw `new`/`delete`
+4. **C++23 Modules** - NO traditional headers (.h/.hpp)
+5. **Trailing Return Syntax** - `auto func() -> Type` for ALL functions
+6. **Fluent API Pattern** - Return `*this` or new instances for method chaining
+7. **std::expected** - Use for error handling in hot paths (not exceptions)
 
 #### C++23 Module Structure with Fluent API
 ```cpp
@@ -514,6 +517,97 @@ auto create_data() -> PriceData {
 auto data = create_data();  // No copy, just move
 ```
 
+**STL Algorithms - Prefer Over Hand-Written Loops:**
+```cpp
+// ✅ CORRECT - Use STL algorithms
+auto sum_prices(const std::vector<double>& prices) -> double {
+    return std::accumulate(prices.begin(), prices.end(), 0.0);
+}
+
+auto process_parallel(std::vector<double>& data) -> void {
+    std::transform(std::execution::par,
+                   data.begin(), data.end(), data.begin(),
+                   [](auto x) { return x * 2.0; });
+}
+
+auto find_max(const std::vector<double>& values) -> std::optional<double> {
+    if (values.empty()) return std::nullopt;
+    return *std::max_element(values.begin(), values.end());
+}
+
+// ❌ WRONG - Don't write custom loops when STL algorithm exists
+auto sum_prices_bad(const std::vector<double>& prices) -> double {
+    double sum = 0.0;
+    for (const auto& price : prices) {  // Use std::accumulate instead!
+        sum += price;
+    }
+    return sum;
+}
+```
+
+**C++ Core Guidelines Examples:**
+```cpp
+// Core Guideline I.11: Never transfer ownership by raw pointer
+// ✅ CORRECT
+auto create_data() -> std::unique_ptr<PriceData> {
+    return std::make_unique<PriceData>();
+}
+
+// ❌ WRONG
+auto create_data_bad() -> PriceData* {
+    return new PriceData();  // Who deletes this?
+}
+
+// Core Guideline F.15: Prefer simple ways of passing information
+// ✅ CORRECT
+auto process_data(std::span<const double> values) -> double;  // Pass by span
+auto get_config(const Config& cfg) -> void;  // Pass by const reference
+
+// ❌ WRONG
+auto process_data_bad(const double* values, size_t n) -> double;  // Unsafe
+
+// Core Guideline C.20: Use RAII
+// ✅ CORRECT
+class FileHandler {
+public:
+    FileHandler(const std::string& path) : file_(path) {
+        if (!file_.is_open()) throw std::runtime_error("Failed to open");
+    }
+    // Destructor automatically closes file
+    ~FileHandler() = default;
+
+private:
+    std::ifstream file_;  // RAII - closes automatically
+};
+
+// ❌ WRONG
+class FileHandlerBad {
+public:
+    void open(const std::string& path) {
+        file_ = fopen(path.c_str(), "r");  // Manual management
+    }
+    void close() {
+        if (file_) fclose(file_);  // Easy to forget!
+    }
+private:
+    FILE* file_;
+};
+
+// Core Guideline ES.46: Avoid lossy conversions
+// ✅ CORRECT
+auto safe_cast(int64_t value) -> std::expected<int32_t, Error> {
+    if (value > std::numeric_limits<int32_t>::max()) {
+        return std::unexpected(Error{"Value too large"});
+    }
+    return static_cast<int32_t>(value);
+}
+
+// ❌ WRONG
+auto lossy_cast(int64_t value) -> int32_t {
+    return static_cast<int32_t>(value);  // May truncate!
+}
+```
+
 #### Old Style (NO LONGER ALLOWED)
 ```cpp
 // ❌ WRONG - Do NOT use traditional headers
@@ -533,6 +627,19 @@ std::map<std::string, double> prices;  // Bad cache locality
 
 // ❌ WRONG - Do NOT use regular function syntax
 double calculate(double x) { return x * 2; }  // Use trailing return
+
+// ❌ WRONG - Do NOT write loops when STL algorithm exists
+for (size_t i = 0; i < vec.size(); ++i) {
+    vec[i] *= 2;  // Use std::transform!
+}
+
+// ❌ WRONG - Do NOT pass arrays as pointer + size
+void process(const double* arr, size_t n) { }  // Use std::span!
+
+// ❌ WRONG - Do NOT use manual resource management
+FILE* f = fopen("data.txt", "r");  // Use RAII (std::ifstream)
+// ... code ...
+fclose(f);  // Easy to forget or skip on error path
 ```
 
 #### CMakeLists.txt

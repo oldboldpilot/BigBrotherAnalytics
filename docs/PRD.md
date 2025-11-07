@@ -2088,23 +2088,51 @@ Trading Decision Engine    Correlation Tool
       - Deducing `this` for better performance and fluent APIs
       - `[[likely]]` and `[[unlikely]]` attributes for branch prediction
   - **Coding Standards:**
-    - ALL C++ files must use modules (no .h/.hpp headers)
-    - ALL functions must use trailing return type syntax
-    - ALL APIs must support method chaining (fluent interface)
+    - **C++ Core Guidelines Compliance (Mandatory):**
+      - Follow [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) for all implementation details
+      - Use static analysis tools to enforce guidelines (clang-tidy with core-guidelines checks)
+      - Key guidelines to emphasize:
+        - I.11: Never transfer ownership by raw pointer (use smart pointers)
+        - F.15: Prefer simple and conventional ways of passing information (span, const&)
+        - C.20: Use RAII wherever possible
+        - ES.46: Avoid lossy (narrowing, truncating) arithmetic conversions
+        - CP.1: Assume your code will run as part of a multi-threaded program
+    - **Standard Template Library (STL) First:**
+      - Prefer STL algorithms over hand-written loops (std::transform, std::for_each, etc.)
+      - Use STL containers by default (std::vector, std::flat_map, std::unordered_map)
+      - Leverage STL numeric algorithms (std::accumulate, std::reduce, std::transform_reduce)
+      - Use STL utilities (std::pair, std::tuple, std::tie)
+      - Only write custom implementations when STL performance is insufficient
+    - **Module System:**
+      - ALL C++ files must use modules (no .h/.hpp headers)
+      - Use `export module` for public interfaces
+      - Use `import` for dependencies
+    - **Function Syntax:**
+      - ALL functions must use trailing return type syntax (`auto func() -> Type`)
+    - **API Design:**
+      - ALL APIs must support method chaining (fluent interface)
+      - Use builder pattern for complex object construction
     - **Memory Management:**
       - Use smart pointers for all dynamic allocations
       - Prefer `std::unique_ptr` by default
+      - Use `std::shared_ptr` only when shared ownership is required
       - Use RAII (Resource Acquisition Is Initialization) pattern
-      - No raw `new`/`delete` in production code
+      - **Never use raw `new`/`delete`** in production code
     - **Error Handling:**
       - Use `std::expected` for error handling in hot paths
       - Use `std::variant` for type-safe unions
-      - Reserve exceptions for truly exceptional cases
+      - Use `std::optional` for values that may not exist
+      - Reserve exceptions for truly exceptional cases only
     - **Performance:**
       - Use `constexpr` for compile-time computation
-      - Use `std::span` for safe array access
+      - Use `std::span` for safe array access without ownership
       - Use `std::flat_map` instead of `std::map` for better cache locality
-      - Use move semantics and rvalue references extensively
+      - Use move semantics (`std::move`) and rvalue references extensively
+      - Use STL parallel algorithms when appropriate (`std::execution::par`)
+    - **Concurrency:**
+      - Use `std::atomic` for lock-free shared state
+      - Use `std::jthread` instead of `std::thread`
+      - Follow lock-free programming guidelines when possible
 
 - **Rust:** High-performance components requiring memory safety
   - Concurrent data structures
