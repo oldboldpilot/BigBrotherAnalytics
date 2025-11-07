@@ -19,10 +19,13 @@ BigBrotherAnalytics is a **high-performance**, AI-powered trading intelligence p
 
 **Technology Highlights:**
 - **C++23:** Cache-friendly containers (`std::flat_map`), better error handling (`std::expected`), multi-dimensional arrays (`std::mdspan`)
-- **Python 3.14+ GIL-Free:** True multi-threading for CPU-bound tasks, parallel feature extraction, concurrent model inference
+- **Python 3.13:** Production-stable ML ecosystem with pybind11 for C++ acceleration (GIL-bypass)
 - **Performance Target:** Near-linear scaling with core count across both C++ and Python components
 
-**Initial Focus:** Algorithmic options day trading to exploit rapid market movements and volatility patterns. Stock trading strategies will be developed subsequently.
+**Initial Focus:** Algorithmic options day trading to exploit rapid market movements and volatility patterns, with specialized strategies for:
+- **Recession Detection & Exploitation:** Identify macroeconomic turning points using Fed data, yield curves, and leading indicators
+- **Defensive Positioning:** Options strategies (protective puts, spreads) during recession signals
+- **Counter-Cyclical Plays:** Identify recession-resistant sectors and anti-correlation opportunities
 
 ---
 
@@ -502,12 +505,16 @@ The architecture document includes:
   - New positions created in spun-off company
   - Options positions may require manual adjustments
 
-#### 3.2.6 Macroeconomic Indicators
+#### 3.2.6 Macroeconomic Indicators & Recession Detection
 - **Federal Reserve** - Meeting schedules, minutes, speeches, statements
 - **Interest Rates** - Current rates, rate changes, forward guidance
 - **Economic Data** - GDP, unemployment, inflation, retail sales
-- **Treasury Yields** - Yield curve movements and inversions
+- **Treasury Yields** - Yield curve movements and inversions (10Y-2Y spread as recession predictor)
 - **Currency Markets** - Exchange rates, currency strength indices
+- **Leading Economic Indicators** - Conference Board LEI, ISM PMI, building permits
+- **Credit Spreads** - Corporate bond spreads, high-yield spreads (widen before recessions)
+- **Consumer Confidence** - University of Michigan, Conference Board (early warning signals)
+- **Labor Market** - Initial jobless claims, JOLTS (job openings decline before recessions)
 
 #### 3.2.7 Political Intelligence
 - **Supreme Court** - Docket schedules, decision dates, rulings
