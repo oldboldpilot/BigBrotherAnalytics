@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <source_location>
+#include <format>
 
 namespace bigbrother {
 namespace utils {
@@ -48,39 +49,33 @@ public:
 
     // Logging methods with automatic source location
     template<typename... Args>
-    void trace(const std::string& msg, Args&&... args,
-              const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::TRACE, msg, loc, std::forward<Args>(args)...);
+    void trace(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::TRACE, msg, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void debug(const std::string& msg, Args&&... args,
-              const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::DEBUG, msg, loc, std::forward<Args>(args)...);
+    void debug(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::DEBUG, msg, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void info(const std::string& msg, Args&&... args,
-             const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::INFO, msg, loc, std::forward<Args>(args)...);
+    void info(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::INFO, msg, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void warn(const std::string& msg, Args&&... args,
-             const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::WARN, msg, loc, std::forward<Args>(args)...);
+    void warn(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::WARN, msg, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void error(const std::string& msg, Args&&... args,
-              const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::ERROR, msg, loc, std::forward<Args>(args)...);
+    void error(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::ERROR, msg, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void critical(const std::string& msg, Args&&... args,
-                 const std::source_location& loc = std::source_location::current()) {
-        log(LogLevel::CRITICAL, msg, loc, std::forward<Args>(args)...);
+    void critical(const std::string& msg, Args&&... args) {
+        logFormatted(LogLevel::CRITICAL, msg, std::forward<Args>(args)...);
     }
 
     // Flush logs to disk
@@ -90,9 +85,22 @@ private:
     Logger();
     ~Logger();
 
+    // Internal logging method
+    void logMessage(LogLevel level, const std::string& msg);
+
     template<typename... Args>
-    void log(LogLevel level, const std::string& msg,
-            const std::source_location& loc, Args&&... args);
+    void logFormatted(LogLevel level, const std::string& fmt, Args&&... args) {
+        if constexpr (sizeof...(Args) == 0) {
+            logMessage(level, fmt);
+        } else {
+            try {
+                std::string formatted = std::vformat(fmt, std::make_format_args(args...));
+                logMessage(level, formatted);
+            } catch (...) {
+                logMessage(level, fmt);  // Fall back to unformatted
+            }
+        }
+    }
 
     class Impl;
     std::unique_ptr<Impl> pImpl;

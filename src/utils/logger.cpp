@@ -220,29 +220,13 @@ LogLevel Logger::getLevel() const {
     return pImpl->getLevel();
 }
 
-template<typename... Args>
-void Logger::log(LogLevel level, const std::string& msg,
-                const std::source_location& loc, Args&&... args) {
-    // Format message if arguments provided
-    std::string formatted_msg;
-    if constexpr (sizeof...(args) > 0) {
-        formatted_msg = std::vformat(msg, std::make_format_args(args...));
-    } else {
-        formatted_msg = msg;
-    }
-
-    pImpl->log(level, formatted_msg, loc);
-}
-
 void Logger::flush() {
     pImpl->flush();
 }
 
-// Explicit template instantiations for common types
-template void Logger::log<>(LogLevel, const std::string&, const std::source_location&);
-template void Logger::log<int>(LogLevel, const std::string&, const std::source_location&, int&&);
-template void Logger::log<double>(LogLevel, const std::string&, const std::source_location&, double&&);
-template void Logger::log<std::string>(LogLevel, const std::string&, const std::source_location&, std::string&&);
+void Logger::logMessage(LogLevel level, const std::string& msg) {
+    pImpl->log(level, msg, std::source_location::current());
+}
 
 } // namespace utils
 } // namespace bigbrother
