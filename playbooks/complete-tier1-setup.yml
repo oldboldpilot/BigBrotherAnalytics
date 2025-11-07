@@ -33,12 +33,26 @@
 #   - System Package Manager (dnf/apt): Only for OS-specific packages
 #     (PostgreSQL, Redis, kernel headers, system utilities)
 #   - From Source: UPC++, GASNet-EX (for optimization)
-#   - Python (uv): All Python packages via uv package manager
+#   - Python (uv): ALL Python packages managed via uv (NOT pip)
+#     (10-100x faster than pip, better dependency resolution)
+#
+# Idempotency:
+#   ✓ Safe to re-run - won't reinstall if already present
+#   ✓ Uses 'creates:' checks for build tasks
+#   ✓ Package managers handle already-installed packages
+#   ✓ Can update existing installation
+#   ✓ Won't duplicate configuration
 #
 # Usage:
 #   ansible-playbook playbooks/complete-tier1-setup.yml
 #
-# Estimated time: 2-4 hours (depending on internet speed and CPU cores)
+# To uninstall:
+#   ansible-playbook playbooks/uninstall-tier1.yml
+#
+# Estimated time:
+#   - First run: 2-4 hours (builds from source)
+#   - Subsequent runs: 10-30 minutes (only updates)
+#
 # Cost: $0 (all open-source)
 #
 # WSL Note: Systemd might not be available. Playbook detects and handles gracefully.
@@ -50,7 +64,8 @@
   vars:
     gcc_version: "15"
     python_version: "3.14"
-    cuda_version: "12.3"
+    cuda_version: "13.0"              # Latest CUDA Toolkit
+    pytorch_cuda_version: "cu130"      # PyTorch CUDA version string
     postgresql_version: "16"
     gasnet_version: "2024.5.0"
     upcxx_version: "2024.3.0"
@@ -334,9 +349,9 @@
         - ansible_os_family == "Debian"
         - nvidia_check.rc == 0
 
-    - name: Install CUDA Toolkit (Ubuntu)
+    - name: Install CUDA Toolkit 13.0 (Ubuntu)
       apt:
-        name: cuda-toolkit-12-3
+        name: cuda-toolkit-13-0
         state: latest
       when:
         - ansible_os_family == "Debian"
@@ -350,9 +365,9 @@
         - ansible_os_family == "RedHat"
         - nvidia_check.rc == 0
 
-    - name: Install CUDA Toolkit (RHEL)
+    - name: Install CUDA Toolkit 13.0 (RHEL)
       dnf:
-        name: cuda-toolkit-12-3
+        name: cuda-toolkit-13-0
         state: latest
       when:
         - ansible_os_family == "RedHat"
@@ -632,13 +647,13 @@
           streamlit dash jupyter jupyterlab
       become_user: "{{ user }}"
 
-    - name: Install PyTorch with CUDA support
+    - name: Install PyTorch with CUDA 13.0 support
       shell: |
         source ~/.cargo/env
         cd {{ project_dir }}
         source .venv/bin/activate
         {% if nvidia_check.rc == 0 %}
-        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu123
+        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/{{ pytorch_cuda_version }}
         {% else %}
         ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         {% endif %}
@@ -667,7 +682,7 @@
         cd {{ project_dir }}
         source .venv/bin/activate
         ~/.cargo/bin/uv pip install \
-          cupy-cuda12x \
+          cupy-cuda13x \
           nvidia-ml-py3
       become_user: "{{ user }}"
       when: nvidia_check.rc == 0

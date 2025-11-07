@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase Complete
 **Author:** Olumuyiwa Oluwasanmi
@@ -2422,17 +2422,17 @@ CUDA Installation:
 # For RHEL 9
 sudo dnf config-manager --add-repo \
     https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
-sudo dnf install cuda-toolkit-12-3
+sudo dnf install cuda-toolkit-13-0
 
 # For Ubuntu 22.04
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
-sudo dpkg -i cuda-keyring_1.0-1_all.deb
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt update
-sudo apt install cuda-toolkit-12-3
+sudo apt install cuda-toolkit-13-0
 
 # Set environment variables
-echo 'export PATH=/usr/local/cuda-12.3/bin:$PATH' >> ~/.bashrc
-echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+echo 'export PATH=/usr/local/cuda-13.0/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # Verify CUDA
@@ -2454,11 +2454,11 @@ nvcc -o test_cuda test_cuda.cu
 
 PyTorch with CUDA:
 ```bash
-# Using uv for installation (faster)
+# Using uv for ALL Python package installation (10-100x faster than pip)
 source .venv/bin/activate
 
-# Install PyTorch with CUDA 12.3 support
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu123
+# Install PyTorch with CUDA 13.0 support
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
 # Verify PyTorch CUDA
 python -c "import torch; print(f'PyTorch version: {torch.__version__}'); \
@@ -3443,6 +3443,7 @@ Annual Savings: $60,280
 | 0.8.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Systems Integration & Complete Platform Workflows.** Created comprehensive Systems Integration Architecture document (5,500+ lines) showing how all three tools work together. **Key Features: Causal chain tracking (Fed decision → rates → bank stocks), correlation chain prediction (NVDA ↑ → AMD follows with lag), sector-level analysis (track entire business sectors).** Added complete usage scenarios for budgets from $1K to $1M+ with detailed workflows. Self-simulation framework: simulate all trades before execution, only trade when profitable (Monte Carlo 1,000-10,000 scenarios). Profit explanation framework: analyze why trades were profitable with attribution analysis. Mistake analysis & learning loop: classify mistakes, identify patterns, update models, validate improvements. Daily operation workflow: pre-market → execution → monitoring → analysis → learning. Budget-driven strategy selection: automatic allocation based on capital size. Tier 1/2/3 deployment specifications with Tier 1 focus (existing computer, $0 cost). Complete hardware/software architecture diagrams. Integration communication patterns showing loose coupling. Weekly learning cycle with backtest validation. Total documentation: 18,830+ lines across 5 documents (PRD + 4 architecture docs). Platform is self-improving, self-explaining, and budget-aware. All integration patterns preserve explainability and enable continuous learning from both successes and mistakes. |
 | 0.9.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Berkeley PGAS Components & Validation Framework.** Added complete UPC++ and Berkeley Distributed Components installation via Ansible playbook (based on ClusterSetupAndConfigs repository). Installs GASNet-EX 2024.5.0, UPC++ 2024.3.0, Berkeley UPC, and OpenSHMEM with automated configuration. Created playbooks/install-upcxx-berkeley.yml with verification and testing. Added playbooks/README.md documenting all playbooks and PGAS installation. Updated PRD and all architecture documents with Berkeley components references and ClusterSetupAndConfigs links. **Added comprehensive backtesting & validation framework** to systems integration: 7-level validation (unit tests → integration → historical backtest → walk-forward → Monte Carlo → paper trading → limited live). DuckDB-based backtesting processes 10 years of data in seconds. Walk-forward validation prevents overfitting. Complete validation checklist with must-pass criteria (Sharpe > 1.5, win rate > 55%, max DD < 20%). Only deploy real money after ALL validation levels pass. Emphasizes rigorous testing before production. References ClusterSetupAndConfigs repo for complete cluster management and PGAS deployment details. Total documentation: 19,400+ lines (added 570 lines of validation/PGAS content). |
 | 1.0.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **PLANNING PHASE COMPLETE - All-in-One Installation.** Created comprehensive Ansible playbook (complete-tier1-setup.yml, 500+ lines) that installs ENTIRE Tier 1 environment in one command. Single playbook installs: Homebrew, GCC 15 (C++23), Python 3.14+, uv package manager, CMake 3.28+, Ninja, OpenMP, OpenMPI 5.x, UPC++ 2024.3.0, GASNet-EX 2024.5.0, Intel MKL, NVIDIA CUDA 12.3 (auto-detects GPU), PostgreSQL 16 with TimescaleDB/AGE/pgvector extensions, Redis, DuckDB, PyTorch with CUDA, Hugging Face Transformers, Stable-Baselines3, XGBoost, SHAP, spaCy, all data collection tools (yfinance, FRED API, Scrapy, Playwright), visualization tools (Plotly, Streamlit, Dash), monitoring (Prometheus, Sentry), complete environment configuration, verification script, and QUICKSTART.md guide. Installation time: 2-4 hours. Cost: $0 (100% open-source). **PLANNING PHASE COMPLETE:** All documentation (20,000+ lines), all architecture documents (5 docs), all Ansible playbooks (3 playbooks), complete technology stack specified, ready for Tier 1 POC implementation. Platform status: Design complete, implementation ready, zero initial investment required. |
+| 1.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Final Updates: CUDA 13.0, uv Standardization, Uninstall Capability.** Updated all playbooks and documentation to use latest NVIDIA CUDA Toolkit 13.0 (was 12.3). Standardized ALL Python package management to use uv (NOT pip) throughout playbooks and documentation - emphasizes 10-100x speed improvement. Fixed complete-tier1-setup.yml for cross-platform compatibility (Ubuntu, RHEL, WSL2) with OS-specific package names, paths, and service management. Added systemd detection for WSL compatibility (graceful fallback to manual service start). Created uninstall-tier1.yml playbook (200+ lines) for clean removal with data backup, optional Homebrew/data preservation. Added idempotency documentation - playbook safe to re-run, won't duplicate installations. Updated playbooks/README.md with uninstall instructions, idempotency notes, and current technology versions. Updated PRD Section 9.6.1.3 with CUDA 13.0 references and uv emphasis. Clarified installation strategy: Homebrew for toolchain (GCC, Python, CMake, MPI), uv for ALL Python packages, system package managers only for OS-specific components (PostgreSQL, Redis). Complete platform ready for one-command installation on Ubuntu, RHEL, or WSL2 with ability to cleanly uninstall. |
 
 ---
 

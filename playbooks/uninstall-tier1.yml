@@ -1,0 +1,263 @@
+---
+# BigBrotherAnalytics - Tier 1 Uninstall Playbook
+# ═══════════════════════════════════════════════════════════
+#
+# This playbook REMOVES all BigBrotherAnalytics Tier 1 components
+#
+# ⚠️  WARNING: This will DELETE:
+#   - All installed software (GCC, Python, CUDA, PostgreSQL, etc.)
+#   - All databases and data
+#   - All configuration files
+#   - Project directory (/opt/bigbrother)
+#   - Homebrew installation (optional)
+#
+# Usage:
+#   ansible-playbook playbooks/uninstall-tier1.yml
+#
+#   To keep Homebrew:
+#   ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true"
+#
+#   To keep data:
+#   ansible-playbook playbooks/uninstall-tier1.yml -e "keep_data=true"
+
+- name: BigBrotherAnalytics - Tier 1 Uninstall
+  hosts: localhost
+  become: yes
+  vars:
+    keep_homebrew: false
+    keep_data: false
+    postgresql_version: "16"
+    project_dir: "/opt/bigbrother"
+    install_prefix: "/opt/berkeley"
+    homebrew_prefix: "/home/linuxbrew/.linuxbrew"
+    user: "{{ ansible_user_id }}"
+
+  tasks:
+    - name: Confirmation prompt
+      pause:
+        prompt: |
+          ⚠️  WARNING: This will UNINSTALL BigBrotherAnalytics Tier 1!
+
+          This will remove:
+            - All databases (PostgreSQL, Redis)
+            - All data (unless -e "keep_data=true")
+            - Project directory ({{ project_dir }})
+            - Berkeley components ({{ install_prefix }})
+            - Homebrew (unless -e "keep_homebrew=true")
+
+          Press Ctrl+C to cancel, or Enter to continue...
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 1: Stop Services
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Check if systemd is available
+      shell: systemctl --version
+      register: systemd_check
+      failed_when: false
+      changed_when: false
+
+    - name: Stop PostgreSQL (systemd)
+      systemd:
+        name: "{% if ansible_os_family == 'Debian' %}postgresql{% else %}postgresql-{{ postgresql_version }}{% endif %}"
+        state: stopped
+      when: systemd_check.rc == 0
+      ignore_errors: yes
+
+    - name: Stop Redis (systemd)
+      systemd:
+        name: "{% if ansible_os_family == 'Debian' %}redis-server{% else %}redis{% endif %}"
+        state: stopped
+      when: systemd_check.rc == 0
+      ignore_errors: yes
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2: Remove Databases
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Backup data before removal (if keep_data=false)
+      shell: |
+        mkdir -p /tmp/bigbrother_backup_{{ ansible_date_time.epoch }}
+        {% if ansible_os_family == 'Debian' %}
+        sudo -u postgres pg_dumpall > /tmp/bigbrother_backup_{{ ansible_date_time.epoch }}/postgresql_backup.sql
+        {% else %}
+        sudo -u postgres /usr/pgsql-{{ postgresql_version }}/bin/pg_dumpall > /tmp/bigbrother_backup_{{ ansible_date_time.epoch }}/postgresql_backup.sql
+        {% endif %}
+        cp -r {{ project_dir }}/data /tmp/bigbrother_backup_{{ ansible_date_time.epoch }}/
+      when: not keep_data
+      ignore_errors: yes
+
+    - name: Remove PostgreSQL (Ubuntu)
+      apt:
+        name:
+          - postgresql-{{ postgresql_version }}
+          - postgresql-contrib-{{ postgresql_version }}
+          - postgresql-{{ postgresql_version }}-postgis-3
+          - timescaledb-2-postgresql-{{ postgresql_version }}
+        state: absent
+        purge: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Remove PostgreSQL (RHEL)
+      dnf:
+        name:
+          - postgresql{{ postgresql_version }}
+          - postgresql{{ postgresql_version }}-server
+          - postgresql{{ postgresql_version }}-contrib
+          - timescaledb-2-postgresql-{{ postgresql_version }}
+        state: absent
+      when: ansible_os_family == "RedHat"
+
+    - name: Remove PostgreSQL data directory
+      file:
+        path: "{% if ansible_os_family == 'Debian' %}/var/lib/postgresql{% else %}/var/lib/pgsql{% endif %}"
+        state: absent
+      when: not keep_data
+
+    - name: Remove Redis
+      package:
+        name: "{% if ansible_os_family == 'Debian' %}redis-server{% else %}redis{% endif %}"
+        state: absent
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 3: Remove Project and Data
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Remove project directory
+      file:
+        path: "{{ project_dir }}"
+        state: absent
+
+    - name: Remove Berkeley components
+      file:
+        path: "{{ install_prefix }}"
+        state: absent
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4: Remove CUDA (if installed)
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Remove CUDA Toolkit (Ubuntu)
+      apt:
+        name: cuda-toolkit-13-0
+        state: absent
+        purge: yes
+      when: ansible_os_family == "Debian"
+      ignore_errors: yes
+
+    - name: Remove CUDA Toolkit (RHEL)
+      dnf:
+        name: cuda-toolkit-13-0
+        state: absent
+      when: ansible_os_family == "RedHat"
+      ignore_errors: yes
+
+    - name: Remove CUDA directory
+      file:
+        path: /usr/local/cuda-13.0
+        state: absent
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5: Remove Intel MKL
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Remove Intel MKL
+      package:
+        name: intel-oneapi-mkl-devel
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove Intel oneAPI directory
+      file:
+        path: /opt/intel
+        state: absent
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 6: Remove Environment Files
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Remove environment configuration
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/profile.d/bigbrother_env.sh
+        - /etc/profile.d/berkeley_components.sh
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 7: Remove Homebrew (Optional)
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Remove Homebrew
+      file:
+        path: "{{ homebrew_prefix }}"
+        state: absent
+      when: not keep_homebrew
+
+    - name: Remove Homebrew from bashrc
+      lineinfile:
+        path: "/home/{{ user }}/.bashrc"
+        regexp: '.*homebrew.*'
+        state: absent
+      become_user: "{{ user }}"
+      when: not keep_homebrew
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 8: Cleanup
+    # ═══════════════════════════════════════════════════════════
+
+    - name: Clean up temp files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/GASNet-*
+        - /tmp/upcxx-*
+        - /tmp/age
+        - /tmp/pgvector
+        - /tmp/test_*
+
+    - name: Display backup location (if data was backed up)
+      debug:
+        msg: |
+          ═══════════════════════════════════════════════════════════
+          Uninstallation Complete
+          ═══════════════════════════════════════════════════════════
+
+          {% if not keep_data %}
+          Data backup location:
+            /tmp/bigbrother_backup_{{ ansible_date_time.epoch }}/
+
+          Contains:
+            - PostgreSQL database dump
+            - Project data files
+
+          You can restore later if needed.
+          {% endif %}
+
+          {% if keep_homebrew %}
+          Homebrew was KEPT at {{ homebrew_prefix }}
+          {% else %}
+          Homebrew was REMOVED
+          {% endif %}
+
+          To reinstall:
+            ansible-playbook playbooks/complete-tier1-setup.yml
+
+          ═══════════════════════════════════════════════════════════
+      when: not keep_data
+
+# Usage Examples:
+# ----------------
+#
+# Complete uninstall (everything):
+#   ansible-playbook playbooks/uninstall-tier1.yml
+#
+# Keep Homebrew (for other projects):
+#   ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true"
+#
+# Keep data (just remove software):
+#   ansible-playbook playbooks/uninstall-tier1.yml -e "keep_data=true"
+#
+# Keep both:
+#   ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true keep_data=true"

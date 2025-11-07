@@ -100,6 +100,64 @@ source .venv/bin/activate
 **Cost:** $0 (100% open-source)
 **Result:** Complete Tier 1 environment ready for development
 
+**Idempotency:**
+- ✅ Safe to re-run (won't reinstall if already present)
+- ✅ Uses `creates:` checks for build tasks
+- ✅ Package managers handle duplicates
+- ✅ Subsequent runs: 10-30 minutes (only updates)
+
+**Technology Versions:**
+- CUDA: **13.0** (latest)
+- Python: **3.14** (via Homebrew)
+- Package Manager: **uv** (NOT pip - 10-100x faster)
+- GCC: **15** (C++23)
+- PostgreSQL: **16**
+- UPC++: **2024.3.0**
+- GASNet-EX: **2024.5.0**
+
+---
+
+### 1b. Uninstall Tier 1 ⚠️
+**File:** `uninstall-tier1.yml`
+
+**Completely removes all Tier 1 components.**
+
+**What Gets Removed:**
+- All databases (PostgreSQL, Redis)
+- All data (optional: use `-e "keep_data=true"` to preserve)
+- Project directory (/opt/bigbrother)
+- Berkeley components (/opt/berkeley)
+- Homebrew (optional: use `-e "keep_homebrew=true"` to keep)
+- Environment files
+- CUDA Toolkit
+- Intel MKL
+
+**Data Backup:**
+- Automatically backs up PostgreSQL to `/tmp/bigbrother_backup_*/`
+- Copies project data to backup location
+- You can restore later if needed
+
+**Usage:**
+```bash
+# Complete uninstall (everything)
+ansible-playbook playbooks/uninstall-tier1.yml
+
+# Keep Homebrew (for other projects)
+ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true"
+
+# Keep data (just remove software)
+ansible-playbook playbooks/uninstall-tier1.yml -e "keep_data=true"
+
+# Keep both Homebrew and data
+ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true keep_data=true"
+```
+
+**Safety Features:**
+- Prompts for confirmation before deletion
+- Backs up data automatically
+- Optional preservation of Homebrew and data
+- Can be undone by reinstalling
+
 ---
 
 ### 2. Tier 1 Setup Playbook (Legacy/Partial)
