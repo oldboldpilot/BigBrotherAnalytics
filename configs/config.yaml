@@ -1,0 +1,139 @@
+# BigBrotherAnalytics Configuration File
+
+# Database Configuration
+database:
+  path: "data/bigbrother.duckdb"
+  readonly: false
+  connection_pool_size: 10
+
+# Logging Configuration
+logging:
+  file: "logs/bigbrother.log"
+  level: "info"  # trace, debug, info, warn, error, critical
+  console: true
+  max_file_size_mb: 100
+  max_files: 10
+
+# Schwab API Configuration
+schwab:
+  client_id: "${SCHWAB_CLIENT_ID}"
+  client_secret: "${SCHWAB_CLIENT_SECRET}"
+  redirect_uri: "https://localhost:8080/callback"
+  account_id: "${SCHWAB_ACCOUNT_ID}"
+  rate_limit_per_minute: 120
+
+# Trading Configuration
+trading:
+  paper_trading: true  # SET TO FALSE FOR LIVE TRADING
+  cycle_interval_ms: 60000  # 1 minute
+  close_positions_on_exit: true
+  trading_hours_only: true
+  market_open_time: "09:30"  # ET
+  market_close_time: "16:00"  # ET
+
+# Risk Management Configuration (per PRD for $30k account)
+risk:
+  account_value: 30000.0
+  max_daily_loss: 900.0           # 3% of capital
+  max_position_size: 1500.0       # 5% of capital
+  max_concurrent_positions: 10
+  max_portfolio_heat: 0.15        # 15% total risk
+  max_correlation_exposure: 0.30  # 30% correlated
+  require_stop_loss: true
+  require_monte_carlo: true       # Validate with Monte Carlo before execution
+  min_expected_value: 50.0        # Minimum $50 EV per trade
+  min_win_probability: 0.60       # Minimum 60% win rate
+
+# Strategy Configuration
+strategies:
+  delta_neutral_straddle:
+    enabled: true
+    max_position_size: 1500.0
+    min_expected_return: 50.0
+    min_win_probability: 0.60
+    min_days_to_expiration: 7
+    max_days_to_expiration: 45
+    max_iv_percentile: 50.0
+    profit_target_percent: 75.0
+    stop_loss_percent: 50.0
+    max_concurrent: 3
+
+  delta_neutral_strangle:
+    enabled: true
+    max_position_size: 1500.0
+    min_expected_return: 50.0
+    min_win_probability: 0.55
+    min_days_to_expiration: 14
+    max_days_to_expiration: 60
+    call_delta_target: 0.30
+    put_delta_target: -0.30
+    profit_target_percent: 100.0
+    stop_loss_percent: 50.0
+    max_concurrent: 3
+
+  volatility_arbitrage:
+    enabled: true
+    max_position_size: 1500.0
+    min_iv_rv_spread: 0.05
+    min_expected_return: 75.0
+    lookback_period: 20
+    iv_percentile_low: 30.0
+    iv_percentile_high: 70.0
+
+# Correlation Analysis Configuration
+correlation:
+  enabled: true
+  max_lag_periods: 30
+  min_correlation: 0.60
+  min_confidence: 0.70
+  lookback_days: 252  # 1 year
+  use_mpi: false  # Enable MPI for multi-node parallelization
+  num_threads: 32  # OpenMP threads
+
+# Market Data Configuration
+market_data:
+  yahoo_finance:
+    enabled: true
+    symbols:
+      - SPY
+      - QQQ
+      - AAPL
+      - MSFT
+      - GOOGL
+      - AMZN
+      - NVDA
+      - AMD
+      - TSLA
+      - META
+
+  fred:
+    enabled: true
+    api_key: "${FRED_API_KEY}"
+    series:
+      - DGS10  # 10-Year Treasury
+      - DFF    # Fed Funds Rate
+      - UNRATE # Unemployment
+      - CPIAUCSL # CPI
+
+# Options Configuration
+options:
+  pricing_model: "trinomial"  # trinomial, binomial, black_scholes, auto
+  tree_steps: 100
+  monte_carlo_simulations: 10000
+  calculate_greeks: true
+  cache_results: true
+
+# Performance Configuration
+performance:
+  enable_profiling: true
+  profiling_output: "logs/profiling.csv"
+  latency_alert_threshold_us: 1000  # Alert if > 1ms
+
+# Alerting Configuration
+alerts:
+  daily_loss_limit: true
+  position_limit: true
+  correlation_breakdown: true
+  high_latency: true
+  email_alerts: false  # Requires email config
+  log_alerts: true

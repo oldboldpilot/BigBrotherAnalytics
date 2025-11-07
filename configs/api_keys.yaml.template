@@ -1,0 +1,55 @@
+# API Keys Template
+#
+# SECURITY WARNING:
+# - NEVER commit this file with actual keys
+# - Copy to api_keys.yaml and fill in your actual keys
+# - api_keys.yaml is in .gitignore
+# - Use environment variables for production
+
+# Schwab API Credentials
+# Get from: https://developer.schwab.com/
+schwab:
+  client_id: "YOUR_SCHWAB_CLIENT_ID_HERE"
+  client_secret: "YOUR_SCHWAB_CLIENT_SECRET_HERE"
+  account_id: "YOUR_SCHWAB_ACCOUNT_NUMBER_HERE"
+
+# FRED API (Federal Reserve Economic Data)
+# Get from: https://fred.stlouisfed.org/docs/api/api_key.html
+fred:
+  api_key: "YOUR_FRED_API_KEY_HERE"
+
+# Alpha Vantage (Optional - market data)
+# Get from: https://www.alphavantage.co/support/#api-key
+alpha_vantage:
+  api_key: "YOUR_ALPHA_VANTAGE_KEY_HERE"
+
+# Polygon.io (Optional - Tier 2+ only)
+# Get from: https://polygon.io/
+polygon:
+  api_key: "YOUR_POLYGON_API_KEY_HERE"
+
+# News API (Optional)
+# Get from: https://newsapi.org/
+news_api:
+  api_key: "YOUR_NEWS_API_KEY_HERE"
+
+# Setup Instructions:
+#
+# 1. Copy this file:
+#    cp configs/api_keys.yaml.template configs/api_keys.yaml
+#
+# 2. Edit api_keys.yaml and fill in your actual API keys
+#
+# 3. Verify api_keys.yaml is in .gitignore:
+#    git status  # Should NOT show api_keys.yaml
+#
+# 4. Set environment variables (alternative to YAML):
+#    export SCHWAB_CLIENT_ID="your_client_id"
+#    export SCHWAB_CLIENT_SECRET="your_client_secret"
+#    export SCHWAB_ACCOUNT_ID="your_account_number"
+#    export FRED_API_KEY="your_fred_key"
+#
+# 5. Configuration precedence:
+#    a. Environment variables (highest priority)
+#    b. api_keys.yaml file
+#    c. Default values in code (lowest priority)
