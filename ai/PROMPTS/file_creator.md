@@ -92,52 +92,240 @@ You are a Senior Software Engineer specializing in high-performance systems. You
 
 ### C++23 Code Standards
 
-#### File Structure
-```cpp
-// correlation_engine.hpp
-#pragma once
+**MANDATORY REQUIREMENTS:**
+1. **Use C++23 Modules** - NO traditional headers (.h/.hpp)
+2. **Use Trailing Return Syntax** - `auto func() -> Type` for ALL functions
+3. **Fluent API Pattern** - Return `*this` or new instances for method chaining
+4. **Modern Error Handling** - Use `std::expected` instead of exceptions
 
+#### C++23 Module Structure with Fluent API
+```cpp
+// correlation_engine.cppm (C++23 Module File)
+module;
 #include <expected>
 #include <span>
 #include <mdspan>
 #include <vector>
 #include <string>
+export module bigbrother.correlation;
 
-namespace bigbrother::correlation {
+export namespace bigbrother::correlation {
 
-// Forward declarations
-struct CorrelationConfig;
-struct CorrelationResult;
+enum class CorrelationMethod { Pearson, Spearman, Kendall };
+enum class WindowType { Rolling, Expanding };
 
-/// @brief High-performance correlation engine using MPI and OpenMP
-/// @details Calculates Pearson and Spearman correlations across thousands
-///          of time series with time-lagged analysis support
+struct Error {
+    int code;
+    std::string message;
+};
+
+struct CorrelationConfig {
+    CorrelationMethod method = CorrelationMethod::Pearson;
+    int window_size = 20;
+    WindowType window_type = WindowType::Rolling;
+    int max_lag = 0;
+};
+
+struct CorrelationResult {
+    std::vector<double> correlations;
+    size_t n_symbols;
+    CorrelationMethod method;
+};
+
+/// @brief High-performance correlation engine with fluent API
+/// @details Calculates correlations using MPI and OpenMP parallelization
 class CorrelationEngine {
 public:
-    /// @brief Constructor
-    /// @param num_threads Number of OpenMP threads to use (0 = auto-detect)
-    explicit CorrelationEngine(int num_threads = 0);
+    /// @brief Default constructor
+    CorrelationEngine() = default;
 
-    /// @brief Calculate pairwise correlations
+    /// @brief Set symbols to analyze (fluent API)
+    /// @param symbols List of stock symbols
+    /// @return Reference to this for chaining
+    auto withSymbols(std::vector<std::string> symbols) -> CorrelationEngine& {
+        symbols_ = std::move(symbols);
+        return *this;
+    }
+
+    /// @brief Set correlation method (fluent API)
+    /// @param method Pearson, Spearman, or Kendall
+    /// @return Reference to this for chaining
+    auto withMethod(CorrelationMethod method) -> CorrelationEngine& {
+        config_.method = method;
+        return *this;
+    }
+
+    /// @brief Set rolling window size (fluent API)
+    /// @param window Window size in days
+    /// @return Reference to this for chaining
+    auto withWindow(int window) -> CorrelationEngine& {
+        config_.window_size = window;
+        return *this;
+    }
+
+    /// @brief Set maximum lag for time-lagged correlations (fluent API)
+    /// @param max_lag Maximum lag in days
+    /// @return Reference to this for chaining
+    auto withMaxLag(int max_lag) -> CorrelationEngine& {
+        config_.max_lag = max_lag;
+        return *this;
+    }
+
+    /// @brief Set number of OpenMP threads (fluent API)
+    /// @param threads Number of threads (0 = auto-detect)
+    /// @return Reference to this for chaining
+    auto withThreads(int threads) -> CorrelationEngine& {
+        num_threads_ = threads > 0 ? threads : omp_get_max_threads();
+        return *this;
+    }
+
+    /// @brief Calculate correlations
     /// @param data Input time series data (symbols × time points)
-    /// @param config Configuration (method, lags, windows)
-    /// @return Correlation matrix or error
-    std::expected<CorrelationResult, Error> calculate(
+    /// @return Correlation result or error
+    auto calculate(
+        std::mdspan<const double, std::dextents<size_t, 2>> data
+    ) -> std::expected<CorrelationResult, Error>;
+
+    /// @brief Calculate correlations with explicit config
+    /// @param data Input time series data
+    /// @param config Correlation configuration
+    /// @return Correlation result or error
+    auto calculate(
         std::mdspan<const double, std::dextents<size_t, 2>> data,
         const CorrelationConfig& config
-    );
+    ) -> std::expected<CorrelationResult, Error>;
 
 private:
-    int num_threads_;
-    // Private implementation details
+    std::vector<std::string> symbols_;
+    CorrelationConfig config_;
+    int num_threads_ = 0;
+
+    /// @brief Calculate Pearson correlation (trailing return syntax)
+    auto calculate_pearson(
+        std::span<const double> x,
+        std::span<const double> y
+    ) -> double;
 };
 
 } // namespace bigbrother::correlation
 ```
 
-#### Implementation Best Practices
+#### Implementation Example with Trailing Return Syntax
 ```cpp
-// correlation_engine.cpp
+// correlation_engine.cpp (C++23 Module Implementation)
+module bigbrother.correlation;
+import <algorithm>;
+import <execution>;
+import <ranges>;
+#include <omp.h>
+
+namespace bigbrother::correlation {
+
+// ALL functions use trailing return syntax
+auto CorrelationEngine::calculate(
+    std::mdspan<const double, std::dextents<size_t, 2>> data
+) -> std::expected<CorrelationResult, Error> {
+    return calculate(data, config_);
+}
+
+auto CorrelationEngine::calculate(
+    std::mdspan<const double, std::dextents<size_t, 2>> data,
+    const CorrelationConfig& config
+) -> std::expected<CorrelationResult, Error> {
+    // Validate inputs
+    if (data.extent(0) == 0 || data.extent(1) < 2) {
+        return std::unexpected(Error{
+            .code = 1,
+            .message = "Data must have at least 2 time points"
+        });
+    }
+
+    const auto n_symbols = data.extent(0);
+    const auto n_points = data.extent(1);
+
+    std::vector<double> correlations(n_symbols * n_symbols);
+
+    // Parallel calculation with OpenMP
+    #pragma omp parallel for schedule(dynamic) num_threads(num_threads_)
+    for (size_t i = 0; i < n_symbols; ++i) {
+        for (size_t j = i; j < n_symbols; ++j) {
+            const double corr = calculate_pearson(
+                std::span{&data(i, 0), n_points},
+                std::span{&data(j, 0), n_points}
+            );
+            correlations[i * n_symbols + j] = corr;
+            correlations[j * n_symbols + i] = corr;
+        }
+    }
+
+    return CorrelationResult{
+        .correlations = std::move(correlations),
+        .n_symbols = n_symbols,
+        .method = config.method
+    };
+}
+
+auto CorrelationEngine::calculate_pearson(
+    std::span<const double> x,
+    std::span<const double> y
+) -> double {
+    // Pearson correlation implementation with trailing return
+    const auto n = x.size();
+    double sum_x = 0.0, sum_y = 0.0, sum_xy = 0.0;
+    double sum_x2 = 0.0, sum_y2 = 0.0;
+
+    for (size_t i = 0; i < n; ++i) {
+        sum_x += x[i];
+        sum_y += y[i];
+        sum_xy += x[i] * y[i];
+        sum_x2 += x[i] * x[i];
+        sum_y2 += y[i] * y[i];
+    }
+
+    const auto numerator = n * sum_xy - sum_x * sum_y;
+    const auto denominator = std::sqrt(
+        (n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y)
+    );
+
+    return denominator != 0.0 ? numerator / denominator : 0.0;
+}
+
+} // namespace bigbrother::correlation
+```
+
+#### Fluent API Usage Example
+```cpp
+// Example: Using the Fluent API
+import bigbrother.correlation;
+#include <iostream>
+
+auto main() -> int {
+    using namespace bigbrother::correlation;
+
+    // Fluent API allows readable, expressive code
+    auto result = CorrelationEngine()
+        .withSymbols({"AAPL", "GOOGL", "MSFT", "AMZN"})
+        .withMethod(CorrelationMethod::Pearson)
+        .withWindow(20)
+        .withMaxLag(5)
+        .withThreads(8)
+        .calculate(price_data);
+
+    if (result.has_value()) {
+        const auto& corr = result.value();
+        std::cout << "Calculated correlations for "
+                  << corr.n_symbols << " symbols\n";
+    } else {
+        std::cerr << "Error: " << result.error().message << "\n";
+    }
+
+    return 0;
+}
+```
+
+#### Old Style (NO LONGER ALLOWED)
+```cpp
+// ❌ WRONG - Do NOT use traditional headers
 #include "correlation_engine.hpp"
 #include <algorithm>
 #include <execution>

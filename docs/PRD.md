@@ -1844,6 +1844,72 @@ Trading Decision Engine    Correlation Tool
   - Code documentation and comments
   - Linting and static analysis
 
+- **API Design Standards:**
+  - **Fluent/Chainable APIs Required:** All components (C++, Python, Rust) MUST provide fluent interfaces
+  - **Method Chaining:** Enable readable, expressive code through method chaining pattern
+  - **Builder Pattern:** Use for complex object construction
+  - **Immutability Where Appropriate:** Fluent APIs should return new instances when modifying state
+
+- **C++23 Specific Requirements:**
+  - **C++23 Modules Required:** All C++ components MUST use modules instead of headers
+  - **Trailing Return Syntax:** Use trailing return type syntax (`auto func() -> Type`) for all functions
+  - **Modern Features:** Leverage `std::expected`, `std::mdspan`, `std::flat_map`, deducing `this`
+  - **Examples:**
+    ```cpp
+    // C++23 Module with Fluent API and Trailing Return Syntax
+    module;
+    #include <expected>
+    #include <vector>
+    #include <string>
+    export module bigbrother.correlation;
+
+    export namespace bigbrother::correlation {
+        enum class CorrelationMethod { Pearson, Spearman };
+
+        class CorrelationEngine {
+        public:
+            auto withSymbols(std::vector<std::string> symbols) -> CorrelationEngine& {
+                symbols_ = std::move(symbols);
+                return *this;
+            }
+
+            auto withWindow(int window) -> CorrelationEngine& {
+                window_ = window;
+                return *this;
+            }
+
+            auto withMethod(CorrelationMethod method) -> CorrelationEngine& {
+                method_ = method;
+                return *this;
+            }
+
+            auto calculate() -> std::expected<CorrelationResult, Error>;
+
+        private:
+            std::vector<std::string> symbols_;
+            int window_ = 20;
+            CorrelationMethod method_ = CorrelationMethod::Pearson;
+        };
+    }
+    ```
+    ```python
+    # Python Fluent API Example
+    result = (TradingDecisionEngine()
+        .with_strategy("delta_neutral")
+        .with_risk_tolerance(0.15)
+        .with_position_size(1000)
+        .simulate()
+        .execute())
+    ```
+    ```rust
+    // Rust Fluent API Example
+    let result = PricingEngine::new()
+        .with_model(PricingModel::BlackScholes)
+        .with_option_type(OptionType::Call)
+        .with_strike(150.0)
+        .calculate()?;
+    ```
+
 - **Deployment:**
   - Containerized deployments (Docker)
   - Infrastructure as Code (Terraform)
@@ -1977,6 +2043,8 @@ Trading Decision Engine    Correlation Tool
 - **Cloud-Agnostic:** Start with private servers, cloud-ready when needed
 - **Minimal Vendor Lock-in:** Use standard protocols and formats
 - **Performance-First:** Ultra-low latency for trading execution
+- **Fluent API Design:** All components must provide fluent/chainable APIs for improved code readability and developer experience
+- **Modern C++23:** Use modules, trailing return syntax, and latest language features for all C++ code
 
 ### 9.1 Programming Languages (Performance-First)
 
@@ -1987,11 +2055,17 @@ Trading Decision Engine    Correlation Tool
   - Real-time correlation calculations
   - Target: < 1ms latency for critical operations
   - **Key C++23 Features:**
+    - **Modules:** Replace headers with `export module` for faster compilation and better encapsulation
+    - **Trailing Return Syntax:** Use `auto func() -> Type` for all functions (mandatory standard)
     - `std::expected` for error handling without exceptions
-    - Deducing `this` for better performance
+    - Deducing `this` for better performance and fluent APIs
     - `std::flat_map` and `std::flat_set` for cache-friendly containers
     - Improved constexpr support
     - `std::mdspan` for multi-dimensional array views
+  - **Coding Standards:**
+    - ALL C++ files must use modules (no .h/.hpp headers)
+    - ALL functions must use trailing return type syntax
+    - ALL APIs must support method chaining (fluent interface)
 
 - **Rust:** High-performance components requiring memory safety
   - Concurrent data structures

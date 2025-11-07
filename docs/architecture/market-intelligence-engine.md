@@ -3018,7 +3018,94 @@ graph LR
     style K fill:#faa,stroke:#333
 ```
 
-### 9.2 Project Structure
+### 9.2 Fluent API Design Requirements
+
+**MANDATORY:** Every component in the Market Intelligence Engine must provide fluent APIs.
+
+**C++23 Fluent API Pattern:**
+```cpp
+// Market Intelligence Engine Fluent API
+class MarketIntelligenceEngine {
+public:
+    MarketIntelligenceEngine& withDataSources(const std::vector<DataSource>& sources) {
+        sources_ = sources;
+        return *this;
+    }
+
+    MarketIntelligenceEngine& withNLPModel(const std::string& model_path) {
+        nlp_model_path_ = model_path;
+        return *this;
+    }
+
+    MarketIntelligenceEngine& withConfidenceThreshold(double threshold) {
+        confidence_threshold_ = threshold;
+        return *this;
+    }
+
+    std::expected<ImpactPrediction, Error> analyze(const NewsEvent& event) {
+        // Implementation
+    }
+
+private:
+    std::vector<DataSource> sources_;
+    std::string nlp_model_path_;
+    double confidence_threshold_ = 0.7;
+};
+
+// Usage Example
+auto result = MarketIntelligenceEngine()
+    .withDataSources({DataSource::FRED, DataSource::SEC, DataSource::FDA})
+    .withNLPModel("/models/finbert")
+    .withConfidenceThreshold(0.85)
+    .analyze(news_event);
+```
+
+**Python Fluent API Pattern:**
+```python
+class MarketIntelligenceEngine:
+    """Fluent interface for Market Intelligence Engine."""
+
+    def __init__(self):
+        self._sources = []
+        self._nlp_model = None
+        self._confidence_threshold = 0.7
+
+    def with_data_sources(self, sources: list[str]) -> 'MarketIntelligenceEngine':
+        """Add data sources to the engine."""
+        self._sources = sources
+        return self
+
+    def with_nlp_model(self, model_path: str) -> 'MarketIntelligenceEngine':
+        """Configure NLP model."""
+        self._nlp_model = model_path
+        return self
+
+    def with_confidence_threshold(self, threshold: float) -> 'MarketIntelligenceEngine':
+        """Set minimum confidence threshold."""
+        self._confidence_threshold = threshold
+        return self
+
+    def analyze(self, event: NewsEvent) -> ImpactPrediction:
+        """Analyze news event and predict market impact."""
+        # Implementation
+        pass
+
+# Usage Example
+result = (MarketIntelligenceEngine()
+    .with_data_sources(['FRED', 'SEC', 'FDA'])
+    .with_nlp_model('/models/finbert')
+    .with_confidence_threshold(0.85)
+    .analyze(news_event))
+```
+
+**Benefits of Fluent APIs:**
+- **Readability:** Code reads like natural language
+- **Discoverability:** IDE autocomplete guides developers
+- **Composability:** Easy to build complex operations from simple building blocks
+- **Testability:** Easy to mock and test individual operations
+- **Maintainability:** Changes to API are localized and clear
+
+### 9.3 Project Structure
 
 ```
 market-intelligence-engine/
