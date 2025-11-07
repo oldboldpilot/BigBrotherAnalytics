@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <format>
+#include <thread>
 
 namespace bigbrother::utils {
 
