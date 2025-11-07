@@ -6,15 +6,18 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <mutex>
 
 namespace bigbrother::utils {
 
 /**
- * Simplified Logger Implementation (Single-threaded)
+ * Thread-Safe Logger Implementation
  *
- * This is a simplified version without threading/mutexes to avoid
- * pthread compatibility issues. Perfect for initial development.
- * Can be upgraded to multi-threaded later if needed.
+ * Now that build is working, added thread safety for:
+ * - WebSocket streaming (separate thread)
+ * - Concurrent strategy execution
+ * - Parallel market data processing
+ * - Real-time order execution
  */
 
 class Logger::Impl {
@@ -51,6 +54,8 @@ public:
         if (level < current_level) {
             return;  // Skip if level is below threshold
         }
+
+        std::lock_guard<std::mutex> lock(mutex_);  // Thread-safe logging
 
         // Get current time
         auto now = std::chrono::system_clock::now();
@@ -103,6 +108,7 @@ private:
     bool console_enabled;
     bool initialized;
     std::ofstream log_file;
+    std::mutex mutex_;  // Thread-safety
 };
 
 // Logger singleton implementation

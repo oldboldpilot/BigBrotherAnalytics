@@ -87,12 +87,9 @@ add_library(utils SHARED
     src/utils/timer.cpp
 )
 
-target_compile_options(utils PRIVATE -pthread)
-
 target_link_libraries(utils
     PUBLIC
     Threads::Threads
-    pthread
 )
 
 if(spdlog_FOUND)

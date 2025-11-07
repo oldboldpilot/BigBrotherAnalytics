@@ -7,14 +7,18 @@
 #include <fstream>
 #include <format>
 #include <thread>
+#include <mutex>
+#include <shared_mutex>
 
 namespace bigbrother::utils {
 
 /**
- * Simplified Timer Implementation (Single-threaded)
+ * Thread-Safe Timer Implementation
  *
- * Optimized for initial development without threading complexity.
- * Can be upgraded to multi-threaded later if needed.
+ * Now includes mutex protection for:
+ * - Concurrent profiling from multiple strategies
+ * - Parallel correlation calculations
+ * - Multi-threaded market data processing
  */
 
 // ScopedTimer implementation
@@ -35,12 +39,14 @@ auto ScopedTimer::stop() -> void {
     }
 }
 
-// Profiler implementation (simplified without mutexes)
+// Profiler implementation (thread-safe with shared_mutex for read/write efficiency)
 class Profiler::Impl {
 public:
     Impl() = default;
 
     auto record(std::string const& name, double elapsed_us) -> void {
+        std::unique_lock<std::shared_mutex> lock(mutex_);  // Exclusive lock for write
+
         auto& samples = measurements_[name];
         samples.push_back(elapsed_us);
 
@@ -51,6 +57,8 @@ public:
     }
 
     [[nodiscard]] auto getStats(std::string const& name) const -> Profiler::Stats {
+        std::shared_lock<std::shared_mutex> lock(mutex_);  // Shared lock for read
+
         auto it = measurements_.find(name);
         if (it == measurements_.end()) {
             return {name, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -60,6 +68,8 @@ public:
     }
 
     [[nodiscard]] auto getAllStats() const -> std::vector<Profiler::Stats> {
+        std::shared_lock<std::shared_mutex> lock(mutex_);  // Shared lock for read
+
         std::vector<Profiler::Stats> all_stats;
         all_stats.reserve(measurements_.size());
 
@@ -88,15 +98,17 @@ public:
     }
 
     auto clear() -> void {
+        std::unique_lock<std::shared_mutex> lock(mutex_);  // Exclusive lock
         measurements_.clear();
     }
 
     auto clear(std::string const& name) -> void {
+        std::unique_lock<std::shared_mutex> lock(mutex_);  // Exclusive lock
         measurements_.erase(name);
     }
 
     [[nodiscard]] auto saveToFile(std::string const& filename) const -> bool {
-        auto const all_stats = getAllStats();
+        auto const all_stats = getAllStats();  // Already thread-safe
 
         std::ofstream file{filename};
         if (!file.is_open()) {
@@ -174,6 +186,7 @@ private:
     }
 
     std::map<std::string, std::vector<double>> measurements_;
+    mutable std::shared_mutex mutex_;  // Thread-safety (read-write lock)
 };
 
 // Profiler singleton
@@ -222,7 +235,7 @@ Profiler::ProfileGuard::~ProfileGuard() {
     Profiler::getInstance().record(name_, elapsed);
 }
 
-// RateLimiter implementation (simplified without threading)
+// RateLimiter implementation (thread-safe for concurrent API calls)
 class RateLimiter::Impl {
 public:
     explicit Impl(double max_rate)
@@ -231,21 +244,29 @@ public:
           last_acquire_{Timer::Clock::now()} {}
 
     auto acquire() -> void {
+        std::unique_lock<std::mutex> lock(mutex_);
+
         auto const now = Timer::Clock::now();
         auto const elapsed_us = std::chrono::duration<double, std::micro>(
             now - last_acquire_).count();
 
         if (elapsed_us < min_interval_us_) {
             auto const sleep_us = min_interval_us_ - elapsed_us;
+            lock.unlock();  // Release lock while sleeping
+
             std::this_thread::sleep_for(
                 std::chrono::microseconds(static_cast<int64_t>(sleep_us))
             );
+
+            lock.lock();  // Reacquire before updating
         }
 
         last_acquire_ = Timer::Clock::now();
     }
 
     [[nodiscard]] auto tryAcquire() -> bool {
+        std::unique_lock<std::mutex> lock(mutex_);
+
         auto const now = Timer::Clock::now();
         auto const elapsed_us = std::chrono::duration<double, std::micro>(
             now - last_acquire_).count();
@@ -259,15 +280,18 @@ public:
     }
 
     [[nodiscard]] auto getRate() const -> double {
+        std::shared_lock<std::shared_mutex> lock(rate_mutex_);
         return max_rate_;
     }
 
     auto setRate(double max_rate) -> void {
+        std::unique_lock<std::shared_mutex> lock(rate_mutex_);
         max_rate_ = max_rate;
         min_interval_us_ = 1'000'000.0 / max_rate;
     }
 
     auto reset() -> void {
+        std::unique_lock<std::mutex> lock(mutex_);
         last_acquire_ = Timer::Clock::now();
     }
 
@@ -275,6 +299,8 @@ private:
     double max_rate_;
     double min_interval_us_;
     Timer::TimePoint last_acquire_;
+    std::mutex mutex_;                      // Protects acquire timing
+    mutable std::shared_mutex rate_mutex_;  // Protects rate settings
 };
 
 // RateLimiter public interface
