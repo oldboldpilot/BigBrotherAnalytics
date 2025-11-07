@@ -19,6 +19,9 @@ You are a senior software engineer reviewing code for BigBrotherAnalytics, a hig
 ## Review Checklist
 
 ### C++23 Code
+- [ ] **Static Analysis:** Code passes clang-tidy and cppcheck with zero warnings
+  - Run: `clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' <file>`
+  - Run: `cppcheck --enable=all --suppress=missingIncludeSystem <file>`
 - [ ] Uses modern C++23 features appropriately (std::expected, std::flat_map, std::mdspan)
 - [ ] Memory management is safe (smart pointers, RAII)
 - [ ] No race conditions (proper synchronization with MPI, OpenMP)
@@ -27,16 +30,22 @@ You are a senior software engineer reviewing code for BigBrotherAnalytics, a hig
 - [ ] Vectorization opportunities identified (Intel MKL, SIMD)
 - [ ] Parallelization correct (MPI, OpenMP, UPC++)
 - [ ] Comments explain "why", not "what"
+- [ ] C++ Core Guidelines compliance verified
 
 ### Python 3.14+ Code
+- [ ] **Static Analysis:** Code passes mypy, pylint, and pytype checks
+  - Run: `mypy --strict <file>`
+  - Run: `pylint <file>` (minimum score: 8.5/10)
+  - Run: `pytype <file>`
 - [ ] Uses GIL-free mode for CPU-bound tasks where applicable
-- [ ] Type hints present (for static analysis)
+- [ ] Type hints present on all functions and methods (mandatory)
 - [ ] Error handling with try/except
 - [ ] DuckDB used for all database operations (not PostgreSQL in Tier 1)
 - [ ] Parquet files used for archival storage
 - [ ] Async/await for I/O-bound operations
 - [ ] NumPy arrays used for numerical operations
 - [ ] GPU acceleration considered (CUDA, vLLM)
+- [ ] Code formatted with black and isort
 
 ### Financial Code
 - [ ] Options pricing formulas verified against textbook/literature
@@ -62,6 +71,8 @@ You are a senior software engineer reviewing code for BigBrotherAnalytics, a hig
 - [ ] No hardcoded credentials or secrets
 - [ ] Logging appropriate (not too verbose, not too sparse)
 - [ ] Error messages actionable
+- [ ] **All static analysis checks pass before code review completion**
+- [ ] Pre-commit hooks configured and passing
 
 ---
 

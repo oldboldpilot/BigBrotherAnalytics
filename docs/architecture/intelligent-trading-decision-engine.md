@@ -1363,6 +1363,9 @@ erDiagram
     TRADING_DECISIONS ||--o{ DECISION_EXPLANATIONS : "explained_by"
     TRADING_DECISIONS ||--o{ FEATURE_IMPORTANCE : "based_on"
     POSITIONS ||--o{ POSITION_HISTORY : "tracks"
+    POSITIONS ||--o{ MARGIN_INTEREST_ACCRUAL : "accrues"
+    POSITIONS ||--o{ POSITION_ADJUSTMENTS : "adjusted_by"
+    CORPORATE_ACTIONS ||--o{ POSITION_ADJUSTMENTS : "triggers"
 
     TRADING_SIGNALS {
         uuid id PK
@@ -1441,8 +1444,13 @@ erDiagram
         numeric avg_cost
         numeric current_price
         numeric unrealized_pnl
+        numeric realized_pnl
+        numeric total_commissions
+        numeric accrued_margin_interest
+        numeric total_dividends
         timestamp opened_at
         timestamp updated_at
+        timestamp last_corp_action_date
     }
 
     POSITION_HISTORY {
@@ -1452,6 +1460,46 @@ erDiagram
         numeric quantity
         numeric price
         numeric pnl
+        numeric margin_interest
+        numeric dividends
+    }
+
+    MARGIN_INTEREST_ACCRUAL {
+        uuid id PK
+        uuid position_id FK
+        date accrual_date
+        numeric margin_balance
+        numeric daily_interest_rate
+        numeric daily_interest_amount
+        numeric cumulative_interest
+        text account_id
+    }
+
+    CORPORATE_ACTIONS {
+        uuid id PK
+        text symbol
+        text action_type
+        date announcement_date
+        date ex_date
+        date record_date
+        date payment_date
+        numeric dividend_amount
+        text split_ratio
+        jsonb details
+    }
+
+    POSITION_ADJUSTMENTS {
+        uuid id PK
+        uuid position_id FK
+        uuid corporate_action_id FK
+        timestamp adjustment_date
+        text adjustment_type
+        numeric old_quantity
+        numeric new_quantity
+        numeric old_cost_basis
+        numeric new_cost_basis
+        numeric cash_impact
+        text notes
     }
 ```
 
@@ -1500,6 +1548,141 @@ GROUP BY day, strategy;
 ### 8.3 DuckDB Analytical Schemas
 
 ```sql
+-- Margin interest accrual tracking (CRITICAL FOR ACCURATE P&L)
+CREATE TABLE margin_interest_accrual (
+    id VARCHAR PRIMARY KEY,
+    position_id VARCHAR REFERENCES positions(id),
+    accrual_date DATE NOT NULL,
+    margin_balance DOUBLE NOT NULL,  -- Amount borrowed
+    daily_interest_rate DOUBLE NOT NULL,  -- Annual rate / 360
+    daily_interest_amount DOUBLE NOT NULL,  -- Daily cost
+    cumulative_interest DOUBLE NOT NULL,  -- Running total
+    account_id VARCHAR NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_margin_accrual_date ON margin_interest_accrual(accrual_date);
+CREATE INDEX idx_margin_accrual_position ON margin_interest_accrual(position_id);
+
+-- Corporate actions tracking (MANDATORY FOR POSITION ADJUSTMENTS)
+CREATE TABLE corporate_actions (
+    id VARCHAR PRIMARY KEY,
+    symbol VARCHAR NOT NULL,
+    action_type VARCHAR NOT NULL,  -- 'dividend', 'split', 'merger', 'spinoff', 'rights_issue'
+    announcement_date DATE,
+    ex_date DATE,  -- CRITICAL: ex-dividend or ex-split date
+    record_date DATE,
+    payment_date DATE,  -- For dividends
+    effective_date DATE,  -- For splits
+
+    -- Dividend fields
+    dividend_amount DOUBLE,  -- Per share
+    dividend_currency VARCHAR DEFAULT 'USD',
+
+    -- Split fields
+    split_ratio VARCHAR,  -- '2:1', '1:10', etc.
+    split_from INTEGER,  -- Old shares
+    split_to INTEGER,  -- New shares
+
+    -- Merger fields
+    merger_acquirer VARCHAR,  -- Acquiring company
+    merger_ratio DOUBLE,  -- Exchange ratio
+    merger_cash_amount DOUBLE,  -- Cash component
+
+    -- Spin-off fields
+    spinoff_symbol VARCHAR,  -- New company symbol
+    spinoff_ratio VARCHAR,  -- Distribution ratio
+
+    -- Additional details
+    details JSON,  -- Flexible storage for complex actions
+    source VARCHAR,  -- Data source
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_corp_action_symbol ON corporate_actions(symbol);
+CREATE INDEX idx_corp_action_ex_date ON corporate_actions(ex_date);
+CREATE INDEX idx_corp_action_type ON corporate_actions(action_type);
+
+-- Position adjustments due to corporate actions
+CREATE TABLE position_adjustments (
+    id VARCHAR PRIMARY KEY,
+    position_id VARCHAR REFERENCES positions(id),
+    corporate_action_id VARCHAR REFERENCES corporate_actions(id),
+    adjustment_date TIMESTAMP NOT NULL,
+    adjustment_type VARCHAR NOT NULL,  -- 'split', 'dividend', 'merger', 'spinoff'
+
+    -- Quantity adjustments
+    old_quantity DOUBLE NOT NULL,
+    new_quantity DOUBLE NOT NULL,
+
+    -- Cost basis adjustments
+    old_cost_basis DOUBLE NOT NULL,
+    new_cost_basis DOUBLE NOT NULL,
+
+    -- Cash impact (dividends, cash mergers)
+    cash_impact DOUBLE DEFAULT 0.0,  -- Positive = received, Negative = paid
+
+    -- New positions created (spin-offs, stock mergers)
+    new_position_id VARCHAR,  -- Links to new position if created
+
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_position_adj_position ON position_adjustments(position_id);
+CREATE INDEX idx_position_adj_corp_action ON position_adjustments(corporate_action_id);
+CREATE INDEX idx_position_adj_date ON position_adjustments(adjustment_date);
+
+-- Enhanced positions table with P&L components
+CREATE TABLE positions (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+    quantity DOUBLE NOT NULL,
+    avg_cost DOUBLE NOT NULL,  -- Average cost basis per share
+    current_price DOUBLE,
+
+    -- P&L components (COMPREHENSIVE)
+    unrealized_pnl DOUBLE,  -- (Current Price - Avg Cost) × Quantity
+    realized_pnl DOUBLE DEFAULT 0.0,  -- From closed portions
+    total_commissions DOUBLE DEFAULT 0.0,  -- Sum of all commissions
+    accrued_margin_interest DOUBLE DEFAULT 0.0,  -- Cumulative interest
+    total_dividends DOUBLE DEFAULT 0.0,  -- Net dividends (received - paid)
+
+    -- Net P&L = unrealized_pnl + realized_pnl - total_commissions - accrued_margin_interest + total_dividends
+
+    -- Corporate actions tracking
+    last_corp_action_date TIMESTAMP,
+    split_adjusted_cost DOUBLE,  -- Cost basis after all splits
+
+    -- Timestamps
+    opened_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP
+);
+
+CREATE INDEX idx_positions_symbol ON positions(symbol);
+CREATE INDEX idx_positions_account ON positions(account_id);
+
+-- Margin rates configuration (fetched from Schwab or manual update)
+CREATE TABLE margin_rates (
+    id VARCHAR PRIMARY KEY,
+    broker VARCHAR NOT NULL DEFAULT 'schwab',
+    tier_min DOUBLE NOT NULL,  -- Minimum balance for tier
+    tier_max DOUBLE NOT NULL,  -- Maximum balance for tier
+    annual_rate DOUBLE NOT NULL,  -- Annual percentage rate
+    effective_date DATE NOT NULL,
+    end_date DATE,  -- NULL if current
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Example Schwab rates (as of 2024)
+INSERT INTO margin_rates VALUES
+    ('tier1', 'schwab', 0, 24999.99, 12.825, '2024-01-01', NULL, CURRENT_TIMESTAMP),
+    ('tier2', 'schwab', 25000, 49999.99, 12.325, '2024-01-01', NULL, CURRENT_TIMESTAMP),
+    ('tier3', 'schwab', 50000, 99999.99, 11.825, '2024-01-01', NULL, CURRENT_TIMESTAMP);
+
 -- Backtest results analytics
 CREATE TABLE backtest_results (
     strategy_name VARCHAR,
@@ -1509,7 +1692,14 @@ CREATE TABLE backtest_results (
     exit_date DATE,
     exit_price DOUBLE,
     quantity INTEGER,
-    pnl DOUBLE,
+
+    -- Enhanced P&L breakdown
+    gross_pnl DOUBLE,  -- Price difference only
+    commissions DOUBLE,  -- Entry + exit commissions
+    margin_interest DOUBLE,  -- Total interest for trade
+    dividends DOUBLE,  -- Net dividends received/paid
+    net_pnl DOUBLE,  -- After all costs
+
     return_pct DOUBLE,
     holding_period_days INTEGER,
     exit_reason VARCHAR,

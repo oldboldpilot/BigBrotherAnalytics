@@ -442,9 +442,32 @@ The architecture document includes:
 #### 3.2.5 Corporate Actions
 - **Mergers & Acquisitions** - Deals, rumors, regulatory approvals
 - **Dividends** - Declarations, changes, special dividends
-- **Stock Splits** - Forward and reverse splits
+- **Stock Splits** - Forward and reverse splits (forward, reverse)
 - **Earnings** - Results, guidance, conference calls
 - **Share Buybacks** - Announcements and execution
+- **Spin-offs** - Parent company splitting off subsidiaries
+- **Rights Issues** - Offerings to existing shareholders
+- **Tender Offers** - Buyback offers at premium prices
+
+**CRITICAL: Corporate Actions Impact on P&L Calculations**
+- **Dividend Adjustments:**
+  - Ex-dividend dates MUST be tracked for accurate position valuation
+  - Dividend payments received MUST be added to realized P&L
+  - Options positions: dividend capture strategies affect profitability
+  - Short positions: dividend payments are a COST (subtract from P&L)
+- **Stock Split Adjustments:**
+  - Position quantities MUST be adjusted (2:1 split → 2x shares, 0.5x price)
+  - Cost basis MUST be adjusted proportionally
+  - Options contracts adjust automatically (track contract multiplier changes)
+  - Reverse splits: combine positions and adjust basis
+- **Merger/Acquisition Adjustments:**
+  - Cash mergers: position closed at acquisition price
+  - Stock-for-stock: position converted at exchange ratio
+  - Mixed deals: combination of cash and stock adjustments
+- **Spin-off Adjustments:**
+  - Cost basis allocated between parent and spun-off entity
+  - New positions created in spun-off company
+  - Options positions may require manual adjustments
 
 #### 3.2.6 Macroeconomic Indicators
 - **Federal Reserve** - Meeting schedules, minutes, speeches, statements
@@ -558,12 +581,35 @@ The architecture document includes:
 - **PR Newswire API** - Press releases
 - **RSS Feeds** - Major publications (WSJ, FT, Reuters)
 
-**Corporate Actions Extraction:**
-- **Alpha Vantage** - Free/paid stock data API
-- **Polygon.io** - Real-time and historical market data
+**Corporate Actions Data Sources (MANDATORY FOR ACCURATE P&L):**
+- **Alpha Vantage** - Dividends, splits via API
+  - Free tier: basic corporate actions
+  - Must track: ex-dividend dates, payment dates, dividend amounts
+- **Polygon.io** - Comprehensive corporate actions feed
+  - Dividends, splits, mergers, spin-offs
+  - Real-time and historical data
 - **Finnhub** - Corporate actions, dividends, splits (free tier)
+  - Good for POC validation
 - **IEX Cloud** - Corporate actions and events
+  - Ex-dividend dates critical for P&L accuracy
 - **SEC EDGAR** - 8-K filings for material events
+  - Mergers, acquisitions, spin-offs, tender offers
+  - DEF 14A: proxy statements (merger/acquisition terms)
+- **Schwab API** - Real-time corporate action notifications
+  - Automatic adjustments to positions
+  - Dividend payments credited to account
+  - Split adjustments applied automatically
+
+**Margin Interest Rate Data Sources:**
+- **Schwab API** - Current margin rates via account API
+  - Real-time margin balance tracking
+  - Interest accrual visible in account statements
+- **Schwab Website** - Published margin rate schedule
+  - Updated periodically (monitor for changes)
+  - https://www.schwab.com/margin-rates
+- **Manual Updates** - Quarterly verification required
+  - Compare API rates vs published rates
+  - Alert if rates change by >0.25%
 
 **Central Bank Data Extraction:**
 - **Federal Reserve:**
@@ -842,6 +888,15 @@ The architecture document includes:
 - System SHALL support data from multiple exchanges and markets
 - System SHALL handle missing data and outliers appropriately
 - System SHALL normalize prices for splits and dividends
+- **System SHALL track all corporate actions with effective dates:**
+  - Dividends (declaration, ex-dividend, record, payment dates)
+  - Stock splits (announcement, effective date, split ratio)
+  - Mergers and acquisitions (announcement, shareholder approval, close date)
+  - Spin-offs (distribution date, cost basis allocation)
+- **System SHALL fetch and store margin interest rates:**
+  - Daily margin balance tracking
+  - Current margin rate tiers (updated quarterly minimum)
+  - Historical margin rates for backtesting accuracy
 
 #### FR2.2: Correlation Calculation
 - System SHALL calculate correlations for all timeframes
@@ -1442,10 +1497,100 @@ Repository: https://github.com/oldboldpilot/SchwabFirstAPI
 
 #### 5.4.5 Portfolio Management
 - Real-time position tracking
-- P&L calculation and attribution
+- **P&L Calculation and Attribution (CRITICAL - See detailed requirements below)**
 - Risk metrics monitoring
 - Rebalancing automation
 - Tax loss harvesting
+
+**MANDATORY P&L CALCULATION REQUIREMENTS:**
+
+**1. Margin Interest Accounting (CRITICAL FOR MARGIN ACCOUNTS):**
+- **Daily Margin Interest Accrual:**
+  - MUST track daily margin balance (borrowed amount)
+  - MUST calculate daily interest: `Daily Interest = (Margin Balance × Annual Rate) / 360`
+  - Schwab margin rates (as of 2024):
+    - $0-$24,999: 12.825% annual
+    - $25,000-$49,999: 12.325% annual
+    - $50,000-$99,999: 11.825% annual
+    - (Rates variable - MUST fetch current rates via API or manual update)
+  - Interest accrues daily, charged monthly
+  - MUST subtract accumulated interest from realized P&L
+  - Example: $10k margin × 12.825% / 360 = $3.56/day interest cost
+
+- **Impact on Strategy Profitability:**
+  - Day trading options: margin interest minimal (intraday positions)
+  - Swing trading (2-7 days): margin interest significant cost
+  - Position sizing MUST account for daily interest drag
+  - Break-even calculation: `Profit Target > (Entry Cost + Commission + Margin Interest)`
+  - Monthly reporting: total margin interest expense as separate line item
+
+- **Margin Balance Tracking:**
+  - Track real-time margin utilization: `(Borrowed Amount / Margin Limit) × 100%`
+  - Alert if margin utilization > 80% (risk of margin call)
+  - MUST track margin balance changes:
+    - Increases: new positions opened, stock price drops (long), price rises (short)
+    - Decreases: positions closed, deposits, stock price rises (long), price drops (short)
+
+**2. Corporate Actions Impact on P&L (MANDATORY):**
+- **Dividend Adjustments:**
+  - Ex-dividend date tracking for all positions
+  - LONG positions: ADD dividend payments to realized P&L
+  - SHORT positions: SUBTRACT dividend payments from realized P&L (cost)
+  - Options: dividend expectations affect option pricing (dividends favor puts, hurt calls)
+  - Quarterly dividend tracking: MUST forecast dividend impact on positions
+  - Example: Short 100 shares XYZ paying $0.50 dividend = -$50 realized P&L
+
+- **Stock Split Adjustments:**
+  - Forward splits (e.g., 2:1, 3:1): multiply shares, divide cost basis
+  - Reverse splits (e.g., 1:5, 1:10): divide shares, multiply cost basis
+  - MUST adjust position quantities and cost basis on split effective date
+  - Options: contracts adjust automatically (100 shares → varies by split ratio)
+  - P&L calculation MUST use split-adjusted prices for historical comparisons
+
+- **Merger/Acquisition Adjustments:**
+  - Cash mergers: position liquidated at offer price (realized P&L)
+  - Stock-for-stock: position converted at exchange ratio (unrealized → new position)
+  - Mixed deals: partial cash (realized), partial stock (unrealized)
+  - Tender offers: premium to market price (capture spread)
+  - Tracking required: announcement date, shareholder vote, regulatory approval, close date
+
+- **Spin-off Adjustments:**
+  - Cost basis allocation: distribute original cost between parent and spun-off entity
+  - Allocation method: typically based on first-day trading prices
+  - Example: $100 position → $70 parent + $30 spin-off (based on market values)
+  - New position created in spin-off company (track separately)
+
+**3. Comprehensive P&L Formula:**
+```
+Realized P&L =
+  (Exit Price - Entry Price) × Quantity
+  - Entry Commission
+  - Exit Commission
+  - Margin Interest (daily accrual × days held)
+  + Dividends Received (long positions)
+  - Dividends Paid (short positions)
+  ± Corporate Action Adjustments (mergers, spin-offs)
+
+Unrealized P&L =
+  (Current Price - Entry Price) × Quantity
+  - Accrued Margin Interest (to date)
+  + Expected Dividends (ex-div dates before planned exit)
+  ± Pending Corporate Action Impact
+```
+
+**4. Reporting Requirements:**
+- Daily P&L reports MUST include:
+  - Gross P&L (before costs)
+  - Commission costs
+  - Margin interest costs (accrued to date)
+  - Dividend income/expense
+  - Corporate action impacts
+  - Net P&L (after all costs)
+- Monthly P&L reports MUST include:
+  - Total margin interest paid (separate line item)
+  - Total dividends received/paid
+  - Corporate action summary (splits, mergers, spin-offs)
+  - Tax reporting data (wash sales, short-term vs long-term gains)
 
 #### 5.4.6 Risk Management
 - Position-level stop-losses
@@ -1510,6 +1655,26 @@ Repository: https://github.com/oldboldpilot/SchwabFirstAPI
 - System SHALL place orders with appropriate execution algorithms
 - System SHALL monitor positions in real-time
 - System SHALL execute stop-losses and take-profit orders automatically
+- **System SHALL calculate accurate P&L including ALL costs:**
+  - Entry and exit commissions ($0 stocks, $0.65/contract options)
+  - Margin interest (daily accrual based on margin balance and current rates)
+  - Dividend income (long positions) and dividend expense (short positions)
+  - Corporate action adjustments (splits, mergers, spin-offs)
+- **System SHALL adjust positions automatically for corporate actions:**
+  - Stock splits: update quantity and cost basis on effective date
+  - Dividends: credit/debit account on payment date
+  - Mergers: convert or liquidate positions per deal terms
+  - Spin-offs: allocate cost basis and create new positions
+- **System SHALL track margin utilization in real-time:**
+  - Current margin balance (borrowed amount)
+  - Daily margin interest accrual
+  - Margin utilization percentage
+  - Alert if utilization exceeds 80% (margin call risk)
+- **System SHALL maintain complete position history:**
+  - All corporate action adjustments with timestamps
+  - Margin interest charges by position
+  - Dividend payments received/paid
+  - Split-adjusted cost basis history
 
 #### FR3.4: Strategy Execution
 - System SHALL execute day trading strategy fully automatically
@@ -1528,6 +1693,24 @@ Repository: https://github.com/oldboldpilot/SchwabFirstAPI
 - System SHALL generate daily, weekly, monthly performance reports
 - System SHALL track and report on strategy-specific metrics
 - System SHALL provide trade-level audit trails
+- **System SHALL provide detailed cost breakdowns in all P&L reports:**
+  - Gross P&L (price changes only)
+  - Commission costs (entry + exit)
+  - Margin interest costs (daily accrual)
+  - Dividend income/expense
+  - Corporate action impacts
+  - Net P&L (after all costs)
+- **System SHALL generate monthly cost analysis reports:**
+  - Total margin interest paid
+  - Average daily margin balance
+  - Margin interest as % of gross P&L
+  - Total dividends received/paid
+  - Corporate action summary (all events affecting positions)
+- **System SHALL alert on significant cost events:**
+  - Ex-dividend dates for held positions (3 days advance notice)
+  - Upcoming stock splits affecting positions (7 days advance notice)
+  - Margin interest exceeding 10% of position P&L
+  - Margin rate changes (notify within 24 hours)
 
 ### 5.7 Technical Requirements
 
@@ -1842,7 +2025,16 @@ Trading Decision Engine    Correlation Tool
   - Comprehensive unit test coverage (> 80%)
   - Integration tests for all APIs
   - Code documentation and comments
-  - Linting and static analysis
+  - **Static Analysis and Linting (Mandatory):**
+    - **Python Static Analysis:**
+      - **mypy:** Type checking with strict mode enabled
+      - **pylint:** Code quality and PEP 8 compliance (minimum score: 8.5/10)
+      - **pytype:** Google's static type checker for additional type safety
+    - **C++ Static Analysis:**
+      - **clang-tidy:** C++ Core Guidelines checks, modernize checks, and performance checks
+      - **cppcheck:** Additional static analysis for undefined behavior and memory leaks
+    - **Enforcement:** All code changes MUST pass static analysis before merge
+    - **CI/CD Integration:** Automated static analysis on every pull request
 
 - **API Design Standards:**
   - **Fluent/Chainable APIs Required:** All components (C++, Python, Rust) MUST provide fluent interfaces
@@ -2090,7 +2282,11 @@ Trading Decision Engine    Correlation Tool
   - **Coding Standards:**
     - **C++ Core Guidelines Compliance (Mandatory):**
       - Follow [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) for all implementation details
-      - Use static analysis tools to enforce guidelines (clang-tidy with core-guidelines checks)
+      - **Static Analysis Enforcement:**
+        - **clang-tidy:** Run with core-guidelines checks, modernize-*, performance-*, readability-* checks
+        - **cppcheck:** Run with --enable=all for comprehensive analysis
+        - Both tools MUST be run before code commits
+        - Zero warnings policy for production code
       - Key guidelines to emphasize:
         - I.11: Never transfer ownership by raw pointer (use smart pointers)
         - F.15: Prefer simple and conventional ways of passing information (span, const&)
@@ -2788,6 +2984,11 @@ print(f"Analyzed 10 years of data in seconds, found {len(result)} correlations")
 - **Cargo:** Rust build system
 - **Conan/vcpkg:** C++ package management
 - **Poetry/uv:** Python dependency management (fast resolver)
+- **Static Analysis Tools (Mandatory):**
+  - **Python:** mypy, pylint, pytype (all installed via uv)
+  - **C++:** clang-tidy (LLVM 18+), cppcheck (latest)
+  - **Pre-commit hooks:** Automatic static analysis on git commit
+  - **CI/CD enforcement:** All PRs must pass static analysis checks
 
 ### 9.6.1 Tier 1 Development Deployment Stack (Detailed)
 

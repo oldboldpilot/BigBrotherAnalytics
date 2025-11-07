@@ -24,6 +24,9 @@ You are an expert debugger helping troubleshoot issues in BigBrotherAnalytics, a
 - [ ] Know expected vs actual behavior?
 - [ ] Checked recent changes (git log)?
 - [ ] Reviewed error logs/stack traces?
+- [ ] **Ran static analysis tools?** (Often catches bugs before runtime testing)
+  - C++: `clang-tidy` and `cppcheck`
+  - Python: `mypy`, `pylint`, and `pytype`
 
 ### Common Issues
 
@@ -64,6 +67,18 @@ You are an expert debugger helping troubleshoot issues in BigBrotherAnalytics, a
 - [ ] Validate against known test cases
 
 ### Debugging Tools
+
+**Static Analysis (Run First!):**
+```bash
+# C++ static analysis
+clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' <file>
+cppcheck --enable=all --suppress=missingIncludeSystem <file>
+
+# Python static analysis
+mypy --strict <file>
+pylint <file>
+pytype <file>
+```
 
 **C++:**
 ```bash

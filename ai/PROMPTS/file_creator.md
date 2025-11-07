@@ -1011,6 +1011,10 @@ For each component:
 - **Unit tests** with edge cases
 - **Integration tests** if needed
 - **Documentation** (README, comments)
+- **Static Analysis** (MANDATORY - must pass before code is complete):
+  - **C++:** Run `clang-tidy` and `cppcheck` on all generated files
+  - **Python:** Run `mypy --strict`, `pylint`, and `pytype` on all generated files
+  - Fix all warnings and errors before marking code as complete
 
 ### 4. Generate Build Configuration
 - CMakeLists.txt for C++
@@ -1088,6 +1092,145 @@ def calculate_returns(prices: np.ndarray) -> np.ndarray:
 - **Integration Tests:** Test component interactions
 - **Performance Tests:** Verify latency/throughput targets
 - **Edge Case Tests:** Zero, negative, overflow, underflow, null
+
+---
+
+## Static Analysis Requirements (MANDATORY)
+
+**ALL generated code MUST pass static analysis before completion.**
+
+### C++ Static Analysis
+
+**Required Tools:**
+1. **clang-tidy** (LLVM 18+)
+   - Checks: `cppcoreguidelines-*,modernize-*,performance-*,readability-*`
+   - Command: `clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' <file>`
+   - **Zero warnings policy** for production code
+
+2. **cppcheck**
+   - Enable all checks: `--enable=all`
+   - Command: `cppcheck --enable=all --suppress=missingIncludeSystem <file>`
+   - Must pass with no errors
+
+**Example Usage:**
+```bash
+# Run clang-tidy on generated C++ file
+clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' \
+  src/cpp/correlation/correlation_engine.cpp
+
+# Run cppcheck
+cppcheck --enable=all --suppress=missingIncludeSystem \
+  src/cpp/correlation/correlation_engine.cpp
+```
+
+### Python Static Analysis
+
+**Required Tools:**
+1. **mypy** (strict mode)
+   - Command: `mypy --strict <file>`
+   - All functions MUST have type hints
+   - Zero type errors allowed
+
+2. **pylint**
+   - Command: `pylint <file>`
+   - Minimum score: **8.5/10**
+   - Fix all critical and error-level issues
+
+3. **pytype** (Google's type checker)
+   - Command: `pytype <file>`
+   - Additional type safety verification
+
+**Example Usage:**
+```bash
+# Run mypy in strict mode
+mypy --strict src/python/data_ingestion/yahoo_finance.py
+
+# Run pylint (must score >= 8.5/10)
+pylint src/python/data_ingestion/yahoo_finance.py
+
+# Run pytype
+pytype src/python/data_ingestion/yahoo_finance.py
+```
+
+### Code Formatting (Auto-fix)
+
+**Python:**
+```bash
+# Format with black
+black src/python/data_ingestion/yahoo_finance.py
+
+# Sort imports with isort
+isort src/python/data_ingestion/yahoo_finance.py
+```
+
+**C++:**
+```bash
+# Format with clang-format
+clang-format -i src/cpp/correlation/correlation_engine.cpp
+```
+
+### Workflow Integration
+
+**After generating ANY code file:**
+1. Run appropriate static analysis tools
+2. Fix ALL warnings and errors
+3. Re-run to verify fixes
+4. Only then mark code as complete
+
+**Example Workflow for Python File:**
+```bash
+# 1. Generate file
+# (file_creator generates yahoo_finance.py)
+
+# 2. Format code
+black src/python/data_ingestion/yahoo_finance.py
+isort src/python/data_ingestion/yahoo_finance.py
+
+# 3. Run static analysis
+mypy --strict src/python/data_ingestion/yahoo_finance.py
+pylint src/python/data_ingestion/yahoo_finance.py
+pytype src/python/data_ingestion/yahoo_finance.py
+
+# 4. Fix any issues
+# (edit file to address warnings)
+
+# 5. Re-run analysis to verify
+mypy --strict src/python/data_ingestion/yahoo_finance.py
+
+# 6. Mark as complete only when all checks pass
+```
+
+**Example Workflow for C++ File:**
+```bash
+# 1. Generate file
+# (file_creator generates correlation_engine.cpp)
+
+# 2. Format code
+clang-format -i src/cpp/correlation/correlation_engine.cpp
+
+# 3. Run static analysis
+clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' \
+  src/cpp/correlation/correlation_engine.cpp
+
+cppcheck --enable=all --suppress=missingIncludeSystem \
+  src/cpp/correlation/correlation_engine.cpp
+
+# 4. Fix any issues
+# (edit file to address warnings)
+
+# 5. Re-run analysis to verify
+clang-tidy --checks='cppcoreguidelines-*,modernize-*,performance-*,readability-*' \
+  src/cpp/correlation/correlation_engine.cpp
+
+# 6. Mark as complete only when all checks pass
+```
+
+### CI/CD Integration
+
+All static analysis checks are enforced in CI/CD pipeline via:
+- Pre-commit hooks (run on `git commit`)
+- GitHub Actions (run on pull requests)
+- No code can be merged unless all checks pass
 
 ---
 

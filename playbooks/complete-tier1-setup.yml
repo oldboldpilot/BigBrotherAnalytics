@@ -16,6 +16,7 @@
 #   - PyTorch with CUDA support
 #   - Hugging Face Transformers
 #   - All ML/AI frameworks
+#   - Static analysis tools (mypy, pylint, pytype, clang-tidy, cppcheck)
 #   - Complete verification
 #
 # NOTE: PostgreSQL is NOT installed in Tier 1 POC!
@@ -206,6 +207,8 @@
           - automake
           - libtool
           - pkg-config
+          - llvm                       # LLVM 18+ (includes clang-tidy)
+          - cppcheck                   # C++ static analyzer
         state: latest
       become_user: "{{ user }}"
       environment:
@@ -514,6 +517,17 @@
       # NOTE: Removed psycopg2-binary (PostgreSQL) and redis for Tier 1
       #       DuckDB is the primary database - zero setup, embedded!
 
+    - name: Install Python static analysis tools
+      shell: |
+        source ~/.cargo/env
+        cd {{ project_dir }}
+        source .venv/bin/activate
+        ~/.cargo/bin/uv pip install \
+          mypy pylint pytype \
+          black isort flake8 \
+          pre-commit
+      become_user: "{{ user }}"
+
     - name: Install PyTorch with CUDA 13.0 support
       shell: |
         source ~/.cargo/env
@@ -616,6 +630,11 @@
           export MPICC={{ homebrew_prefix }}/bin/mpicc
           export MPICXX={{ homebrew_prefix }}/bin/mpic++
 
+          # Static Analysis Tools
+          export PATH={{ homebrew_prefix }}/opt/llvm/bin:$PATH
+          export LDFLAGS="-L{{ homebrew_prefix }}/opt/llvm/lib $LDFLAGS"
+          export CPPFLAGS="-I{{ homebrew_prefix }}/opt/llvm/include $CPPFLAGS"
+
           # Berkeley PGAS Components
           export BERKELEY_PREFIX={{ install_prefix }}
           export GASNET_HOME={{ install_prefix }}/gasnet
@@ -677,6 +696,12 @@
           check_command "cmake" "CMake"
           echo ""
 
+          # Check static analysis tools
+          echo "STATIC ANALYSIS TOOLS:"
+          check_command "clang-tidy" "clang-tidy"
+          check_command "cppcheck" "cppcheck"
+          echo ""
+
           # Check parallel computing
           echo "PARALLEL COMPUTING:"
           check_command "mpirun" "OpenMPI"
@@ -734,6 +759,12 @@
               python -c "import xgboost; print(f'✓ XGBoost: {xgboost.__version__}')" 2>/dev/null || echo "✗ XGBoost"
               python -c "import shap; print(f'✓ SHAP: {shap.__version__}')" 2>/dev/null || echo "✗ SHAP"
               python -c "import stable_baselines3; print(f'✓ Stable-Baselines3: {stable_baselines3.__version__}')" 2>/dev/null || echo "✗ SB3"
+              echo ""
+
+              echo "PYTHON STATIC ANALYSIS TOOLS:"
+              python -c "import mypy; print(f'✓ mypy: {mypy.__version__}')" 2>/dev/null || echo "✗ mypy"
+              check_command "pylint" "pylint"
+              check_command "pytype" "pytype"
               echo ""
 
               deactivate
@@ -820,6 +851,12 @@
           - Pandas, Polars, NumPy
           - Plotly, Streamlit, Dash
           - And many more...
+
+          ### Code Quality & Static Analysis
+          - **Python:** mypy, pylint, pytype (type checking and linting)
+          - **C++:** clang-tidy (C++ Core Guidelines), cppcheck (static analysis)
+          - **Formatters:** black, isort (Python), clang-format (C++)
+          - **Pre-commit hooks:** Automated quality checks before commits
 
           ## Getting Started
 
@@ -914,6 +951,7 @@
           ✓ Python {{ python_version }} with ML/AI frameworks
           ✓ PyTorch with CUDA support
           ✓ Hugging Face Transformers
+          ✓ Static Analysis Tools (mypy, pylint, pytype, clang-tidy, cppcheck)
           ✓ Complete environment configured
 
           NOTE: Using DuckDB-first approach for rapid validation
