@@ -13,11 +13,14 @@
 3. **Trading Decision Engine** - Options day trading (initial focus), explainable decisions, risk management
 
 **Technology Stack (Tier 1 POC):**
-- **Languages:** C++23 (core), Python 3.14+ GIL-free (ML), Rust (optional)
+- **Languages:** C++23 (core), Python 3.13 (ML), Rust (optional)
 - **Database:** DuckDB ONLY (PostgreSQL deferred to Tier 2 after profitability)
-- **Parallelization:** MPI, OpenMP, UPC++ (32+ cores)
+- **Parallelization:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM (32+ cores)
 - **ML/AI:** PyTorch, Transformers, XGBoost, SHAP
-- **GPU:** CUDA 13.0, vLLM for inference
+- **C++/Python Integration:** pybind11 for performance-critical code (bypasses GIL)
+- **Document Processing:** Maven + OpenJDK 25 + Apache Tika
+- **Package Manager:** uv (10-100x faster than pip, project-based, no venv needed)
+- **Execution:** All Python code runs with `uv run python script.py`
 
 ## Critical Principles
 

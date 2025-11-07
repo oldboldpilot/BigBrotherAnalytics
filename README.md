@@ -58,9 +58,11 @@ A machine learning system that synthesizes insights from the previous two sub-pr
 ### Technology Stack
 
 - **Core Performance:** C++23 and Rust for ultra-low latency components
-- **AI/ML Processing:** Python 3.14+ (GIL-free) with CUDA acceleration for GPU-enabled inference
-- **Parallel Computing:** MPI, OpenMP, UPC++, pdsh for massive parallelization
-- **Model Serving:** vLLM for high-throughput, low-latency AI inference
+- **AI/ML Processing:** Python 3.13 with pybind11 for performance-critical paths
+- **Parallel Computing:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM for massive parallelization
+- **Package Management:** uv for fast, reproducible Python dependency management (no venv)
+- **Document Processing:** Maven + OpenJDK 25 + Apache Tika for news/filing analysis
+- **Model Serving:** PyTorch + Transformers for AI inference
 - **Deployment:** Ansible for automated infrastructure management
 
 ### Infrastructure
