@@ -1366,6 +1366,10 @@ erDiagram
     POSITIONS ||--o{ MARGIN_INTEREST_ACCRUAL : "accrues"
     POSITIONS ||--o{ POSITION_ADJUSTMENTS : "adjusted_by"
     CORPORATE_ACTIONS ||--o{ POSITION_ADJUSTMENTS : "triggers"
+    POSITIONS ||--o{ TAX_LOTS : "comprised_of"
+    TAX_LOTS ||--o{ REALIZED_GAINS_LOSSES : "realizes"
+    WASH_SALES ||--o{ REALIZED_GAINS_LOSSES : "affects"
+    REALIZED_GAINS_LOSSES ||--o{ YTD_TAX_SUMMARY : "aggregates_to"
 
     TRADING_SIGNALS {
         uuid id PK
@@ -1705,6 +1709,271 @@ CREATE TABLE backtest_results (
     exit_reason VARCHAR,
     explanation JSON
 );
+
+-- =====================================================================
+-- TAX CALCULATION TABLES (MANDATORY FOR AFTER-TAX P&L TRACKING)
+-- =====================================================================
+
+-- Tax configuration per user/account
+CREATE TABLE tax_config (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    tax_year INTEGER NOT NULL,
+
+    -- User filing information
+    filing_status VARCHAR NOT NULL,  -- 'single', 'married_joint', 'married_separate', 'head_of_household'
+    state_of_residence VARCHAR NOT NULL,  -- Two-letter state code
+
+    -- Income information for tax bracket calculation
+    estimated_non_trading_income DOUBLE DEFAULT 0.0,  -- W2/1099 income
+    prior_year_agi DOUBLE,  -- For estimated payment safe harbor
+
+    -- Classification
+    trader_classification VARCHAR DEFAULT 'investor',  -- 'investor' or 'trader_in_business'
+    mark_to_market_election BOOLEAN DEFAULT FALSE,  -- IRC § 475(f) election
+
+    -- Optional adjustments
+    standard_deduction DOUBLE,  -- Overrides default if set
+    itemized_deductions DOUBLE DEFAULT 0.0,
+    other_investment_income DOUBLE DEFAULT 0.0,  -- For NIIT calculation
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_config_account ON tax_config(account_id);
+CREATE INDEX idx_tax_config_year ON tax_config(tax_year);
+
+-- Federal tax brackets (updated annually)
+CREATE TABLE federal_tax_brackets (
+    id VARCHAR PRIMARY KEY,
+    tax_year INTEGER NOT NULL,
+    filing_status VARCHAR NOT NULL,
+    bracket_order INTEGER NOT NULL,  -- 1, 2, 3...
+    income_min DOUBLE NOT NULL,
+    income_max DOUBLE,  -- NULL for highest bracket
+    tax_rate DOUBLE NOT NULL,
+
+    effective_date DATE NOT NULL,
+    source VARCHAR DEFAULT 'IRS',  -- IRC § 1(j)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_fed_brackets_year_status ON federal_tax_brackets(tax_year, filing_status);
+
+-- Example federal brackets for 2024 (single)
+INSERT INTO federal_tax_brackets VALUES
+    ('2024_single_1', 2024, 'single', 1, 0, 11600, 0.10, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_2', 2024, 'single', 2, 11601, 47150, 0.12, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_3', 2024, 'single', 3, 47151, 100525, 0.22, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_4', 2024, 'single', 4, 100526, 191950, 0.24, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_5', 2024, 'single', 5, 191951, 243725, 0.32, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_6', 2024, 'single', 6, 243726, 609350, 0.35, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP),
+    ('2024_single_7', 2024, 'single', 7, 609351, NULL, 0.37, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP);
+
+-- Long-term capital gains brackets (IRC § 1(h))
+CREATE TABLE longterm_capital_gains_brackets (
+    id VARCHAR PRIMARY KEY,
+    tax_year INTEGER NOT NULL,
+    filing_status VARCHAR NOT NULL,
+    income_min DOUBLE NOT NULL,
+    income_max DOUBLE,  -- NULL for highest bracket
+    tax_rate DOUBLE NOT NULL,
+
+    source VARCHAR DEFAULT 'IRC § 1(h)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ltcg_brackets_year_status ON longterm_capital_gains_brackets(tax_year, filing_status);
+
+-- Example LTCG brackets for 2024 (single)
+INSERT INTO longterm_capital_gains_brackets VALUES
+    ('2024_single_ltcg_0', 2024, 'single', 0, 47025, 0.00, 'IRC § 1(h)', CURRENT_TIMESTAMP),
+    ('2024_single_ltcg_15', 2024, 'single', 47026, 518900, 0.15, 'IRC § 1(h)', CURRENT_TIMESTAMP),
+    ('2024_single_ltcg_20', 2024, 'single', 518901, NULL, 0.20, 'IRC § 1(h)', CURRENT_TIMESTAMP);
+
+-- State tax rates
+CREATE TABLE state_tax_rates (
+    id VARCHAR PRIMARY KEY,
+    state_code VARCHAR(2) NOT NULL,  -- 'CA', 'NY', 'TX', etc.
+    tax_year INTEGER NOT NULL,
+    bracket_order INTEGER,  -- NULL for flat rate states
+    income_min DOUBLE,
+    income_max DOUBLE,
+    tax_rate DOUBLE NOT NULL,
+
+    -- California: CA Revenue and Taxation Code § 17041-17045.7
+    -- New York: NY Tax Law § 601
+    source VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_state_rates_state_year ON state_tax_rates(state_code, tax_year);
+
+-- Example California rates (highest tax state)
+INSERT INTO state_tax_rates VALUES
+    ('2024_ca_1', 'CA', 2024, 1, 0, 10412, 0.01, 'CA RTC § 17041', CURRENT_TIMESTAMP),
+    ('2024_ca_2', 'CA', 2024, 2, 10413, 24684, 0.02, 'CA RTC § 17041', CURRENT_TIMESTAMP),
+    ('2024_ca_3', 'CA', 2024, 3, 24685, 38959, 0.04, 'CA RTC § 17041', CURRENT_TIMESTAMP),
+    ('2024_ca_9', 'CA', 2024, 9, 599013, NULL, 0.133, 'CA RTC § 17041', CURRENT_TIMESTAMP);
+
+-- Wash sale tracking (IRC § 1091)
+CREATE TABLE wash_sales (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+
+    -- Loss sale that triggered wash sale
+    loss_sale_date DATE NOT NULL,
+    loss_sale_quantity DOUBLE NOT NULL,
+    loss_sale_price DOUBLE NOT NULL,
+    loss_amount DOUBLE NOT NULL,  -- Disallowed loss
+
+    -- Replacement purchase (within 61-day window)
+    replacement_purchase_date DATE NOT NULL,
+    replacement_quantity DOUBLE NOT NULL,
+    replacement_price DOUBLE NOT NULL,
+
+    -- Cost basis adjustment
+    original_cost_basis DOUBLE NOT NULL,
+    adjusted_cost_basis DOUBLE NOT NULL,  -- Original + disallowed loss
+
+    -- Tracking
+    wash_sale_window_start DATE NOT GENERATED ALWAYS AS (loss_sale_date - INTERVAL 30 DAY) STORED,
+    wash_sale_window_end DATE NOT GENERATED ALWAYS AS (loss_sale_date + INTERVAL 30 DAY) STORED,
+
+    position_id VARCHAR,  -- Link to affected position
+    trade_id VARCHAR,  -- Link to original trade
+
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_wash_sales_symbol ON wash_sales(symbol);
+CREATE INDEX idx_wash_sales_date ON wash_sales(loss_sale_date);
+CREATE INDEX idx_wash_sales_account ON wash_sales(account_id);
+
+-- Tax lots (for cost basis tracking)
+CREATE TABLE tax_lots (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+
+    -- Lot information
+    acquisition_date DATE NOT NULL,
+    quantity DOUBLE NOT NULL,
+    original_cost_basis DOUBLE NOT NULL,  -- Per share
+    current_cost_basis DOUBLE NOT NULL,  -- After wash sale adjustments
+
+    -- Holding period
+    holding_period_days INTEGER GENERATED ALWAYS AS (CURRENT_DATE - acquisition_date) STORED,
+    is_long_term BOOLEAN GENERATED ALWAYS AS (holding_period_days > 365) STORED,
+
+    -- Tracking
+    position_id VARCHAR,
+    is_closed BOOLEAN DEFAULT FALSE,
+    closed_date DATE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_lots_symbol ON tax_lots(symbol);
+CREATE INDEX idx_tax_lots_account ON tax_lots(account_id);
+CREATE INDEX idx_tax_lots_acquisition ON tax_lots(acquisition_date);
+
+-- Realized gains/losses per trade (for tax reporting)
+CREATE TABLE realized_gains_losses (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    trade_id VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+
+    -- Trade details
+    entry_date DATE NOT NULL,
+    exit_date DATE NOT NULL,
+    holding_period_days INTEGER NOT NULL,
+    quantity DOUBLE NOT NULL,
+
+    -- P&L components
+    entry_price DOUBLE NOT NULL,
+    exit_price DOUBLE NOT NULL,
+    gross_proceeds DOUBLE NOT NULL,  -- Exit price × quantity
+    cost_basis DOUBLE NOT NULL,  -- Entry price × quantity (wash sale adjusted)
+
+    -- Gain/loss
+    realized_gain_loss DOUBLE NOT NULL,  -- Gross proceeds - cost basis
+    is_gain BOOLEAN GENERATED ALWAYS AS (realized_gain_loss > 0) STORED,
+
+    -- Tax classification
+    is_short_term BOOLEAN GENERATED ALWAYS AS (holding_period_days <= 365) STORED,
+    is_long_term BOOLEAN GENERATED ALWAYS AS (holding_period_days > 365) STORED,
+
+    -- Wash sale
+    is_wash_sale BOOLEAN DEFAULT FALSE,
+    wash_sale_id VARCHAR,  -- Link to wash_sales table
+    disallowed_loss DOUBLE DEFAULT 0.0,
+
+    -- Tax calculation
+    federal_tax_rate DOUBLE,  -- Applied rate
+    state_tax_rate DOUBLE,
+    niit_rate DOUBLE DEFAULT 0.0,  -- 3.8% if applicable
+    total_tax DOUBLE,  -- Computed tax liability
+    after_tax_gain_loss DOUBLE,  -- Realized gain/loss - total tax
+
+    tax_year INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_rgl_account ON realized_gains_losses(account_id);
+CREATE INDEX idx_rgl_tax_year ON realized_gains_losses(tax_year);
+CREATE INDEX idx_rgl_exit_date ON realized_gains_losses(exit_date);
+CREATE INDEX idx_rgl_symbol ON realized_gains_losses(symbol);
+
+-- Year-to-date tax summary
+CREATE TABLE ytd_tax_summary (
+    id VARCHAR PRIMARY KEY,
+    account_id VARCHAR NOT NULL,
+    tax_year INTEGER NOT NULL,
+    as_of_date DATE NOT NULL,
+
+    -- Short-term capital gains/losses
+    short_term_gains DOUBLE DEFAULT 0.0,
+    short_term_losses DOUBLE DEFAULT 0.0,
+    net_short_term DOUBLE GENERATED ALWAYS AS (short_term_gains + short_term_losses) STORED,
+
+    -- Long-term capital gains/losses
+    long_term_gains DOUBLE DEFAULT 0.0,
+    long_term_losses DOUBLE DEFAULT 0.0,
+    net_long_term DOUBLE GENERATED ALWAYS AS (long_term_gains + long_term_losses) STORED,
+
+    -- Dividends
+    qualified_dividends DOUBLE DEFAULT 0.0,  -- Taxed at LTCG rates
+    ordinary_dividends DOUBLE DEFAULT 0.0,  -- Taxed at ordinary rates
+
+    -- Wash sales
+    total_wash_sale_disallowances DOUBLE DEFAULT 0.0,
+
+    -- Tax liability estimate
+    estimated_federal_tax DOUBLE DEFAULT 0.0,
+    estimated_state_tax DOUBLE DEFAULT 0.0,
+    estimated_niit DOUBLE DEFAULT 0.0,  -- Net Investment Income Tax
+    estimated_medicare_tax DOUBLE DEFAULT 0.0,  -- If trader in business
+    total_estimated_tax DOUBLE DEFAULT 0.0,
+
+    -- Quarterly payments
+    q1_payment DOUBLE DEFAULT 0.0,
+    q2_payment DOUBLE DEFAULT 0.0,
+    q3_payment DOUBLE DEFAULT 0.0,
+    q4_payment DOUBLE DEFAULT 0.0,
+    total_payments DOUBLE GENERATED ALWAYS AS (q1_payment + q2_payment + q3_payment + q4_payment) STORED,
+
+    -- Balance
+    estimated_balance_due DOUBLE GENERATED ALWAYS AS (total_estimated_tax - total_payments) STORED,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ytd_tax_account_year ON ytd_tax_summary(account_id, tax_year);
 
 -- Feature importance aggregation
 CREATE VIEW top_features AS

@@ -1586,11 +1586,261 @@ Unrealized P&L =
   - Dividend income/expense
   - Corporate action impacts
   - Net P&L (after all costs)
+  - **Estimated tax liability (real-time)**
+  - **After-tax P&L**
 - Monthly P&L reports MUST include:
   - Total margin interest paid (separate line item)
   - Total dividends received/paid
   - Corporate action summary (splits, mergers, spin-offs)
-  - Tax reporting data (wash sales, short-term vs long-term gains)
+  - **Complete tax reporting data (details below)**
+
+**5. Tax Calculation Requirements (MANDATORY REAL-TIME TRACKING):**
+
+**CRITICAL:** Traders must know their true after-tax profitability at all times. Tax liability can consume 25-50%+ of gross profits.
+
+**A. Capital Gains Tax Calculation:**
+
+- **Holding Period Classification:**
+  - Short-term capital gains: positions held ≤ 365 days
+  - Long-term capital gains: positions held > 365 days
+  - Track exact holding period per position (entry date → exit date)
+  - Day trading (intraday): always short-term
+
+- **Short-Term Capital Gains (Taxed as Ordinary Income):**
+  - Federal tax brackets (2024):
+    - 10%: $0 - $11,600 (single) / $0 - $23,200 (married)
+    - 12%: $11,601 - $47,150 / $23,201 - $94,300
+    - 22%: $47,151 - $100,525 / $94,301 - $201,050
+    - 24%: $100,526 - $191,950 / $201,051 - $383,900
+    - 32%: $191,951 - $243,725 / $383,901 - $487,450
+    - 35%: $243,726 - $609,350 / $487,451 - $731,200
+    - 37%: $609,351+ / $731,201+
+  - MUST calculate marginal tax rate based on total income
+  - MUST track year-to-date trading income for bracket calculation
+
+- **Long-Term Capital Gains (Preferential Rates):**
+  - 0%: Taxable income up to $47,025 (single) / $94,050 (married)
+  - 15%: $47,026 - $518,900 / $94,051 - $583,750
+  - 20%: $518,901+ / $583,751+
+
+**B. Additional Federal Taxes:**
+
+- **Net Investment Income Tax (NIIT):**
+  - 3.8% surtax on investment income
+  - Applies if Modified AGI exceeds:
+    - $200,000 (single)
+    - $250,000 (married filing jointly)
+  - Applied to lesser of: (net investment income) OR (AGI above threshold)
+  - MUST track cumulative AGI to determine NIIT applicability
+
+- **Medicare Tax (for Professional Traders):**
+  - If classified as "trader in business" (mark-to-market election):
+    - 2.9% Medicare tax on net trading income
+    - Additional 0.9% Medicare surtax if income > $200,000 (single) / $250,000 (married)
+  - MUST support both investor and trader classification
+  - Default: investor (capital gains treatment)
+  - Optional: trader in business (ordinary income, allows more deductions)
+
+**C. State Income Tax:**
+
+- **State-Specific Rates (Must Support):**
+  - California: 1% - 13.3% (highest in nation)
+  - New York: 4% - 10.9%
+  - Texas: 0% (no state income tax)
+  - Florida: 0% (no state income tax)
+  - MUST allow user to configure state of residence
+  - MUST update rates when state changes tax law
+
+- **Multi-State Considerations:**
+  - Track state of residence during trade period
+  - Apply correct state rate based on residence date
+
+**D. Wash Sale Rules (CRITICAL - IRS Required):**
+
+- **Wash Sale Definition:**
+  - Sell security at a loss
+  - Purchase "substantially identical" security within 30 days before or after sale
+  - Loss is DISALLOWED, added to cost basis of new position
+
+- **Tracking Requirements:**
+  - MUST track all sales at a loss
+  - MUST monitor purchases 30 days before and after loss sale
+  - MUST identify substantially identical securities:
+    - Same stock (e.g., AAPL shares)
+    - Options on same stock (same strike, similar expiration)
+  - MUST disallow losses and adjust cost basis automatically
+  - MUST flag wash sales on trade confirmations
+
+- **Example:**
+  - Buy 100 AAPL @ $180 (Jan 5)
+  - Sell 100 AAPL @ $170 (Jan 15) → $1,000 loss
+  - Buy 100 AAPL @ $175 (Jan 20) → WASH SALE
+  - Original $1,000 loss DISALLOWED
+  - New cost basis: $175 + $10 (disallowed loss) = $185
+
+**E. Comprehensive Tax Formula:**
+
+```
+Gross Trading Income =
+  Short-Term Gains - Short-Term Losses (after wash sales)
+  + Long-Term Gains - Long-Term Losses (after wash sales)
+  + Net Dividend Income (qualified vs ordinary)
+
+Federal Capital Gains Tax =
+  (Short-Term Gains × Marginal Tax Rate)
+  + (Long-Term Gains × Long-Term Rate)
+  + (Net Investment Income × NIIT Rate if applicable)
+
+State Income Tax =
+  (Total Trading Income × State Rate)
+
+Total Tax Liability =
+  Federal Capital Gains Tax
+  + State Income Tax
+  + Medicare Tax (if trader in business)
+
+After-Tax Profit =
+  Gross Trading Income
+  - Total Tax Liability
+  - Commissions
+  - Margin Interest
+```
+
+**F. Real-Time Tax Tracking:**
+
+- **Daily Tax Liability Estimation:**
+  - Calculate estimated tax on all realized gains/losses to date
+  - Update after every trade close
+  - Show running total: "YTD Tax Liability: $X,XXX"
+  - Alert if tax liability > 30% of cash balance (estimated payment warning)
+
+- **Position-Level Tax Impact:**
+  - Before closing position, show:
+    - Gross P&L
+    - Estimated tax if closed now
+    - After-tax P&L
+    - Holding period (days until long-term treatment)
+  - Example: "Close now: +$1,000 gross, -$370 tax (37%), +$630 after-tax"
+  - Example: "Wait 15 more days for long-term: save $170 in taxes"
+
+- **Quarterly Estimated Tax Calculations:**
+  - Calculate quarterly estimated tax payments (due Apr 15, Jun 15, Sep 15, Jan 15)
+  - Alert 7 days before due date: "Estimated tax payment: $X,XXX due [date]"
+  - Track payments made vs liability to date
+  - Warn if underpayment penalty likely (< 90% of current year or 100%/110% of prior year)
+
+**G. Tax Reporting Data Export:**
+
+- **Form 8949 Support (Capital Gains/Losses):**
+  - Export all trades with:
+    - Description (100 shares AAPL)
+    - Date acquired, date sold
+    - Proceeds, cost basis, wash sale adjustments
+    - Short-term vs long-term classification
+  - Generate preliminary Form 8949 for CPA review
+
+- **Schedule D Support (Summary):**
+  - Total short-term gains/losses
+  - Total long-term gains/losses
+  - Net capital gain/loss
+
+- **Form 1099-B Reconciliation:**
+  - Import broker 1099-B (Schwab format)
+  - Compare broker cost basis vs system cost basis
+  - Flag discrepancies for review
+  - Adjust for wash sales not reported by broker
+
+**H. Tax Optimization Features:**
+
+- **Tax Loss Harvesting Recommendations:**
+  - Identify positions with unrealized losses
+  - Calculate potential tax benefit of harvesting
+  - Warn about wash sale risk if similar positions exist
+  - Suggest: "Harvest $5,000 loss → save $1,850 in taxes (37% rate)"
+
+- **Long-Term vs Short-Term Decision Support:**
+  - For positions near 365-day mark, show:
+    - Days until long-term treatment
+    - Tax savings if held to long-term
+    - Risk of holding (volatility, opportunity cost)
+
+- **Year-End Tax Planning:**
+  - November/December: show unrealized gains/losses
+  - Calculate tax liability if all positions closed today
+  - Suggest offsetting gains with losses
+  - Warn if large tax bill likely
+
+**I. User Configuration:**
+
+- **Required Settings:**
+  - Filing status (single, married filing jointly, etc.)
+  - State of residence
+  - Estimated non-trading income (for marginal rate calculation)
+  - Trader vs investor classification
+  - Prior year AGI (for estimated payment calculations)
+
+- **Optional Settings:**
+  - Specific deductions/credits (reduces effective rate)
+  - Expected itemized deductions
+  - Other investment income (for NIIT calculation)
+
+**J. Tax Liability Alerts:**
+
+- **Real-Time Alerts:**
+  - Daily: "YTD tax liability: $X,XXX (XX% of gross profits)"
+  - After large winning trade: "Trade added $X,XXX to tax liability"
+  - Quarterly: "Estimated tax payment of $X,XXX due [date]"
+  - Year-end: "Projected total tax liability: $X,XXX for [year]"
+
+- **Warning Thresholds:**
+  - Tax liability > 40% of account balance (liquidity warning)
+  - Underpayment penalty likely (< 90% of current year tax)
+  - Approaching NIIT threshold ($200k/$250k)
+  - Large wash sale disallowance (> $1,000)
+
+**K. Tax Code References (MANDATORY COMPLIANCE):**
+
+**Federal Tax Code (IRS):**
+- **IRC § 1(h):** Capital gains tax rates (0%, 15%, 20%)
+- **IRC § 1(j):** Tax brackets for ordinary income
+- **IRC § 1411:** Net Investment Income Tax (NIIT) - 3.8% surtax
+- **IRC § 1091:** Wash sale rules (61-day window)
+- **IRC § 1222:** Holding period definitions (short-term vs long-term)
+- **IRC § 475(f):** Mark-to-market election for traders
+- **IRC § 6654:** Underpayment penalty calculations
+
+**IRS Publications:**
+- **IRS Publication 550:** Investment Income and Expenses (capital gains treatment)
+- **IRS Publication 551:** Basis of Assets (wash sales, corporate actions)
+- **IRS Publication 564:** Mutual Fund Distributions (dividend treatment)
+- **IRS Publication 505:** Tax Withholding and Estimated Tax (quarterly payments)
+- **IRS Publication 17:** Federal Income Tax Guide (general tax calculations)
+
+**IRS Forms:**
+- **Form 8949:** Sales and Other Dispositions of Capital Assets
+- **Schedule D (Form 1040):** Capital Gains and Losses
+- **Form 1099-B:** Proceeds from Broker Transactions (broker reports)
+- **Form 4797:** Sales of Business Property (if mark-to-market election)
+
+**California Tax Code (Example State):**
+- **California Revenue and Taxation Code § 17024:** Capital gains treatment (no preferential rate)
+- **California Revenue and Taxation Code § 17041-17045.7:** Tax brackets (1% - 13.3%)
+- **California Revenue and Taxation Code § 17551:** Wash sale conformity with federal
+- **California FTB Publication 1001:** Supplemental Guidelines to California Adjustments
+- **California FTB Publication 1005:** Pension and Annuity Guidelines (dividend treatment)
+
+**Tax Calculation Updates:**
+- MUST monitor IRS revenue rulings for rate changes
+- MUST update tax brackets annually (typically November for next year)
+- MUST track state tax law changes (quarterly review)
+- MUST implement new IRS wash sale guidance as published
+- MUST support IRS Notice updates (e.g., estimated payment safe harbors)
+
+**Tax Database:**
+- Store current tax year rates (federal, state, local)
+- Store historical rates for backtesting (2015-present minimum)
+- API integration with tax data providers (e.g., TaxJar API for state rates)
+- Manual override capability for custom tax situations
 
 #### 5.4.6 Risk Management
 - Position-level stop-losses
@@ -1700,6 +1950,8 @@ Unrealized P&L =
   - Dividend income/expense
   - Corporate action impacts
   - Net P&L (after all costs)
+  - **Estimated tax liability (real-time)**
+  - **After-tax P&L (net of all costs including taxes)**
 - **System SHALL generate monthly cost analysis reports:**
   - Total margin interest paid
   - Average daily margin balance
@@ -1711,6 +1963,46 @@ Unrealized P&L =
   - Upcoming stock splits affecting positions (7 days advance notice)
   - Margin interest exceeding 10% of position P&L
   - Margin rate changes (notify within 24 hours)
+
+#### FR3.7: Tax Calculation & Reporting (MANDATORY)
+- **System SHALL calculate real-time tax liability on all closed positions:**
+  - Classify each trade as short-term (≤365 days) or long-term (>365 days)
+  - Apply correct federal tax rate based on holding period and user's tax bracket
+  - Apply state income tax based on user's state of residence
+  - Calculate Net Investment Income Tax (NIIT) if applicable
+  - Track Medicare tax if user elected mark-to-market (trader in business)
+- **System SHALL implement wash sale tracking per IRC § 1091:**
+  - Monitor 61-day window (30 days before + sale date + 30 days after)
+  - Identify substantially identical securities
+  - Disallow losses on wash sales automatically
+  - Adjust cost basis of replacement position
+  - Flag all wash sales on trade confirmations and reports
+- **System SHALL maintain year-to-date tax accounting:**
+  - Total short-term gains and losses
+  - Total long-term gains and losses
+  - Net dividend income (qualified vs ordinary)
+  - Running tax liability estimate
+  - Quarterly estimated tax payment calculations
+- **System SHALL generate tax reporting exports:**
+  - Form 8949 data (all capital gains/losses)
+  - Schedule D summary
+  - Wash sale adjustments
+  - Cost basis reconciliation vs Form 1099-B
+- **System SHALL provide tax optimization features:**
+  - Tax loss harvesting recommendations
+  - Long-term vs short-term holding decision support
+  - Year-end tax planning suggestions
+  - Estimated quarterly payment alerts (7 days before due date)
+- **System SHALL alert on tax events:**
+  - Position approaching 365-day holding period (7 days notice)
+  - Estimated tax liability exceeds 40% of account balance
+  - Potential underpayment penalty warning
+  - Approaching NIIT threshold ($200k single / $250k married)
+- **System SHALL support user tax configuration:**
+  - Filing status, state of residence
+  - Non-trading income (for marginal rate calculation)
+  - Trader vs investor classification
+  - Custom tax rates for edge cases
 
 ### 5.7 Technical Requirements
 
