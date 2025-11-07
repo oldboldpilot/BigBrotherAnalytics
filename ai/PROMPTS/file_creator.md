@@ -323,65 +323,216 @@ auto main() -> int {
 }
 ```
 
+#### Modern C++23 Primitives - Comprehensive Examples
+
+**Smart Pointers - Automatic Memory Management:**
+```cpp
+// ✅ CORRECT - Use smart pointers for all dynamic allocations
+class DataManager {
+public:
+    // Exclusive ownership
+    auto createEngine() -> std::unique_ptr<CorrelationEngine> {
+        return std::make_unique<CorrelationEngine>();
+    }
+
+    // Shared ownership
+    auto loadSharedData() -> std::shared_ptr<PriceData> {
+        return std::make_shared<PriceData>();
+    }
+
+    // Weak reference to break cycles
+    auto registerObserver(std::shared_ptr<Observer> obs) -> void {
+        observers_.push_back(obs);  // weak_ptr stored
+    }
+
+private:
+    std::vector<std::weak_ptr<Observer>> observers_;
+};
+
+// ❌ WRONG - Never use raw new/delete
+// auto data = new PriceData();  // DON'T DO THIS
+// delete data;                   // DON'T DO THIS
+```
+
+**std::expected - Error Handling Without Exceptions:**
+```cpp
+// ✅ CORRECT - Use std::expected for error handling
+auto calculate_option_price(const Option& opt) -> std::expected<double, Error> {
+    if (!opt.is_valid()) {
+        return std::unexpected(Error{.code = 1, .message = "Invalid option"});
+    }
+
+    if (opt.volatility <= 0.0) {
+        return std::unexpected(Error{.code = 2, .message = "Invalid volatility"});
+    }
+
+    return black_scholes(opt);
+}
+
+// Usage with error handling
+auto result = calculate_option_price(option);
+if (result.has_value()) {
+    std::cout << "Price: " << result.value() << "\n";
+} else {
+    std::cerr << "Error: " << result.error().message << "\n";
+}
+```
+
+**std::span and std::mdspan - Safe Array Views:**
+```cpp
+// ✅ CORRECT - Use std::span for array parameters
+auto calculate_mean(std::span<const double> values) -> double {
+    return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+}
+
+// Multi-dimensional arrays with std::mdspan
+auto process_matrix(std::mdspan<const double, std::dextents<size_t, 2>> matrix)
+    -> std::vector<double> {
+
+    const auto rows = matrix.extent(0);
+    const auto cols = matrix.extent(1);
+
+    std::vector<double> row_sums(rows);
+    for (size_t i = 0; i < rows; ++i) {
+        for (size_t j = 0; j < cols; ++j) {
+            row_sums[i] += matrix(i, j);
+        }
+    }
+    return row_sums;
+}
+```
+
+**std::variant - Type-Safe Unions:**
+```cpp
+// ✅ CORRECT - Use std::variant for flexible types
+using OrderType = std::variant<MarketOrder, LimitOrder, StopOrder>;
+
+auto execute_order(const OrderType& order) -> void {
+    std::visit([](auto&& o) {
+        using T = std::decay_t<decltype(o)>;
+        if constexpr (std::is_same_v<T, MarketOrder>) {
+            o.execute_immediately();
+        } else if constexpr (std::is_same_v<T, LimitOrder>) {
+            o.queue_until_price_reached();
+        } else {
+            o.trigger_on_stop();
+        }
+    }, order);
+}
+```
+
+**std::optional - Values That May Not Exist:**
+```cpp
+// ✅ CORRECT - Use std::optional for nullable values
+auto find_price(const std::string& symbol) -> std::optional<double> {
+    auto it = prices.find(symbol);
+    if (it != prices.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+// Usage
+if (auto price = find_price("AAPL"); price.has_value()) {
+    std::cout << "AAPL price: " << *price << "\n";
+}
+```
+
+**constexpr - Compile-Time Computation:**
+```cpp
+// ✅ CORRECT - Use constexpr for compile-time calculations
+constexpr auto trading_days_per_year = 252;
+
+constexpr auto calculate_annualized_return(double daily_return) -> double {
+    return std::pow(1.0 + daily_return, trading_days_per_year) - 1.0;
+}
+
+// Computed at compile time!
+constexpr auto expected_annual = calculate_annualized_return(0.001);
+```
+
+**std::atomic - Lock-Free Operations:**
+```cpp
+// ✅ CORRECT - Use std::atomic for thread-safe counters
+class OrderCounter {
+public:
+    auto increment() -> void {
+        count_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    auto get() const -> int {
+        return count_.load(std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<int> count_{0};
+};
+```
+
+**Ranges - Composable Algorithms:**
+```cpp
+// ✅ CORRECT - Use ranges for readable data transformations
+auto profitable_trades = trades
+    | std::views::filter([](const auto& t) { return t.profit > 0; })
+    | std::views::transform([](const auto& t) { return t.profit; })
+    | std::ranges::to<std::vector>();
+
+auto top_10_symbols = symbols
+    | std::views::take(10)
+    | std::ranges::to<std::vector>();
+```
+
+**Move Semantics and Rvalue References:**
+```cpp
+// ✅ CORRECT - Use move semantics for efficiency
+class PriceData {
+public:
+    // Move constructor
+    PriceData(PriceData&& other) noexcept
+        : data_(std::move(other.data_))
+        , timestamps_(std::move(other.timestamps_)) {}
+
+    // Move assignment
+    auto operator=(PriceData&& other) noexcept -> PriceData& {
+        data_ = std::move(other.data_);
+        timestamps_ = std::move(other.timestamps_);
+        return *this;
+    }
+
+private:
+    std::vector<double> data_;
+    std::vector<Timestamp> timestamps_;
+};
+
+// Usage - transfer ownership efficiently
+auto create_data() -> PriceData {
+    PriceData data;
+    // ... populate data
+    return data;  // Move, not copy!
+}
+
+auto data = create_data();  // No copy, just move
+```
+
 #### Old Style (NO LONGER ALLOWED)
 ```cpp
 // ❌ WRONG - Do NOT use traditional headers
 #include "correlation_engine.hpp"
-#include <algorithm>
-#include <execution>
-#include <ranges>
-#include <omp.h>
 
-namespace bigbrother::correlation {
+// ❌ WRONG - Do NOT use raw pointers
+auto data = new PriceData();
+delete data;
 
-CorrelationEngine::CorrelationEngine(int num_threads)
-    : num_threads_(num_threads > 0 ? num_threads : omp_get_max_threads()) {
-    omp_set_num_threads(num_threads_);
+// ❌ WRONG - Do NOT use exceptions for error handling in hot paths
+void calculate() {
+    if (error) throw std::runtime_error("Error");
 }
 
-std::expected<CorrelationResult, Error> CorrelationEngine::calculate(
-    std::mdspan<const double, std::dextents<size_t, 2>> data,
-    const CorrelationConfig& config) {
+// ❌ WRONG - Do NOT use std::map (use std::flat_map)
+std::map<std::string, double> prices;  // Bad cache locality
 
-    // Validate inputs
-    if (data.extent(0) == 0 || data.extent(1) < 2) {
-        return std::unexpected(Error{
-            .code = ErrorCode::InvalidInput,
-            .message = "Data must have at least 2 time points"
-        });
-    }
-
-    // Use modern C++23 features
-    const auto n_symbols = data.extent(0);
-    const auto n_points = data.extent(1);
-
-    // Allocate result matrix
-    std::vector<double> correlations(n_symbols * n_symbols);
-
-    // Parallel calculation with OpenMP
-    #pragma omp parallel for schedule(dynamic)
-    for (size_t i = 0; i < n_symbols; ++i) {
-        for (size_t j = i; j < n_symbols; ++j) {
-            // Calculate correlation between series i and j
-            const double corr = calculate_pearson(
-                std::span{&data(i, 0), n_points},
-                std::span{&data(j, 0), n_points}
-            );
-
-            // Symmetric matrix
-            correlations[i * n_symbols + j] = corr;
-            correlations[j * n_symbols + i] = corr;
-        }
-    }
-
-    return CorrelationResult{
-        .correlations = std::move(correlations),
-        .n_symbols = n_symbols,
-        .method = config.method
-    };
-}
-
-} // namespace bigbrother::correlation
+// ❌ WRONG - Do NOT use regular function syntax
+double calculate(double x) { return x * 2; }  // Use trailing return
 ```
 
 #### CMakeLists.txt

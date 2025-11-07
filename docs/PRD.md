@@ -2054,18 +2054,57 @@ Trading Decision Engine    Correlation Tool
   - Critical path algorithms
   - Real-time correlation calculations
   - Target: < 1ms latency for critical operations
-  - **Key C++23 Features:**
+  - **Key C++23 Features & Modern Primitives:**
     - **Modules:** Replace headers with `export module` for faster compilation and better encapsulation
     - **Trailing Return Syntax:** Use `auto func() -> Type` for all functions (mandatory standard)
-    - `std::expected` for error handling without exceptions
-    - Deducing `this` for better performance and fluent APIs
-    - `std::flat_map` and `std::flat_set` for cache-friendly containers
-    - Improved constexpr support
-    - `std::mdspan` for multi-dimensional array views
+    - **Smart Pointers (Mandatory):**
+      - `std::unique_ptr` for exclusive ownership (default choice)
+      - `std::shared_ptr` for shared ownership (when needed)
+      - `std::weak_ptr` for breaking circular references
+      - **Never use raw `new`/`delete`** - always use smart pointers or RAII
+    - **Memory Management & Optimization:**
+      - **Move Semantics:** Efficiently transfer ownership of resources
+      - **Rvalue References:** Bind temporary objects to avoid unnecessary copying
+      - **Copy-on-Write (COW):** Share resources until modification for large data structures
+      - `std::span` for lightweight array views without ownership
+      - `std::mdspan` for multi-dimensional array views
+    - **Error Handling:**
+      - `std::expected<T, E>` for error handling without exceptions (mandatory for hot paths)
+      - `std::variant` for type-safe unions
+      - `std::optional` for values that may or may not exist
+    - **Compile-Time Programming:**
+      - `constexpr` for compile-time computation (use extensively)
+      - `consteval` for immediate functions
+      - Improved `constexpr` support in C++23
+    - **Concurrency & Parallelism:**
+      - `std::atomic` for lock-free atomic operations
+      - `std::jthread` for automatic thread joining
+      - Coroutines for asynchronous programming
+    - **Modern Containers & Algorithms:**
+      - `std::flat_map` and `std::flat_set` for cache-friendly containers (mandatory)
+      - Ranges library for composable algorithms
+      - Views for lazy evaluation
+    - **Performance Features:**
+      - Deducing `this` for better performance and fluent APIs
+      - `[[likely]]` and `[[unlikely]]` attributes for branch prediction
   - **Coding Standards:**
     - ALL C++ files must use modules (no .h/.hpp headers)
     - ALL functions must use trailing return type syntax
     - ALL APIs must support method chaining (fluent interface)
+    - **Memory Management:**
+      - Use smart pointers for all dynamic allocations
+      - Prefer `std::unique_ptr` by default
+      - Use RAII (Resource Acquisition Is Initialization) pattern
+      - No raw `new`/`delete` in production code
+    - **Error Handling:**
+      - Use `std::expected` for error handling in hot paths
+      - Use `std::variant` for type-safe unions
+      - Reserve exceptions for truly exceptional cases
+    - **Performance:**
+      - Use `constexpr` for compile-time computation
+      - Use `std::span` for safe array access
+      - Use `std::flat_map` instead of `std::map` for better cache locality
+      - Use move semantics and rvalue references extensively
 
 - **Rust:** High-performance components requiring memory safety
   - Concurrent data structures
@@ -2092,6 +2131,69 @@ Trading Decision Engine    Correlation Tool
     - C++ extensions for ultimate performance
 
 - **SQL:** Database queries (optimized for time-series)
+
+#### 9.1.1 C++23 Modern Primitives Reference
+
+**Efficient C++23 Primitives and Libraries:**
+
+| Feature | Description | Use Cases | Example |
+|---------|-------------|-----------|---------|
+| **Smart Pointers** | Automatic memory management | All dynamic allocations | `std::unique_ptr<Data>` |
+| **std::expected** | Value or error without exceptions | Error handling in hot paths | `std::expected<Result, Error>` |
+| **std::span** | Lightweight array view | Safe array manipulations | `std::span<const double>` |
+| **std::mdspan** | Multi-dimensional array view | Matrix operations | `std::mdspan<double, 2>` |
+| **Move Semantics** | Transfer ownership efficiently | Resource management | `std::move(large_data)` |
+| **Rvalue References** | Bind temporary objects | Container optimization | `void func(Data&&)` |
+| **std::variant** | Type-safe union | Flexible data types | `std::variant<int, double>` |
+| **std::optional** | Value that may not exist | Nullable values | `std::optional<Price>` |
+| **constexpr** | Compile-time computation | Performance optimization | `constexpr auto calc()` |
+| **std::atomic** | Lock-free operations | Multithreaded access | `std::atomic<int>` |
+| **std::flat_map** | Cache-friendly map | High-performance lookup | Replace `std::map` |
+| **Ranges** | Composable algorithms | Data manipulation | `data \| views::filter` |
+| **Copy-on-Write** | Share until modified | Large data structures | String, vectors |
+| **std::jthread** | Auto-joining threads | Concurrent operations | Replace `std::thread` |
+| **Coroutines** | Asynchronous programming | I/O operations | `co_await`, `co_return` |
+
+**Example Usage:**
+
+```cpp
+// Smart Pointers - Automatic memory management
+auto engine = std::make_unique<CorrelationEngine>();
+auto shared_data = std::make_shared<PriceData>();
+
+// std::expected - Error handling without exceptions
+auto calculate_price(const Option& opt) -> std::expected<double, Error> {
+    if (!opt.valid()) {
+        return std::unexpected(Error{"Invalid option"});
+    }
+    return opt.strike * 1.05;
+}
+
+// std::span - Safe array access
+auto process_prices(std::span<const double> prices) -> double {
+    return std::accumulate(prices.begin(), prices.end(), 0.0);
+}
+
+// std::variant - Type-safe union
+using OrderType = std::variant<MarketOrder, LimitOrder, StopOrder>;
+auto execute(const OrderType& order) -> void {
+    std::visit([](auto&& o) { o.execute(); }, order);
+}
+
+// constexpr - Compile-time computation
+constexpr auto fibonacci(int n) -> int {
+    return n <= 1 ? n : fibonacci(n-1) + fibonacci(n-2);
+}
+
+// std::atomic - Lock-free operations
+std::atomic<int> counter{0};
+counter.fetch_add(1, std::memory_order_relaxed);
+
+// Ranges - Composable algorithms
+auto filtered = prices
+    | std::views::filter([](auto p) { return p > 100.0; })
+    | std::views::transform([](auto p) { return p * 1.05; });
+```
 
 ### 9.2 Parallel Computing & High-Performance Libraries
 
