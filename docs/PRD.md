@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 0.5.0
+**Version:** 0.6.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
 **Author:** Olumuyiwa Oluwasanmi
@@ -689,6 +689,34 @@ The architecture document includes:
 ### 4.1 Overview
 
 A time-series analysis system that discovers statistical relationships between securities across multiple timeframes, including time-lagged correlations to identify leading and lagging indicators.
+
+**📋 Complete Architecture:** For detailed system architecture, correlation algorithms, fluent API design, database schemas, API specifications, and implementation guidelines, see the **[Trading Correlation Analysis Tool - Architecture Design Document](./architecture/trading-correlation-analysis-tool.md)**.
+
+The architecture document includes:
+- High-level system architecture with Mermaid diagrams (single-machine 64-core deployment)
+- Parallel correlation algorithms (C++23 + MPI + OpenMP + Intel MKL)
+- Fluent composable API design with UPC++ for distributed computing
+- CUDA-accelerated matrix correlation (cuBLAS, cuFFT)
+- Time-lagged cross-correlation with FFT optimization
+- Complete database schemas (PostgreSQL + TimescaleDB, DuckDB analytical views)
+- REST/WebSocket API specifications (OpenAPI 3.0)
+- Shared infrastructure design with Market Intelligence Engine (cost optimization)
+- Loose coupling architecture (separate processes, API-only communication)
+- Quick 2-4 week POC guide (Python + DuckDB + CUDA)
+- Consistent toolset across both tools
+- Performance benchmarks and optimization strategies
+
+**Tier 1 Implementation Focus:**
+- Start with **Python + DuckDB** for quick POC (Week 1-2, $0 cost)
+- Add **CUDA acceleration** with CuPy for GPU speedup (Week 3)
+- Add **PostgreSQL storage** for results (Week 4)
+- Implement **C++23/MPI/OpenMP** production engine after POC validation (Month 2+)
+
+**Shared Infrastructure:**
+- Same 64-128 core server as Market Intelligence Engine
+- Cores 32-63 allocated to Correlation Tool
+- Shared PostgreSQL/Redis/GPU (separate namespaces)
+- **Cost savings:** $3,450-9,700 one-time, $150-280/month vs separate servers
 
 ### 4.2 Data Sources
 
@@ -3197,6 +3225,7 @@ Annual Savings: $60,280
 | 0.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | Initial draft |
 | 0.4.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | Major update: Added comprehensive data extraction technologies for all government departments and sectors (Congress, Treasury, USDA, FDA, EPA, HHS, etc.). Unified technology stack with PostgreSQL-centric architecture (TimescaleDB, pgvector, Apache AGE). Consolidated expensive tools into affordable open-source alternatives. Added detailed cost estimates ($250-1K/month vs $25K+/month). Removed Bloomberg Terminal and other expensive dependencies. |
 | 0.5.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Critical Addition: Zero-Fee Rapid Deployment Strategy.** Added DuckDB as embedded analytics database for instant prototyping without infrastructure setup. Created comprehensive "Quick Start" section with zero-subscription deployment path using only free data sources (Yahoo Finance, Alpha Vantage free tier, FRED, SEC, all government APIs). Added phased cost structure: $0/month Months 1-2 (validation), $200/month Month 3 (if validated), $250-1K Month 4+ (if profitable). Updated cost comparison to show three tiers: Enterprise ($300K/year), Production ($3-12K/year), Zero-Fee ($0/year initial). Includes complete code examples for DuckDB usage, Parquet file queries, and correlation analysis. Emphasizes validate-then-scale approach to minimize financial risk. |
+| 0.6.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Major Addition: Complete Architecture Documents for Both Core Tools.** Created comprehensive architecture design documents for Market Intelligence Engine and Trading Correlation Analysis Tool with 6,000+ lines of technical specifications. Added Tier 1 deployment stack with Homebrew (GCC 15+), uv (Python 3.14+), Ansible automation, OpenShift/Kubernetes support. Documented C++23/MPI/OpenMP/UPC++ implementations with fluent composable APIs. Added CUDA/cuBLAS/Intel MKL acceleration strategies. Created eBay hardware procurement guide for 64-128 core enterprise servers ($3-9K vs $20-40K new, 80-90% savings). Documented shared infrastructure design (both tools on same server, $3.5-9.7K total vs $7-19K separate). Added loose coupling architecture with API-only communication. Created 2-4 week POC guides using Python/DuckDB/CUDA before C++23 production implementation. Includes 20+ Mermaid diagrams, OpenAPI 3.0 specs, complete database schemas, and ready-to-execute code examples. Emphasizes consistent toolset across tools for maintainability. Total documentation: Market Intelligence (1,900 lines), Correlation Tool (3,300 lines). |
 
 ---
 
