@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <functional>
 
 namespace bigbrother {
 namespace utils {

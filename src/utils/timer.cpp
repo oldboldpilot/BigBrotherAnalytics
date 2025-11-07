@@ -4,19 +4,21 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
-#include <mutex>
-#include <shared_mutex>
-#include <thread>
 #include <fstream>
 #include <format>
 
 namespace bigbrother::utils {
 
+/**
+ * Simplified Timer Implementation (Single-threaded)
+ *
+ * Optimized for initial development without threading complexity.
+ * Can be upgraded to multi-threaded later if needed.
+ */
+
 // ScopedTimer implementation
 ScopedTimer::ScopedTimer(std::string const& name)
-    : name_{name}, timer_{}, stopped_{false} {
-    LOG_TRACE("ScopedTimer started: {}", name_);
-}
+    : name_{name}, timer_{}, stopped_{false} {}
 
 ScopedTimer::~ScopedTimer() {
     if (!stopped_) {
@@ -32,26 +34,22 @@ auto ScopedTimer::stop() -> void {
     }
 }
 
-// Profiler implementation
+// Profiler implementation (simplified without mutexes)
 class Profiler::Impl {
 public:
     Impl() = default;
 
     auto record(std::string const& name, double elapsed_us) -> void {
-        std::unique_lock lock{mutex_};
-
         auto& samples = measurements_[name];
         samples.push_back(elapsed_us);
 
-        // Keep last 10000 samples to avoid unbounded growth
+        // Keep last 10000 samples
         if (samples.size() > 10000) {
             samples.erase(samples.begin(), samples.begin() + 1000);
         }
     }
 
     [[nodiscard]] auto getStats(std::string const& name) const -> Profiler::Stats {
-        std::shared_lock lock{mutex_};
-
         auto it = measurements_.find(name);
         if (it == measurements_.end()) {
             return {name, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -61,8 +59,6 @@ public:
     }
 
     [[nodiscard]] auto getAllStats() const -> std::vector<Profiler::Stats> {
-        std::shared_lock lock{mutex_};
-
         std::vector<Profiler::Stats> all_stats;
         all_stats.reserve(measurements_.size());
 
@@ -81,31 +77,21 @@ public:
             return;
         }
 
-        LOG_INFO("╔═══════════════════════════════════════════════════════════════════════════╗");
-        LOG_INFO("║                      PERFORMANCE PROFILING STATISTICS                      ║");
-        LOG_INFO("╠═══════════════════════════════════════════════════════════════════════════╣");
-        LOG_INFO("║ {:30} │ {:8} │ {:10} │ {:10} │ {:10} ║",
-                 "Name", "Count", "Mean (μs)", "P95 (μs)", "P99 (μs)");
-        LOG_INFO("╠═══════════════════════════════════════════════════════════════════════════╣");
+        LOG_INFO("Performance Profiling Statistics");
+        LOG_INFO("═══════════════════════════════════════════════════════");
 
         for (auto const& stat : all_stats) {
-            LOG_INFO("║ {:30} │ {:8} │ {:10.2f} │ {:10.2f} │ {:10.2f} ║",
-                     stat.name, stat.count, stat.mean_us, stat.p95_us, stat.p99_us);
+            LOG_INFO("{:30} | Count: {:8} | Mean: {:10.2f}μs | P95: {:10.2f}μs",
+                     stat.name, stat.count, stat.mean_us, stat.p95_us);
         }
-
-        LOG_INFO("╚═══════════════════════════════════════════════════════════════════════════╝");
     }
 
     auto clear() -> void {
-        std::unique_lock lock{mutex_};
         measurements_.clear();
-        LOG_DEBUG("Profiler statistics cleared");
     }
 
     auto clear(std::string const& name) -> void {
-        std::unique_lock lock{mutex_};
         measurements_.erase(name);
-        LOG_DEBUG("Profiler statistics cleared for: {}", name);
     }
 
     [[nodiscard]] auto saveToFile(std::string const& filename) const -> bool {
@@ -113,14 +99,14 @@ public:
 
         std::ofstream file{filename};
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open file for writing: {}", filename);
+            LOG_ERROR("Failed to open file: {}", filename);
             return false;
         }
 
-        // Write CSV header
+        // CSV header
         file << "Name,Count,Total(us),Mean(us),Min(us),Max(us),StdDev(us),Median(us),P95(us),P99(us)\n";
 
-        // Write data
+        // Data
         for (auto const& stat : all_stats) {
             file << std::format("{},{},{},{},{},{},{},{},{},{}\n",
                                stat.name, stat.count, stat.total_us, stat.mean_us,
@@ -144,7 +130,6 @@ private:
         auto const total = std::accumulate(samples.begin(), samples.end(), 0.0);
         auto const mean = total / static_cast<double>(count);
 
-        // Min and max
         auto const [min_it, max_it] = std::minmax_element(samples.begin(), samples.end());
         auto const min_val = *min_it;
         auto const max_val = *max_it;
@@ -157,7 +142,7 @@ private:
             }) / static_cast<double>(count);
         auto const stddev = std::sqrt(variance);
 
-        // Percentiles (need sorted copy)
+        // Percentiles
         auto sorted_samples = samples;
         std::sort(sorted_samples.begin(), sorted_samples.end());
 
@@ -165,18 +150,7 @@ private:
         auto const p95 = computePercentile(sorted_samples, 0.95);
         auto const p99 = computePercentile(sorted_samples, 0.99);
 
-        return {
-            name,
-            count,
-            total,
-            mean,
-            min_val,
-            max_val,
-            stddev,
-            median,
-            p95,
-            p99
-        };
+        return {name, count, total, mean, min_val, max_val, stddev, median, p95, p99};
     }
 
     [[nodiscard]] static auto computePercentile(std::vector<double> const& sorted_samples,
@@ -193,13 +167,11 @@ private:
             return sorted_samples[lower_idx];
         }
 
-        // Linear interpolation
         auto const weight = index - static_cast<double>(lower_idx);
         return sorted_samples[lower_idx] * (1.0 - weight) +
                sorted_samples[upper_idx] * weight;
     }
 
-    mutable std::shared_mutex mutex_;
     std::map<std::string, std::vector<double>> measurements_;
 };
 
@@ -249,7 +221,7 @@ Profiler::ProfileGuard::~ProfileGuard() {
     Profiler::getInstance().record(name_, elapsed);
 }
 
-// RateLimiter implementation
+// RateLimiter implementation (simplified without threading)
 class RateLimiter::Impl {
 public:
     explicit Impl(double max_rate)
@@ -258,29 +230,21 @@ public:
           last_acquire_{Timer::Clock::now()} {}
 
     auto acquire() -> void {
-        std::unique_lock lock{mutex_};
-
         auto const now = Timer::Clock::now();
         auto const elapsed_us = std::chrono::duration<double, std::micro>(
             now - last_acquire_).count();
 
         if (elapsed_us < min_interval_us_) {
             auto const sleep_us = min_interval_us_ - elapsed_us;
-            lock.unlock();
-
             std::this_thread::sleep_for(
                 std::chrono::microseconds(static_cast<int64_t>(sleep_us))
             );
-
-            lock.lock();
         }
 
         last_acquire_ = Timer::Clock::now();
     }
 
     [[nodiscard]] auto tryAcquire() -> bool {
-        std::unique_lock lock{mutex_};
-
         auto const now = Timer::Clock::now();
         auto const elapsed_us = std::chrono::duration<double, std::micro>(
             now - last_acquire_).count();
@@ -298,13 +262,11 @@ public:
     }
 
     auto setRate(double max_rate) -> void {
-        std::unique_lock lock{mutex_};
         max_rate_ = max_rate;
         min_interval_us_ = 1'000'000.0 / max_rate;
     }
 
     auto reset() -> void {
-        std::unique_lock lock{mutex_};
         last_acquire_ = Timer::Clock::now();
     }
 
@@ -312,7 +274,6 @@ private:
     double max_rate_;
     double min_interval_us_;
     Timer::TimePoint last_acquire_;
-    std::mutex mutex_;
 };
 
 // RateLimiter public interface
