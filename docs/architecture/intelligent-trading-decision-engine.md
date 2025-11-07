@@ -1744,7 +1744,8 @@ CREATE TABLE tax_config (
 CREATE INDEX idx_tax_config_account ON tax_config(account_id);
 CREATE INDEX idx_tax_config_year ON tax_config(tax_year);
 
--- Federal tax brackets (updated annually)
+-- Federal tax brackets (updated annually - CRITICAL MAINTENANCE)
+-- ⚠️ MUST UPDATE EVERY NOVEMBER/DECEMBER FOR NEXT TAX YEAR
 CREATE TABLE federal_tax_brackets (
     id VARCHAR PRIMARY KEY,
     tax_year INTEGER NOT NULL,
@@ -1754,9 +1755,20 @@ CREATE TABLE federal_tax_brackets (
     income_max DOUBLE,  -- NULL for highest bracket
     tax_rate DOUBLE NOT NULL,
 
-    effective_date DATE NOT NULL,
+    -- Versioning and audit trail (MANDATORY)
+    effective_date DATE NOT NULL,  -- January 1 of tax year
+    end_date DATE,  -- NULL if current, set when superseded
+    is_current BOOLEAN DEFAULT TRUE,  -- Flag for active rates
     source VARCHAR DEFAULT 'IRS',  -- IRC § 1(j)
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    source_document VARCHAR,  -- "IRS Rev. Proc. 2023-34"
+    source_url VARCHAR,  -- Link to IRS publication
+
+    -- Audit trail
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR,  -- User who added rates
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR,  -- User who last modified
+    notes TEXT  -- "Updated for 2024 tax year per Rev. Proc. 2023-34"
 );
 
 CREATE INDEX idx_fed_brackets_year_status ON federal_tax_brackets(tax_year, filing_status);
@@ -1772,6 +1784,7 @@ INSERT INTO federal_tax_brackets VALUES
     ('2024_single_7', 2024, 'single', 7, 609351, NULL, 0.37, '2024-01-01', 'IRC § 1(j)', CURRENT_TIMESTAMP);
 
 -- Long-term capital gains brackets (IRC § 1(h))
+-- ⚠️ MUST UPDATE ANNUALLY (rare changes, but verify each November)
 CREATE TABLE longterm_capital_gains_brackets (
     id VARCHAR PRIMARY KEY,
     tax_year INTEGER NOT NULL,
@@ -1780,8 +1793,19 @@ CREATE TABLE longterm_capital_gains_brackets (
     income_max DOUBLE,  -- NULL for highest bracket
     tax_rate DOUBLE NOT NULL,
 
+    -- Versioning and audit trail
+    effective_date DATE NOT NULL,
+    end_date DATE,
+    is_current BOOLEAN DEFAULT TRUE,
     source VARCHAR DEFAULT 'IRC § 1(h)',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    source_document VARCHAR,
+    source_url VARCHAR,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR,
+    notes TEXT
 );
 
 CREATE INDEX idx_ltcg_brackets_year_status ON longterm_capital_gains_brackets(tax_year, filing_status);
@@ -1793,19 +1817,37 @@ INSERT INTO longterm_capital_gains_brackets VALUES
     ('2024_single_ltcg_20', 2024, 'single', 518901, NULL, 0.20, 'IRC § 1(h)', CURRENT_TIMESTAMP);
 
 -- State tax rates
+-- ⚠️ MUST REVIEW QUARTERLY (Jan, Apr, Jul, Oct) - States can change mid-year
 CREATE TABLE state_tax_rates (
     id VARCHAR PRIMARY KEY,
     state_code VARCHAR(2) NOT NULL,  -- 'CA', 'NY', 'TX', etc.
+    state_name VARCHAR NOT NULL,  -- 'California', 'New York', etc.
     tax_year INTEGER NOT NULL,
     bracket_order INTEGER,  -- NULL for flat rate states
     income_min DOUBLE,
     income_max DOUBLE,
     tax_rate DOUBLE NOT NULL,
 
+    -- Versioning and audit trail
+    effective_date DATE NOT NULL,
+    end_date DATE,
+    is_current BOOLEAN DEFAULT TRUE,
+
     -- California: CA Revenue and Taxation Code § 17041-17045.7
     -- New York: NY Tax Law § 601
     source VARCHAR,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    source_document VARCHAR,  -- "CA RTC § 17041", "NY Tax Law § 601"
+    source_url VARCHAR,  -- Link to state website
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR,
+    notes TEXT,
+
+    -- Last review date for verification
+    last_reviewed_date DATE,  -- Set quarterly to track review compliance
+    next_review_date DATE  -- Automated reminder date
 );
 
 CREATE INDEX idx_state_rates_state_year ON state_tax_rates(state_code, tax_year);
@@ -1974,6 +2016,230 @@ CREATE TABLE ytd_tax_summary (
 );
 
 CREATE INDEX idx_ytd_tax_account_year ON ytd_tax_summary(account_id, tax_year);
+
+-- =====================================================================
+-- TAX RATE UPDATE TRACKING & REMINDERS (ANNUAL MAINTENANCE)
+-- =====================================================================
+
+-- Tax rate update log (audit trail for all tax rate changes)
+CREATE TABLE tax_rate_update_log (
+    id VARCHAR PRIMARY KEY,
+    update_type VARCHAR NOT NULL,  -- 'federal_brackets', 'ltcg_brackets', 'state_rates'
+    tax_year INTEGER NOT NULL,
+    update_date TIMESTAMP NOT NULL,
+    updated_by VARCHAR NOT NULL,
+
+    -- What changed
+    tables_affected TEXT[],  -- ['federal_tax_brackets', 'longterm_capital_gains_brackets']
+    records_added INTEGER DEFAULT 0,
+    records_modified INTEGER DEFAULT 0,
+    records_deprecated INTEGER DEFAULT 0,
+
+    -- Source information
+    source_document VARCHAR,  -- "IRS Rev. Proc. 2023-34"
+    source_url VARCHAR,
+    verification_method VARCHAR,  -- 'IRS publication', 'CPA review', 'tax software comparison'
+    verified_by VARCHAR,  -- CPA name or verification method
+    verification_date DATE,
+
+    -- Deployment
+    deployed_to_staging TIMESTAMP,
+    deployed_to_production TIMESTAMP,
+    deployment_status VARCHAR DEFAULT 'pending',  -- 'pending', 'staged', 'deployed', 'rolled_back'
+
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_update_log_year ON tax_rate_update_log(tax_year);
+CREATE INDEX idx_tax_update_log_type ON tax_rate_update_log(update_type);
+
+-- Automated reminders for tax rate updates
+CREATE TABLE tax_update_reminders (
+    id VARCHAR PRIMARY KEY,
+    reminder_type VARCHAR NOT NULL,  -- 'annual_federal', 'quarterly_state', 'irs_notice'
+    tax_year INTEGER NOT NULL,
+    due_date DATE NOT NULL,
+    reminder_date DATE NOT NULL,  -- Send reminder on this date
+
+    -- Status tracking
+    status VARCHAR DEFAULT 'pending',  -- 'pending', 'reminded', 'completed', 'overdue'
+    reminded_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    completed_by VARCHAR,
+
+    -- Task details
+    task_description TEXT,
+    checklist JSON,  -- Array of checklist items
+    responsible_party VARCHAR,  -- 'lead_developer', 'cpa', 'devops'
+
+    -- Priority and urgency
+    priority VARCHAR DEFAULT 'high',  -- 'low', 'medium', 'high', 'critical'
+    is_mandatory BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_reminders_due_date ON tax_update_reminders(due_date);
+CREATE INDEX idx_tax_reminders_status ON tax_update_reminders(status);
+
+-- Pre-populate annual reminders for 2024-2030
+INSERT INTO tax_update_reminders (id, reminder_type, tax_year, due_date, reminder_date, task_description, responsible_party, priority) VALUES
+    -- 2024 reminders
+    ('2024_fed_check', 'annual_federal', 2024, '2023-11-15', '2023-11-01', 'Check IRS website for 2024 Revenue Procedure', 'lead_developer', 'critical'),
+    ('2024_fed_update', 'annual_federal', 2024, '2023-12-15', '2023-12-01', 'Update federal tax brackets for 2024', 'lead_developer', 'critical'),
+    ('2024_state_q1', 'quarterly_state', 2024, '2024-01-15', '2024-01-01', 'Review Q1 state tax rate changes', 'lead_developer', 'high'),
+
+    -- 2025 reminders
+    ('2025_fed_check', 'annual_federal', 2025, '2024-11-15', '2024-11-01', 'Check IRS website for 2025 Revenue Procedure', 'lead_developer', 'critical'),
+    ('2025_fed_update', 'annual_federal', 2025, '2024-12-15', '2024-12-01', 'Update federal tax brackets for 2025', 'lead_developer', 'critical'),
+    ('2025_state_q1', 'quarterly_state', 2025, '2025-01-15', '2025-01-01', 'Review Q1 state tax rate changes', 'lead_developer', 'high');
+
+-- Tax rate validation results (compare against known sources)
+CREATE TABLE tax_rate_validation (
+    id VARCHAR PRIMARY KEY,
+    validation_date TIMESTAMP NOT NULL,
+    tax_year INTEGER NOT NULL,
+    rate_type VARCHAR NOT NULL,  -- 'federal_brackets', 'ltcg_brackets', 'state_rates'
+
+    -- Validation method
+    validation_method VARCHAR NOT NULL,  -- 'irs_publication', 'turbotax_comparison', 'cpa_review'
+    validator VARCHAR,  -- Person or system that validated
+
+    -- Results
+    validation_status VARCHAR NOT NULL,  -- 'passed', 'failed', 'warning'
+    discrepancies_found INTEGER DEFAULT 0,
+    discrepancy_details JSON,  -- Array of discrepancies if any
+
+    -- Reference data
+    reference_source VARCHAR,
+    reference_url VARCHAR,
+
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_validation_year ON tax_rate_validation(tax_year);
+CREATE INDEX idx_tax_validation_status ON tax_rate_validation(validation_status);
+
+-- Tax rate snapshots (for reproducibility and compliance)
+-- ⚠️ CRITICAL: Store complete tax rate snapshot for each year for reproducibility
+CREATE TABLE tax_rate_snapshots (
+    id VARCHAR PRIMARY KEY,
+    tax_year INTEGER NOT NULL,
+    snapshot_date TIMESTAMP NOT NULL,
+
+    -- Complete snapshot data
+    federal_brackets JSON NOT NULL,  -- All federal brackets (all filing statuses)
+    ltcg_brackets JSON NOT NULL,  -- Long-term capital gains brackets
+    state_rates JSON NOT NULL,  -- All state rates
+
+    -- Additional tax parameters
+    standard_deductions JSON,  -- Federal and state standard deductions
+    niit_thresholds JSON,  -- Net Investment Income Tax thresholds
+    medicare_thresholds JSON,  -- Medicare tax thresholds
+
+    -- Source information
+    source_documents JSON,  -- Array of source documents
+    source_urls JSON,  -- Array of URLs to official publications
+
+    -- Validation
+    validated BOOLEAN DEFAULT FALSE,
+    validated_by VARCHAR,
+    validated_date TIMESTAMP,
+    validation_notes TEXT,
+
+    -- Versioning
+    snapshot_hash VARCHAR,  -- SHA-256 hash of snapshot data
+    is_current_version BOOLEAN DEFAULT TRUE,
+    superseded_by VARCHAR,  -- Link to newer snapshot if superseded
+
+    -- Metadata
+    created_by VARCHAR,  -- 'automated_import', 'manual_update', 'api_sync'
+    import_method VARCHAR,  -- 'irs_api', 'taxjar_api', 'manual_entry'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    notes TEXT
+);
+
+CREATE UNIQUE INDEX idx_tax_snapshots_year ON tax_rate_snapshots(tax_year, is_current_version)
+    WHERE is_current_version = TRUE;
+CREATE INDEX idx_tax_snapshots_hash ON tax_rate_snapshots(snapshot_hash);
+
+-- Pre-populate with historical snapshots (2015-2024)
+-- NOTE: These will be backfilled from IRS historical data on first deployment
+
+-- Tax rate API integration log (track automated fetches)
+CREATE TABLE tax_rate_api_log (
+    id VARCHAR PRIMARY KEY,
+    fetch_date TIMESTAMP NOT NULL,
+    api_provider VARCHAR NOT NULL,  -- 'irs_api', 'taxjar', 'tax_foundation'
+    api_endpoint VARCHAR,
+
+    -- What was fetched
+    fetch_type VARCHAR NOT NULL,  -- 'federal_brackets', 'state_rates', 'full_snapshot'
+    tax_year INTEGER,
+
+    -- Results
+    status VARCHAR NOT NULL,  -- 'success', 'partial', 'failed'
+    records_fetched INTEGER DEFAULT 0,
+    http_status_code INTEGER,
+
+    -- Response data
+    raw_response JSON,  -- Store raw API response for debugging
+    parsed_data JSON,  -- Parsed and normalized data
+
+    -- Validation
+    validation_status VARCHAR,  -- 'passed', 'failed', 'warning'
+    discrepancies JSON,  -- Any discrepancies found vs existing data
+
+    -- Error handling
+    error_message TEXT,
+    retry_count INTEGER DEFAULT 0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tax_api_log_date ON tax_rate_api_log(fetch_date);
+CREATE INDEX idx_tax_api_log_provider ON tax_rate_api_log(api_provider);
+CREATE INDEX idx_tax_api_log_status ON tax_rate_api_log(status);
+
+-- Calculation reproduction log (verify historical calculations)
+CREATE TABLE calculation_reproduction_log (
+    id VARCHAR PRIMARY KEY,
+    reproduction_date TIMESTAMP NOT NULL,
+
+    -- Original calculation
+    original_trade_id VARCHAR NOT NULL,
+    original_calculation_date TIMESTAMP,
+    original_tax_liability DOUBLE,
+
+    -- Reproduction
+    reproduced_tax_liability DOUBLE,
+    tax_year_used INTEGER,
+    federal_rate_used DOUBLE,
+    state_rate_used DOUBLE,
+
+    -- Comparison
+    matches_original BOOLEAN,
+    difference_amount DOUBLE,
+    difference_percentage DOUBLE,
+
+    -- Tax rates used (snapshot reference)
+    tax_snapshot_id VARCHAR,  -- Link to tax_rate_snapshots
+
+    -- Reason for reproduction
+    reproduction_reason VARCHAR,  -- 'audit', 'discrepancy_check', 'user_request', 'annual_review'
+    requested_by VARCHAR,
+
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_calc_repro_trade ON calculation_reproduction_log(original_trade_id);
+CREATE INDEX idx_calc_repro_date ON calculation_reproduction_log(reproduction_date);
+CREATE INDEX idx_calc_repro_matches ON calculation_reproduction_log(matches_original);
 
 -- Feature importance aggregation
 CREATE VIEW top_features AS

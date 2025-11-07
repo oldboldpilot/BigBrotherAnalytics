@@ -1829,18 +1829,343 @@ After-Tax Profit =
 - **California FTB Publication 1001:** Supplemental Guidelines to California Adjustments
 - **California FTB Publication 1005:** Pension and Annuity Guidelines (dividend treatment)
 
-**Tax Calculation Updates:**
-- MUST monitor IRS revenue rulings for rate changes
-- MUST update tax brackets annually (typically November for next year)
-- MUST track state tax law changes (quarterly review)
-- MUST implement new IRS wash sale guidance as published
-- MUST support IRS Notice updates (e.g., estimated payment safe harbors)
+**L. Annual Tax Rate Updates (CRITICAL - MANDATORY YEARLY MAINTENANCE):**
 
-**Tax Database:**
+**⚠️ WARNING:** Tax rates, brackets, and rules change EVERY YEAR. Failure to update will result in incorrect tax calculations and potential IRS penalties for users.
+
+**Annual Update Schedule:**
+- **November 1 - November 30:** IRS publishes next year's tax brackets and rates
+  - Monitor IRS Revenue Procedure (typically Rev. Proc. YYYY-XX released ~November)
+  - Example: Rev. Proc. 2023-34 contained 2024 tax year adjustments
+  - IRS website: https://www.irs.gov/newsroom/tax-inflation-adjustments
+
+- **December 1 - December 15:** Update system with new tax year rates
+  - Update federal_tax_brackets table with new year data
+  - Update longterm_capital_gains_brackets if changed
+  - Update standard deduction amounts
+  - Update NIIT thresholds (rare, but check)
+  - Update estimated payment safe harbor percentages
+
+- **December 16 - December 31:** Testing and validation
+  - Test tax calculations with new rates
+  - Verify wash sale rules (rarely change, but review IRS notices)
+  - Update documentation with new tax year
+
+- **January 1:** New tax year rates go live
+  - System automatically uses new rates for new tax year
+  - Historical rates preserved for prior year reporting
+
+**State Tax Rate Updates:**
+- **Quarterly Review (January, April, July, October):**
+  - California FTB: https://www.ftb.ca.gov/
+  - New York DTF: https://www.tax.ny.gov/
+  - Texas: Verify still 0% (rare changes)
+  - Florida: Verify still 0% (rare changes)
+  - Other states as applicable to user base
+
+**Sources to Monitor:**
+
+1. **Federal (IRS):**
+   - IRS Revenue Procedures (annual inflation adjustments)
+   - IRS Notices (mid-year changes, rare)
+   - IRS Tax Topics: https://www.irs.gov/taxtopics
+   - IRS Forms and Publications (updated annually)
+   - IRS Newsroom: https://www.irs.gov/newsroom
+
+2. **California:**
+   - California Franchise Tax Board (FTB)
+   - CA Revenue and Taxation Code updates
+   - FTB Tax News: https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/index.html
+   - CA Legislative updates affecting tax rates
+
+3. **Other States:**
+   - State Department of Revenue websites
+   - State legislative tracking services
+   - Tax Foundation updates: https://taxfoundation.org/
+
+**Automated Update Process:**
+
+1. **Monitoring System:**
+   - Subscribe to IRS e-news: https://www.irs.gov/newsroom/e-news-subscriptions
+   - Subscribe to state tax agency newsletters
+   - Set up Google Alerts for "IRS tax brackets [year]"
+   - Set up Google Alerts for "California tax brackets [year]"
+
+2. **Calendar Reminders:**
+   - November 1: "Check for new IRS Revenue Procedure"
+   - November 15: "Verify IRS published new tax year rates"
+   - December 1: "Update system with new tax rates"
+   - December 20: "Test new tax year calculations"
+   - Quarterly: "Review state tax rate changes"
+
+3. **Version Control:**
+   - All tax rate changes MUST be git committed
+   - Commit message format: "tax: Update [year] federal/state tax rates per IRS Rev. Proc. YYYY-XX"
+   - Tag releases: "v2024-tax-rates", "v2025-tax-rates"
+
+4. **User Notification:**
+   - December 15: Email users: "Tax rates updated for [year] tax year"
+   - Alert users if their tax liability estimates changed significantly
+   - Provide link to IRS Revenue Procedure for transparency
+
+**Validation Requirements:**
+
+1. **Cross-Check Sources:**
+   - IRS official publications (primary source)
+   - Tax software vendors (TurboTax, H&R Block - secondary validation)
+   - CPA review (annual verification by tax professional)
+
+2. **Test Cases:**
+   - Calculate sample tax liability with known income amounts
+   - Compare against IRS tax tables
+   - Verify bracket transitions (edge cases)
+   - Test all filing statuses
+
+3. **Documentation:**
+   - Update CHANGELOG.md with tax rate changes
+   - Update user-facing documentation
+   - Update API documentation if tax endpoints changed
+
+**Emergency Updates:**
+
+- **Mid-Year Tax Law Changes (Rare):**
+  - Monitor for emergency IRS notices
+  - Implement within 30 days of passage
+  - Example: TCJA 2017 (major overhaul)
+  - Example: COVID-19 tax relief provisions
+
+**Responsibility Assignment:**
+- **Primary:** Lead Developer (system updates)
+- **Secondary:** CPA/Tax Professional (validation)
+- **Tertiary:** DevOps (deployment, testing)
+
+**Consequences of Not Updating:**
+- ❌ Incorrect tax liability calculations
+- ❌ Users underpay/overpay estimated taxes
+- ❌ IRS underpayment penalties for users
+- ❌ Loss of user trust
+- ❌ Potential legal liability
+
+**Annual Update Checklist:**
+```
+[ ] November 1: Check IRS website for Revenue Procedure
+[ ] November 15: Download and review IRS Rev. Proc. YYYY-XX
+[ ] November 20: Extract new tax bracket data
+[ ] December 1: Update federal_tax_brackets table
+[ ] December 2: Update longterm_capital_gains_brackets table
+[ ] December 3: Update standard_deduction amounts
+[ ] December 5: Review state tax changes (CA, NY, etc.)
+[ ] December 7: Update state_tax_rates table
+[ ] December 10: Update documentation with new rates
+[ ] December 12: Run test suite with new rates
+[ ] December 15: Deploy to staging environment
+[ ] December 18: CPA validation of calculations
+[ ] December 20: Deploy to production
+[ ] December 22: Send user notification
+[ ] December 31: Final verification before new tax year
+```
+
+**M. Automated Tax Rate Discovery & Historical Reproduction (MANDATORY):**
+
+**⚠️ CRITICAL REQUIREMENT:** System MUST automatically determine and store tax rates for all calendar years to ensure accurate historical calculations and backtesting.
+
+**1. Automatic Tax Rate Determination:**
+
+**API Integration for Automated Rate Discovery:**
+- **TaxJar API:** State sales tax rates (includes income tax data)
+  - https://www.taxjar.com/api/
+  - Pricing: $99/month for Pro plan
+  - Coverage: All 50 states + DC
+  - Historical data: 2013-present
+
+- **Tax Foundation API:** Comprehensive federal and state tax data
+  - https://taxfoundation.org/
+  - Free tier available (limited calls)
+  - Historical tax brackets and rates
+
+- **IRS Data API:** Federal tax information
+  - https://www.irs.gov/statistics
+  - Free, official source
+  - Historical tax tables available
+
+- **State-Specific APIs:**
+  - California FTB Tax Calculator API (if available)
+  - New York DTF e-Services
+  - Auto-discovery from state websites
+
+**Automated Scraping/Parsing (Fallback):**
+- Automated download of IRS Publication 17 (annual)
+- Parse IRS tax tables from PDF/HTML
+- Extract state tax brackets from official websites
+- Validate extracted data against multiple sources
+
+**2. Historical Tax Rate Storage Requirements:**
+
+**Complete Historical Record (2015-2035 minimum):**
+- **Every calendar year MUST have complete tax rates stored:**
+  - Federal ordinary income brackets (all filing statuses)
+  - Long-term capital gains brackets (all filing statuses)
+  - State income tax brackets (all supported states)
+  - Standard deductions (federal and state)
+  - NIIT thresholds (Net Investment Income Tax)
+  - Medicare tax thresholds
+  - Estimated payment safe harbor percentages
+
+**Version Control for Tax Rules:**
+- **Each tax year stored with:**
+  - Effective date (January 1, YYYY)
+  - End date (December 31, YYYY or NULL if current)
+  - Source document (IRS Rev. Proc. YYYY-XX)
+  - Source URL (link to official publication)
+  - Hash/checksum of rate data (detect changes)
+  - Created timestamp (when added to system)
+  - Created by (user or automated process)
+
+**Rule Versioning:**
+- Tax rules can change mid-year (rare, but possible)
+- MUST support multiple versions per tax year
+- Example: CARES Act 2020 changed tax rules mid-year
+- Each version tagged with effective date range
+
+**3. Calculation Reproduction Requirements:**
+
+**CRITICAL:** Any tax calculation must be reproducible years later using historical tax rates.
+
+**Calculation Metadata Storage:**
+- **For every realized gain/loss, store:**
+  - Trade date and settlement date
+  - Tax year applied
+  - Federal tax rate used (at time of calculation)
+  - State tax rate used (at time of calculation)
+  - NIIT rate used (if applicable)
+  - Tax bracket applied
+  - Source document reference
+  - Calculation timestamp
+
+**Reproduction Process:**
+- Given: trade_id, exit_date
+- Lookup: tax rates effective on exit_date
+- Recalculate: using exact rates from that date
+- Verify: matches original calculation
+- Report: any discrepancies (indicates rate update needed)
+
+**Audit Trail:**
+```sql
+-- Example: Reproduce tax calculation from 3 years ago
+SELECT
+    rgl.*,
+    ftb.tax_rate as federal_rate_used,
+    str.tax_rate as state_rate_used,
+    'Reproduced from historical rates' as note
+FROM realized_gains_losses rgl
+JOIN federal_tax_brackets ftb
+    ON ftb.tax_year = EXTRACT(YEAR FROM rgl.exit_date)
+    AND ftb.filing_status = (SELECT filing_status FROM tax_config WHERE account_id = rgl.account_id)
+    AND rgl.realized_gain_loss BETWEEN ftb.income_min AND COALESCE(ftb.income_max, 999999999)
+JOIN state_tax_rates str
+    ON str.tax_year = EXTRACT(YEAR FROM rgl.exit_date)
+    AND str.state_code = (SELECT state_of_residence FROM tax_config WHERE account_id = rgl.account_id)
+WHERE rgl.trade_id = 'TRADE-2021-12345';
+```
+
+**4. Validation and Verification:**
+
+**Multi-Source Validation:**
+- Compare fetched rates against 3+ independent sources
+- Flag discrepancies for human review
+- Example sources:
+  - IRS official publications (primary)
+  - TurboTax rate tables (secondary)
+  - H&R Block rate tables (tertiary)
+  - TaxJar API (tertiary)
+
+**Automated Testing:**
+```python
+# Example validation test
+def test_2024_federal_tax_brackets():
+    """Verify 2024 federal tax brackets match IRS Rev. Proc. 2023-34"""
+    rates = get_federal_tax_brackets(tax_year=2024, filing_status='single')
+
+    # Test against known IRS values
+    assert rates[0].income_min == 0
+    assert rates[0].income_max == 11600
+    assert rates[0].tax_rate == 0.10
+
+    assert rates[6].income_min == 609351
+    assert rates[6].income_max is None  # Highest bracket
+    assert rates[6].tax_rate == 0.37
+
+    # Verify source document
+    assert rates[0].source_document == 'IRS Rev. Proc. 2023-34'
+```
+
+**5. Backwards Compatibility:**
+
+**Historical Backfill (2015-2024):**
+- On first deployment, automatically fetch and store historical rates
+- Backfill process:
+  ```
+  FOR year IN 2015..2024:
+      - Fetch IRS Rev. Proc. for year
+      - Extract federal tax brackets
+      - Extract LTCG brackets
+      - Store with effective_date = January 1, year
+      - Fetch state rates from archives
+      - Validate against known sources
+  ```
+
+**Backtesting Accuracy:**
+- Backtests run on historical data MUST use tax rates from that period
+- Example: Backtest 2020 trades → use 2020 tax rates
+- Never use current tax rates for historical calculations
+
+**6. Data Export for Compliance:**
+
+**Tax Rate Snapshots:**
+- Export complete tax rate snapshot for each year
+- Format: JSON, CSV, SQL dump
+- Include all metadata (source documents, URLs)
+- Store in version control (git)
+- Example: `tax_rates_2024.json`, `tax_rates_2024.sql`
+
+**Reproducibility Package:**
+```json
+{
+  "tax_year": 2024,
+  "effective_date": "2024-01-01",
+  "end_date": "2024-12-31",
+  "source_document": "IRS Rev. Proc. 2023-34",
+  "source_url": "https://www.irs.gov/pub/irs-drop/rp-23-34.pdf",
+  "federal_brackets": {
+    "single": [
+      {"min": 0, "max": 11600, "rate": 0.10},
+      {"min": 11601, "max": 47150, "rate": 0.12},
+      ...
+    ]
+  },
+  "ltcg_brackets": { ... },
+  "state_rates": { ... },
+  "validation": {
+    "validated_against": ["IRS Publication 17", "TurboTax 2024"],
+    "validated_by": "cpa@example.com",
+    "validated_date": "2023-12-20"
+  }
+}
+```
+
+**Tax Database (Enhanced):**
 - Store current tax year rates (federal, state, local)
-- Store historical rates for backtesting (2015-present minimum)
-- API integration with tax data providers (e.g., TaxJar API for state rates)
+- **Store historical rates for ALL supported years (2015-present minimum)**
+- **Store effective_date and end_date for all tax rates**
+- **Flag current_year rates vs historical rates**
+- **API integration with tax data providers (TaxJar, Tax Foundation)**
+- **Automated rate discovery and validation**
 - Manual override capability for custom tax situations
+- **Audit trail: track who updated rates and when**
+- **Version control: track all rate changes with timestamps**
+- **Hash/checksum: detect unauthorized rate changes**
+- **Export capability: JSON, CSV, SQL dumps for each year**
+- **Reproduction guarantee: any calculation can be reproduced years later**
 
 #### 5.4.6 Risk Management
 - Position-level stop-losses
