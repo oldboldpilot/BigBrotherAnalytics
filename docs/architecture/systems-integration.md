@@ -92,7 +92,9 @@ graph TB
     EXECUTE --> MONITOR
     MONITOR --> ANALYZE
     ANALYZE --> LEARN
-    LEARN -.Feedback.-> MI & CORR & DECIDE
+    LEARN -.Feedback.-> MI
+    LEARN -.Feedback.-> CORR
+    LEARN -.Feedback.-> DECIDE
 
     style SIMULATE fill:#faa,stroke:#333,stroke-width:3px
     style ANALYZE fill:#f9f,stroke:#333,stroke-width:3px
@@ -166,12 +168,20 @@ graph TB
         end
     end
 
-    CPU1 & CPU2 & CPU3 --> GPU
-    CPU1 & CPU2 & CPU3 --> MEM1
+    CPU1 --> GPU
+
+    CPU2 --> GPU
+
+    CPU3 --> GPU
+    CPU1 --> MEM1
+    CPU2 --> MEM1
+    CPU3 --> MEM1
     GPU --> DISK1
     MEM1 --> DISK1
     DISK2 --> MEM7
-    NET --> CPU1 & CPU2 & CPU3
+    NET --> CPU1
+    NET --> CPU2
+    NET --> CPU3
 
     style CPU1 fill:#e1f5ff,stroke:#333,stroke-width:2px
     style CPU2 fill:#ffe1f5,stroke:#333,stroke-width:2px
@@ -227,23 +237,49 @@ graph TB
         VIZ[Trading Dashboard<br/>Plotly/Dash<br/>Port 8050]
     end
 
-    DS1 & DS2 & DS3 --> MI1
+    DS1 --> MI1
+
+    DS2 --> MI1
+
+    DS3 --> MI1
     MI1 --> MI2 --> MI3 --> MI4 --> MI5
-    MI2 & MI3 --> GPU_SHARED
+    MI2 --> GPU_SHARED
+    MI3 --> GPU_SHARED
 
     DS2 --> C1 --> C2 --> C3 --> C4 --> C5
-    C2 & C3 --> GPU_SHARED
+    C2 --> GPU_SHARED
+    C3 --> GPU_SHARED
 
-    MI5 & C5 & DS2 --> TD1
+    MI5 --> TD1
+
+    C5 --> TD1
+
+    DS2 --> TD1
     TD1 --> TD2 --> TD3 --> TD4 --> TD5 --> TD6
     TD2 --> GPU_SHARED
 
-    MI3 & MI4 & C2 & C4 & TD2 & TD5 --> DB
-    MI5 & C5 & TD6 --> CACHE
+    MI3 --> DB
+
+    MI4 --> DB
+
+    C2 --> DB
+
+    C4 --> DB
+
+    TD2 --> DB
+
+    TD5 --> DB
+    MI5 --> CACHE
+    C5 --> CACHE
+    TD6 --> CACHE
     DB --> ANALYTICS
     ANALYTICS --> TD4
 
-    MI5 & C5 & TD6 -.Metrics.-> MON1
+    MI5 -.Metrics.-> MON1
+
+    C5 -.Metrics.-> MON1
+
+    TD6 -.Metrics.-> MON1
     MON1 --> MON2
     TD6 --> VIZ
 
@@ -619,9 +655,16 @@ graph LR
         T3_2[ASML (Equipment)<br/>0.68 correlation, 60min lag]
     end
 
-    T0_1 --> T1_1 & T1_2
-    T1_1 & T1_2 --> T2_1 & T2_2
-    T2_1 & T2_2 --> T3_1 & T3_2
+    T0_1 --> T1_1
+    T0_1 --> T1_2
+    T1_1 --> T2_1
+    T1_1 --> T2_2
+    T1_2 --> T2_1
+    T1_2 --> T2_2
+    T2_1 --> T3_1
+    T2_1 --> T3_2
+    T2_2 --> T3_1
+    T2_2 --> T3_2
 
     T1_1 -.Predict Trade.-> Trade1[BUY AMD at T0+5min<br/>Before correlation plays out<br/>Expected: +3.5% by T0+15min]
 
@@ -1037,9 +1080,18 @@ graph LR
         TD4[Simulated trading only]
     end
 
-    MI1 & MI2 & MI3 & MI4 --> Integration[Signal Integration]
-    C1 & C2 & C3 & C4 --> Integration
-    Integration --> TD1 & TD2 & TD3 & TD4
+    MI1 --> Integration[Signal Integration]
+    MI2 --> Integration
+    MI3 --> Integration
+    MI4 --> Integration
+    C1 --> Integration
+    C2 --> Integration
+    C3 --> Integration
+    C4 --> Integration
+    Integration --> TD1
+    Integration --> TD2
+    Integration --> TD3
+    Integration --> TD4
 
     TD4 --> Dashboard[Streamlit Dashboard<br/>Localhost Only]
 
@@ -1316,7 +1368,8 @@ flowchart TB
     MI --> Opp1[5 Short-Term Opportunities]
     CORR --> Opp2[3 Correlation Plays]
 
-    Opp1 & Opp2 --> Combine[Combine & Rank<br/>8 Total Opportunities]
+    Opp1 --> Combine[Combine and Rank<br/>8 Total Opportunities]
+    Opp2 --> Combine
 
     Combine --> Simulate[Self-Simulation<br/>Test Each Trade]
 
@@ -1715,7 +1768,10 @@ graph TB
 
     Institutional --> I1[Multi-Strategy<br/>10% Day Trading<br/>30% Short-Term<br/>50% Long-Term<br/>10% Reserve<br/>30-50 Positions]
 
-    S1 & M1 & L1 & I1 --> Optimize[Portfolio Optimization<br/>Budget-Constrained]
+    S1 --> Optimize[Portfolio Optimization<br/>Budget-Constrained]
+    M1 --> Optimize
+    L1 --> Optimize
+    I1 --> Optimize
 
     Optimize --> Execute[Execute with<br/>Full Explanation]
 
@@ -1952,7 +2008,10 @@ graph TB
     Scenarios --> S3[Bear Case<br/>-2σ Market Move]
     Scenarios --> S4[Black Swan<br/>-5σ Event]
 
-    S1 & S2 & S3 & S4 --> Outcomes[Calculate Outcomes]
+    S1 --> Outcomes[Calculate Outcomes]
+    S2 --> Outcomes
+    S3 --> Outcomes
+    S4 --> Outcomes
 
     Outcomes --> Metrics[Simulation Metrics]
 
@@ -1961,7 +2020,10 @@ graph TB
     Metrics --> M3[Best Case<br/>95th percentile]
     Metrics --> M4[Probability of Profit<br/>% positive scenarios]
 
-    M1 & M2 & M3 & M4 --> Decide{Expected Value<br/>Positive?}
+    M1 --> Decide{Expected Value<br/>Positive?}
+    M2 --> Decide
+    M3 --> Decide
+    M4 --> Decide
 
     Decide -->|Yes| Approve[Approve Trade<br/>Show Explanation]
     Decide -->|No| Reject[Reject Trade<br/>Explain Why]
@@ -2325,7 +2387,10 @@ flowchart TB
     Explain1 --> Reason3[What Market Conditions Helped?]
     Explain1 --> Reason4[Was Timing Optimal?]
 
-    Reason1 & Reason2 & Reason3 & Reason4 --> Summary1[Human Summary:<br/>"Profitable because..."]
+    Reason1 --> Summary1[Human Summary:<br/>"Profitable because..."]
+    Reason2 --> Summary1
+    Reason3 --> Summary1
+    Reason4 --> Summary1
 
     Analyze2 --> Explain2[Generate Loss Explanation]
 
@@ -2334,12 +2399,16 @@ flowchart TB
     Explain2 --> Mistake3[What Wasn't Considered?]
     Explain2 --> Mistake4[What Changed Unexpectedly?]
 
-    Mistake1 & Mistake2 & Mistake3 & Mistake4 --> Summary2[Human Summary:<br/>"Lost because..."]
+    Mistake1 --> Summary2[Human Summary:<br/>"Lost because..."]
+    Mistake2 --> Summary2
+    Mistake3 --> Summary2
+    Mistake4 --> Summary2
 
     Summary1 --> Record1[Record Success Pattern<br/>Reinforce Model]
     Summary2 --> Record2[Record Failure Pattern<br/>Update Model]
 
-    Record1 & Record2 --> Learn[Model Learning<br/>Improve Future Trades]
+    Record1 --> Learn[Model Learning<br/>Improve Future Trades]
+    Record2 --> Learn
 
     style Analyze1 fill:#afa,stroke:#333,stroke-width:2px
     style Analyze2 fill:#faa,stroke:#333,stroke-width:2px
@@ -2688,16 +2757,55 @@ graph TB
     E1 --> E2 --> E3
     E3 --> A1 --> A2 --> A3
 
-    A3 --> M1 & M2 & M3 & M4
+    A3 --> M1
+    A3 --> M2
+    A3 --> M3
+    A3 --> M4
 
     M1 --> R1
     M2 --> R2
     M3 --> R3
     M4 --> R4
 
-    R1 & R2 & R3 & R4 --> U1 & U2 & U3 & U4
+    R1 --> U1
 
-    U1 & U2 & U3 & U4 --> V1
+    R1 --> U2
+
+    R1 --> U3
+
+    R1 --> U4
+
+    R2 --> U1
+
+    R2 --> U2
+
+    R2 --> U3
+
+    R2 --> U4
+
+    R3 --> U1
+
+    R3 --> U2
+
+    R3 --> U3
+
+    R3 --> U4
+
+    R4 --> U1
+
+    R4 --> U2
+
+    R4 --> U3
+
+    R4 --> U4
+
+    U1 --> V1
+
+    U2 --> V1
+
+    U3 --> V1
+
+    U4 --> V1
     V1 --> V2
     V2 --> V3
     V3 --> V4
@@ -4134,7 +4242,9 @@ graph TB
     CORR --> Chain[Build Correlation Chain<br/>Leader → Laggers]
     Historical --> Probability[Calculate Probabilities<br/>Based on History]
 
-    Causal & Chain & Probability --> Opportunities[Generate Trade<br/>Opportunities]
+    Causal --> Opportunities[Generate Trade<br/>Opportunities]
+    Chain --> Opportunities
+    Probability --> Opportunities
 
     Opportunities --> Evaluate[Evaluate Each Trade<br/>Expected Value]
 
