@@ -1,8 +1,8 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** November 6, 2025
-**Status:** Draft - Planning Phase Complete
+**Status:** Draft - Planning Phase Complete, Ready for Implementation
 **Author:** Olumuyiwa Oluwasanmi
 
 ---
@@ -949,6 +949,240 @@ The architecture document includes:
 - Implied volatility surfaces
 - Options Greeks (delta, gamma, theta, vega, rho)
 - Technical indicators
+
+### 5.2.4 Supported Trading Instruments & Valuation Methods
+
+**CRITICAL:** Complete specification of all tradeable instruments and their valuation methodologies.
+
+#### Stock Trades
+
+**Order Types Supported:**
+- **Market Orders:** Immediate execution at current market price
+- **Limit Orders:** Execute only at specified price or better
+- **Stop Orders:** Trigger market order when price reaches stop level
+- **Stop-Limit Orders:** Trigger limit order when price reaches stop level
+- **Trailing Stop:** Dynamic stop that follows price movement
+- **Good-Till-Canceled (GTC):** Order remains active until filled or canceled
+- **Day Orders:** Cancel if not filled by end of trading day
+- **Fill-or-Kill (FOK):** Execute entire order immediately or cancel
+- **Immediate-or-Cancel (IOC):** Execute immediately, cancel unfilled portion
+
+**Stock Trade Types:**
+- **Long Positions:** Buy and hold (bullish)
+- **Short Positions:** Sell borrowed shares (bearish)
+- **Pairs Trading:** Long/short correlated pairs
+- **Basket Trading:** Multiple stocks as single trade
+- **Dollar-Cost Averaging:** Systematic purchases over time
+
+**Valuation:** Fundamental (DCF, P/E, PEG) + Technical + ML predictions
+
+#### Money Market Instruments
+
+**Cash Management:**
+- **Money Market Funds:** Sweep uninvested cash (1-2% yield)
+- **Treasury Bills:** Short-term government debt (< 1 year)
+- **Commercial Paper:** Corporate short-term debt
+- **Certificates of Deposit:** Bank time deposits
+
+**Usage in Platform:**
+- Uninvested cash → Money market sweep (automatic)
+- Margin collateral → T-Bills (higher quality)
+- Emergency reserves → Ultra-short duration funds
+- **NOT actively traded** - used for cash management only
+
+#### Options Trades (PRIMARY FOCUS - Phase 1)
+
+**Basic Options:**
+- **Call Options:** Right to buy at strike price
+- **Put Options:** Right to sell at strike price
+- **American Style:** Exercise any time before expiration
+- **European Style:** Exercise only at expiration
+
+**Spread Strategies:**
+- **Vertical Spreads:**
+  - Bull Call Spread: Long lower strike call, short higher strike call
+  - Bear Put Spread: Long higher strike put, short lower strike put
+  - Defined risk/reward, lower capital requirement
+
+- **Calendar (Time) Spreads:**
+  - Long later expiration, short near expiration
+  - Profit from time decay differential
+  - Neutral to slightly directional
+
+- **Diagonal Spreads:**
+  - Different strikes AND different expirations
+  - Flexible risk/reward profiles
+
+**Volatility Strategies:**
+- **Straddle:** Long call + long put at same strike (expect big move)
+- **Strangle:** Long OTM call + long OTM put (cheaper than straddle)
+- **Iron Condor:** Sell OTM put spread + sell OTM call spread (profit from range)
+- **Iron Butterfly:** Sell ATM straddle + buy OTM strangle (range-bound profit)
+- **Butterfly Spread:** Limited risk, limited profit (3 strikes)
+
+**Greeks-Based Strategies:**
+- **Delta-Neutral:** Hedge directional risk, profit from volatility
+- **Gamma Scalping:** Profit from gamma as underlying moves
+- **Theta Harvesting:** Sell options, collect time decay
+- **Vega Plays:** Trade implied volatility changes
+- **Rho Strategies:** Interest rate sensitivity plays (rare)
+
+**Advanced Strategies:**
+- **Ratio Spreads:** Unequal number of long/short options
+- **Back Spreads:** Reverse ratio spreads
+- **Box Spreads:** Arbitrage play (4-leg synthetic loan)
+- **Conversions/Reversals:** Arbitrage between stock and options
+- **Synthetic Positions:** Replicate stock with options (synthetic long/short)
+
+#### Options Valuation Methods
+
+**PRIMARY: Trinomial Tree Model**
+
+Mathematical Foundation:
+```
+Trinomial Tree for American Options:
+  - At each node, price can move: Up, Flat, or Down
+  - More accurate than binomial for short time steps
+  - Better for early exercise determination
+  - Handles American-style options correctly
+
+Parameters:
+  S = Current stock price
+  K = Strike price
+  T = Time to expiration
+  r = Risk-free rate
+  σ = Volatility (implied or historical)
+  q = Dividend yield
+
+Price movements per step (Δt):
+  u = e^(σ√(3Δt))     (up)
+  m = 1                (middle/flat)
+  d = e^(-σ√(3Δt))    (down)
+
+Probabilities:
+  p_u = ((e^((r-q)Δt/2) - e^(-σ√(Δt/3))) / (e^(σ√(Δt/3)) - e^(-σ√(Δt/3))))^2
+  p_m = 1 - p_u - p_d
+  p_d = ((e^(σ√(Δt/3)) - e^((r-q)Δt/2)) / (e^(σ√(Δt/3)) - e^(-σ√(Δt/3))))^2
+
+Backward induction:
+  V(S,t) = e^(-rΔt)[p_u·V(Su,t+Δt) + p_m·V(Sm,t+Δt) + p_d·V(Sd,t+Δt)]
+
+Early exercise check (American):
+  V(S,t) = max(Intrinsic Value, Continuation Value)
+
+Implementation: C++23 for speed, parallelize tree construction with OpenMP
+```
+
+**SECONDARY: Black-Scholes Model (Short-Term European Options)**
+
+Mathematical Foundation:
+```
+Black-Scholes Formula:
+  C = S·N(d₁) - K·e^(-rT)·N(d₂)  (Call)
+  P = K·e^(-rT)·N(-d₂) - S·N(-d₁) (Put)
+
+Where:
+  d₁ = [ln(S/K) + (r - q + σ²/2)T] / (σ√T)
+  d₂ = d₁ - σ√T
+  N(x) = Cumulative normal distribution
+
+Greeks (analytic formulas):
+  Delta (Δ): ∂V/∂S
+  Gamma (Γ): ∂²V/∂S²
+  Theta (Θ): ∂V/∂t
+  Vega (ν): ∂V/∂σ
+  Rho (ρ): ∂V/∂r
+
+When to use:
+  - European options only (no early exercise)
+  - Short-term options (< 30 days)
+  - Liquid markets (tight bid-ask)
+  - Fast computation needed (real-time pricing)
+
+Implementation: C++23 with Intel MKL for N(x) calculation
+```
+
+**TERTIARY: Monte Carlo Simulation (Complex/Exotic Options)**
+
+Used for:
+- Path-dependent options (Asian, lookback)
+- Barrier options (knock-in, knock-out)
+- Multi-asset options (baskets, rainbow)
+- Validation of tree methods
+
+Implementation: CUDA for parallel scenarios (100K+ paths in milliseconds)
+
+**Greeks Calculation:**
+- **Numerical Methods:** Finite differences from tree/MC results
+- **Analytic (Black-Scholes):** When applicable
+- **Automatic Differentiation:** For ML-based pricing
+
+#### Broker Platform Evaluation (Tier 1 POC Focus)
+
+**CRITICAL:** Choose cost-effective brokers for POC phase. Evaluate based on: API quality, costs, data access, and options support.
+
+**Tier 1 POC Broker Options (Budget-Friendly):**
+
+| Broker | Account Min | Commission | API Access | Options Support | Data Feeds | POC Suitability |
+|--------|-------------|------------|------------|-----------------|------------|-----------------|
+| **Tradier** | $0 | $0 stock, $0.35/contract | ✅ Free API | ✅ Full | ✅ Free real-time | ⭐⭐⭐⭐⭐ BEST |
+| **Interactive Brokers (IBKR)** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ $10-15/mo for options data | ⭐⭐⭐⭐ Good |
+| **TD Ameritrade (thinkorswim)** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ Free real-time | ⭐⭐⭐⭐ Good |
+| **Alpaca** | $0 | $0 stock, N/A options | ✅ Free API | ❌ No options | ✅ Free | ⭐⭐ Stock only |
+| **Robinhood** | $0 | $0 stock, $0 options | ❌ No official API | ⚠️ Limited | ⚠️ Limited | ⭐ Not suitable |
+| **E*TRADE** | $0 | $0 stock, $0.50/contract | ⚠️ Approval needed | ✅ Full | ✅ Free | ⭐⭐⭐ OK |
+| **Schwab** | $0 | $0 stock, $0.65/contract | ✅ Free API | ✅ Full | ✅ Free | ⭐⭐⭐⭐ Good |
+
+**RECOMMENDED for Tier 1 POC: Tradier**
+
+Reasons:
+- **$0 account minimum** (critical for POC)
+- **Free API access** (unlimited paper trading)
+- **Full options support** (all strategies)
+- **Free real-time data** (when account funded)
+- **Developer-friendly** (RESTful API, WebSocket streams)
+- **Options-focused** (designed for active options traders)
+- **Low commissions** ($0.35/contract, very competitive)
+- **Paper trading** (test without real money)
+
+**Tradier API Features:**
+- REST API for orders, positions, account data
+- WebSocket for real-time quotes and options chains
+- Market data: Real-time quotes, options chains, Greeks
+- Historical data: OHLC, options history
+- Account management: Balances, positions, orders
+- Documentation: Excellent, with code examples
+
+**Tier 1 POC Setup with Tradier:**
+```
+1. Open Tradier Brokerage account (free, no minimum)
+2. Enable API access (free)
+3. Use sandbox for paper trading (unlimited, free)
+4. Test all strategies with fake money
+5. Only fund account when ready for real trading
+   Minimum: $2,000-5,000 for pattern day trading
+           $500-1,000 for casual trading
+
+Monthly Cost (Tier 1 POC):
+  Account: $0
+  API access: $0
+  Paper trading: $0 (unlimited)
+  Real-time data: $0 (with funded account)
+  Total: $0 until live trading
+```
+
+**Alternative: Interactive Brokers (IBKR)**
+- More professional, institutional-grade
+- Better for international trading
+- More complex API (steeper learning curve)
+- Small monthly fee for market data ($10-15)
+- Use for Tier 2/3 when scaling
+
+**Tier 2/3 Production Brokers:**
+- Multiple broker accounts for redundancy
+- IBKR for primary execution
+- Tradier for backup/options focus
+- Direct market access (DMA) for lowest latency
 
 ### 5.3 Trading Strategies (Priority Order)
 
@@ -3444,6 +3678,7 @@ Annual Savings: $60,280
 | 0.9.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Berkeley PGAS Components & Validation Framework.** Added complete UPC++ and Berkeley Distributed Components installation via Ansible playbook (based on ClusterSetupAndConfigs repository). Installs GASNet-EX 2024.5.0, UPC++ 2024.3.0, Berkeley UPC, and OpenSHMEM with automated configuration. Created playbooks/install-upcxx-berkeley.yml with verification and testing. Added playbooks/README.md documenting all playbooks and PGAS installation. Updated PRD and all architecture documents with Berkeley components references and ClusterSetupAndConfigs links. **Added comprehensive backtesting & validation framework** to systems integration: 7-level validation (unit tests → integration → historical backtest → walk-forward → Monte Carlo → paper trading → limited live). DuckDB-based backtesting processes 10 years of data in seconds. Walk-forward validation prevents overfitting. Complete validation checklist with must-pass criteria (Sharpe > 1.5, win rate > 55%, max DD < 20%). Only deploy real money after ALL validation levels pass. Emphasizes rigorous testing before production. References ClusterSetupAndConfigs repo for complete cluster management and PGAS deployment details. Total documentation: 19,400+ lines (added 570 lines of validation/PGAS content). |
 | 1.0.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **PLANNING PHASE COMPLETE - All-in-One Installation.** Created comprehensive Ansible playbook (complete-tier1-setup.yml, 500+ lines) that installs ENTIRE Tier 1 environment in one command. Single playbook installs: Homebrew, GCC 15 (C++23), Python 3.14+, uv package manager, CMake 3.28+, Ninja, OpenMP, OpenMPI 5.x, UPC++ 2024.3.0, GASNet-EX 2024.5.0, Intel MKL, NVIDIA CUDA 12.3 (auto-detects GPU), PostgreSQL 16 with TimescaleDB/AGE/pgvector extensions, Redis, DuckDB, PyTorch with CUDA, Hugging Face Transformers, Stable-Baselines3, XGBoost, SHAP, spaCy, all data collection tools (yfinance, FRED API, Scrapy, Playwright), visualization tools (Plotly, Streamlit, Dash), monitoring (Prometheus, Sentry), complete environment configuration, verification script, and QUICKSTART.md guide. Installation time: 2-4 hours. Cost: $0 (100% open-source). **PLANNING PHASE COMPLETE:** All documentation (20,000+ lines), all architecture documents (5 docs), all Ansible playbooks (3 playbooks), complete technology stack specified, ready for Tier 1 POC implementation. Platform status: Design complete, implementation ready, zero initial investment required. |
 | 1.1.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Final Updates: CUDA 13.0, uv Standardization, Uninstall Capability.** Updated all playbooks and documentation to use latest NVIDIA CUDA Toolkit 13.0 (was 12.3). Standardized ALL Python package management to use uv (NOT pip) throughout playbooks and documentation - emphasizes 10-100x speed improvement. Fixed complete-tier1-setup.yml for cross-platform compatibility (Ubuntu, RHEL, WSL2) with OS-specific package names, paths, and service management. Added systemd detection for WSL compatibility (graceful fallback to manual service start). Created uninstall-tier1.yml playbook (200+ lines) for clean removal with data backup, optional Homebrew/data preservation. Added idempotency documentation - playbook safe to re-run, won't duplicate installations. Updated playbooks/README.md with uninstall instructions, idempotency notes, and current technology versions. Updated PRD Section 9.6.1.3 with CUDA 13.0 references and uv emphasis. Clarified installation strategy: Homebrew for toolchain (GCC, Python, CMake, MPI), uv for ALL Python packages, system package managers only for OS-specific components (PostgreSQL, Redis). Complete platform ready for one-command installation on Ubuntu, RHEL, or WSL2 with ability to cleanly uninstall. |
+| 1.2.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Trading Instruments, Options Valuation, and Broker Selection.** Added comprehensive Section 5.2.4 to PRD specifying ALL supported trading instruments: stock order types (market, limit, stop, trailing stop, GTC, FOK, IOC), stock trade types (long, short, pairs, basket, DCA), money market instruments (MMF, T-Bills, commercial paper for cash management), and complete options strategies (basic calls/puts, vertical spreads, calendar spreads, diagonal spreads, straddles, strangles, iron condors, butterflies, delta-neutral, gamma scalping, theta harvesting, ratio spreads, synthetics). **Added complete options valuation methods with C++23 implementations:** Trinomial tree model (PRIMARY for American options) with full mathematical foundation, OpenMP parallelization, early exercise logic. Black-Scholes model (SECONDARY for European short-term <30 days) with analytic Greeks formulas using Intel MKL. Model selection logic (automatic choice based on option type and expiry). Parallel portfolio pricing with OpenMP. **Added Tier 1 POC broker evaluation:** Comprehensive comparison of 7 brokers (Tradier, IBKR, TD Ameritrade, Alpaca, Robinhood, E*TRADE, Schwab) with account minimums, commissions, API access, options support, and suitability ratings. **RECOMMENDED Tradier for POC:** $0 minimum, free API, full options support, free real-time data, $0.35/contract, unlimited paper trading. Complete Tradier setup guide for Tier 1 POC. Added to Trading Decision Engine architecture (Section 14b): Complete C++23 trinomial tree implementation (500+ lines), Black-Scholes with MKL integration, automatic model selection, portfolio-level parallel pricing. Mathematical formulas included for both methods. Platform now has complete options trading capability specification ready for implementation. Total new content: 700+ lines across PRD and architecture doc. |
 
 ---
 

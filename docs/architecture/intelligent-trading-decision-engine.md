@@ -2837,6 +2837,480 @@ if (strategy.has_value()) {
 
 ---
 
+## 14b. Options Valuation Engine (C++23 Implementation)
+
+### 14b.1 Trinomial Tree Model (PRIMARY - American Options)
+
+**Complete C++23 implementation with OpenMP parallelization:**
+
+```cpp
+// File: src/valuation/trinomial_tree.hpp
+// Trinomial tree for American options valuation
+
+#include <cmath>
+#include <vector>
+#include <algorithm>
+#include <expected>
+#include <mdspan>
+#include <omp.h>
+#include <mkl.h>
+
+namespace valuation {
+
+struct OptionParams {
+    double spot_price;        // S - Current stock price
+    double strike_price;      // K - Strike price
+    double time_to_expiry;    // T - Time to expiration (years)
+    double risk_free_rate;    // r - Risk-free interest rate
+    double volatility;        // σ - Volatility
+    double dividend_yield;    // q - Continuous dividend yield
+    char option_type;         // 'C' for call, 'P' for put
+    char exercise_style;      // 'A' for American, 'E' for European
+};
+
+class TrinomialTreePricer {
+private:
+    static constexpr int DEFAULT_STEPS = 1000;
+
+public:
+    // Price American option using trinomial tree
+    auto price_option(
+        const OptionParams& params,
+        int num_steps = DEFAULT_STEPS
+    ) -> std::expected<double, Error> {
+
+        const double dt = params.time_to_expiry / num_steps;
+        const double sqrt_3dt = std::sqrt(3.0 * dt);
+
+        // Calculate up, middle, down factors
+        const double u = std::exp(params.volatility * sqrt_3dt);
+        const double m = 1.0;
+        const double d = 1.0 / u;
+
+        // Calculate risk-neutral probabilities
+        const double drift = std::exp((params.risk_free_rate - params.dividend_yield) * dt / 2.0);
+        const double sqrt_dt_3 = std::sqrt(dt / 3.0);
+        const double up_factor = std::exp(params.volatility * sqrt_dt_3);
+        const double down_factor = 1.0 / up_factor;
+
+        const double p_u_temp = (drift - down_factor) / (up_factor - down_factor);
+        const double p_u = p_u_temp * p_u_temp;
+
+        const double p_d_temp = (up_factor - drift) / (up_factor - down_factor);
+        const double p_d = p_d_temp * p_d_temp;
+
+        const double p_m = 1.0 - p_u - p_d;
+
+        // Validate probabilities
+        if (p_u < 0 || p_d < 0 || p_m < 0) {
+            return std::unexpected(Error::InvalidProbabilities);
+        }
+
+        // Build tree (2D array: [time_step][price_node])
+        const int max_nodes = 2 * num_steps + 1;
+        std::vector<double> option_values(max_nodes);
+
+        // Terminal payoffs at expiration
+        #pragma omp parallel for
+        for (int j = -num_steps; j <= num_steps; ++j) {
+            const double spot = params.spot_price * std::pow(u, j);
+            const int idx = j + num_steps;
+
+            if (params.option_type == 'C') {
+                option_values[idx] = std::max(spot - params.strike_price, 0.0);
+            } else {
+                option_values[idx] = std::max(params.strike_price - spot, 0.0);
+            }
+        }
+
+        // Backward induction through tree
+        const double discount = std::exp(-params.risk_free_rate * dt);
+
+        for (int i = num_steps - 1; i >= 0; --i) {
+            const int nodes_at_step = 2 * i + 1;
+
+            #pragma omp parallel for if(i > 100)
+            for (int j = -i; j <= i; ++j) {
+                const int idx = j + num_steps;
+
+                // Continuation value (expected value from next step)
+                const double continuation = discount * (
+                    p_u * option_values[idx + 1] +
+                    p_m * option_values[idx] +
+                    p_d * option_values[idx - 1]
+                );
+
+                // Intrinsic value (immediate exercise)
+                const double spot = params.spot_price * std::pow(u, j);
+                double intrinsic;
+
+                if (params.option_type == 'C') {
+                    intrinsic = std::max(spot - params.strike_price, 0.0);
+                } else {
+                    intrinsic = std::max(params.strike_price - spot, 0.0);
+                }
+
+                // American: max(intrinsic, continuation)
+                // European: continuation only
+                if (params.exercise_style == 'A') {
+                    option_values[idx] = std::max(intrinsic, continuation);
+                } else {
+                    option_values[idx] = continuation;
+                }
+            }
+        }
+
+        // Option value at root (current time, current price)
+        return option_values[num_steps];
+    }
+
+    // Calculate Greeks using finite differences
+    auto calculate_greeks(
+        const OptionParams& params,
+        int num_steps = DEFAULT_STEPS
+    ) -> std::expected<Greeks, Error> {
+
+        const double h_spot = params.spot_price * 0.01;  // 1% bump
+        const double h_vol = 0.01;  // 1% volatility bump
+        const double h_time = 1.0 / 365.0;  // 1 day
+
+        // Base price
+        auto base_price = price_option(params, num_steps);
+        if (!base_price.has_value()) {
+            return std::unexpected(base_price.error());
+        }
+
+        // Delta: ∂V/∂S
+        OptionParams params_up_spot = params;
+        params_up_spot.spot_price += h_spot;
+        auto price_up = price_option(params_up_spot, num_steps);
+
+        OptionParams params_down_spot = params;
+        params_down_spot.spot_price -= h_spot;
+        auto price_down = price_option(params_down_spot, num_steps);
+
+        const double delta = (price_up.value() - price_down.value()) / (2.0 * h_spot);
+
+        // Gamma: ∂²V/∂S²
+        const double gamma = (price_up.value() - 2.0 * base_price.value() + price_down.value()) / (h_spot * h_spot);
+
+        // Theta: ∂V/∂t
+        OptionParams params_time = params;
+        params_time.time_to_expiry -= h_time;
+        auto price_time = price_option(params_time, num_steps);
+        const double theta = (price_time.value() - base_price.value()) / h_time / 365.0;  // Per day
+
+        // Vega: ∂V/∂σ
+        OptionParams params_vol = params;
+        params_vol.volatility += h_vol;
+        auto price_vol = price_option(params_vol, num_steps);
+        const double vega = (price_vol.value() - base_price.value()) / h_vol / 100.0;  // Per 1% vol change
+
+        // Rho: ∂V/∂r
+        OptionParams params_rate = params;
+        params_rate.risk_free_rate += 0.01;  // 1% rate change
+        auto price_rate = price_option(params_rate, num_steps);
+        const double rho = (price_rate.value() - base_price.value()) / 0.01 / 100.0;  // Per 1% rate change
+
+        return Greeks{
+            .delta = delta,
+            .gamma = gamma,
+            .theta = theta,
+            .vega = vega,
+            .rho = rho,
+            .price = base_price.value()
+        };
+    }
+};
+
+} // namespace valuation
+```
+
+### 14b.2 Black-Scholes Model (SECONDARY - European/Short-Term)
+
+**C++23 implementation with Intel MKL for CDF:**
+
+```cpp
+// File: src/valuation/black_scholes.hpp
+// Black-Scholes for European options (fast, analytic)
+
+#include <cmath>
+#include <mkl_vsl.h>
+
+namespace valuation {
+
+class BlackScholesPricer {
+public:
+    // Price European option (analytic formula)
+    static auto price_option(const OptionParams& params)
+        -> std::expected<double, Error> {
+
+        if (params.exercise_style != 'E') {
+            return std::unexpected(Error::NotEuropeanOption);
+        }
+
+        const double d1 = calculate_d1(params);
+        const double d2 = d1 - params.volatility * std::sqrt(params.time_to_expiry);
+
+        // Use Intel MKL for normal CDF (fast and accurate)
+        const double N_d1 = normal_cdf_mkl(d1);
+        const double N_d2 = normal_cdf_mkl(d2);
+        const double N_neg_d1 = normal_cdf_mkl(-d1);
+        const double N_neg_d2 = normal_cdf_mkl(-d2);
+
+        const double discount = std::exp(-params.risk_free_rate * params.time_to_expiry);
+        const double spot_discounted = params.spot_price * std::exp(-params.dividend_yield * params.time_to_expiry);
+
+        double price;
+
+        if (params.option_type == 'C') {
+            // Call: S·N(d₁) - K·e^(-rT)·N(d₂)
+            price = spot_discounted * N_d1 - params.strike_price * discount * N_d2;
+        } else {
+            // Put: K·e^(-rT)·N(-d₂) - S·N(-d₁)
+            price = params.strike_price * discount * N_neg_d2 - spot_discounted * N_neg_d1;
+        }
+
+        return price;
+    }
+
+    // Calculate Greeks (analytic formulas - fast!)
+    static auto calculate_greeks(const OptionParams& params)
+        -> std::expected<Greeks, Error> {
+
+        const double d1 = calculate_d1(params);
+        const double d2 = d1 - params.volatility * std::sqrt(params.time_to_expiry);
+
+        const double N_d1 = normal_cdf_mkl(d1);
+        const double N_d2 = normal_cdf_mkl(d2);
+        const double n_d1 = normal_pdf(d1);  // PDF for gamma/vega
+
+        const double sqrt_T = std::sqrt(params.time_to_expiry);
+        const double discount = std::exp(-params.risk_free_rate * params.time_to_expiry);
+        const double dividend_discount = std::exp(-params.dividend_yield * params.time_to_expiry);
+
+        // Delta
+        double delta;
+        if (params.option_type == 'C') {
+            delta = dividend_discount * N_d1;
+        } else {
+            delta = dividend_discount * (N_d1 - 1.0);
+        }
+
+        // Gamma (same for call and put)
+        const double gamma = (dividend_discount * n_d1) / (params.spot_price * params.volatility * sqrt_T);
+
+        // Vega (same for call and put)
+        const double vega = params.spot_price * dividend_discount * n_d1 * sqrt_T / 100.0;  // Per 1%
+
+        // Theta
+        double theta;
+        const double term1 = -(params.spot_price * n_d1 * params.volatility * dividend_discount) / (2.0 * sqrt_T);
+        const double term2 = params.risk_free_rate * params.strike_price * discount;
+        const double term3 = params.dividend_yield * params.spot_price * dividend_discount;
+
+        if (params.option_type == 'C') {
+            theta = (term1 - term2 * N_d2 + term3 * N_d1) / 365.0;  // Per day
+        } else {
+            theta = (term1 + term2 * (1.0 - N_d2) - term3 * (1.0 - N_d1)) / 365.0;
+        }
+
+        // Rho
+        double rho;
+        if (params.option_type == 'C') {
+            rho = params.strike_price * params.time_to_expiry * discount * N_d2 / 100.0;
+        } else {
+            rho = -params.strike_price * params.time_to_expiry * discount * (1.0 - N_d2) / 100.0;
+        }
+
+        // Calculate price
+        auto price = price_option(params);
+
+        return Greeks{
+            .delta = delta,
+            .gamma = gamma,
+            .theta = theta,
+            .vega = vega,
+            .rho = rho,
+            .price = price.value()
+        };
+    }
+
+private:
+    static double calculate_d1(const OptionParams& params) {
+        const double numerator = std::log(params.spot_price / params.strike_price) +
+                                (params.risk_free_rate - params.dividend_yield +
+                                 0.5 * params.volatility * params.volatility) * params.time_to_expiry;
+        const double denominator = params.volatility * std::sqrt(params.time_to_expiry);
+        return numerator / denominator;
+    }
+
+    static double normal_cdf_mkl(double x) {
+        // Use Intel MKL for fast, accurate normal CDF
+        double result;
+        vdCdfNorm(1, &x, &result);
+        return result;
+    }
+
+    static double normal_pdf(double x) {
+        // Standard normal PDF: φ(x) = (1/√2π)e^(-x²/2)
+        constexpr double inv_sqrt_2pi = 0.3989422804014327;
+        return inv_sqrt_2pi * std::exp(-0.5 * x * x);
+    }
+};
+
+} // namespace valuation
+```
+
+### 14b.3 Model Selection Logic
+
+**When to use each model:**
+
+```cpp
+// File: src/valuation/option_pricer.hpp
+// Intelligent model selection
+
+namespace valuation {
+
+class OptionPricer {
+public:
+    auto price_option_auto(const OptionParams& params)
+        -> std::expected<double, Error> {
+
+        // Decision logic for model selection
+        if (params.exercise_style == 'E' && params.time_to_expiry < 30.0/365.0) {
+            // European AND short-term (< 30 days): Use Black-Scholes (fastest)
+            BlackScholesPricer bs;
+            return bs.price_option(params);
+
+        } else if (params.exercise_style == 'A') {
+            // American: Use trinomial tree (handles early exercise)
+            TrinomialTreePricer trinomial;
+            return trinomial.price_option(params);
+
+        } else {
+            // European long-term: Trinomial for accuracy
+            TrinomialTreePricer trinomial;
+            return trinomial.price_option(params);
+        }
+    }
+
+    auto calculate_greeks_auto(const OptionParams& params)
+        -> std::expected<Greeks, Error> {
+
+        // Same logic for Greeks
+        if (params.exercise_style == 'E' && params.time_to_expiry < 30.0/365.0) {
+            BlackScholesPricer bs;
+            return bs.calculate_greeks(params);
+        } else {
+            TrinomialTreePricer trinomial;
+            return trinomial.calculate_greeks(params);
+        }
+    }
+};
+
+// Usage example
+auto example_option_pricing() {
+    OptionParams aapl_call{
+        .spot_price = 178.50,
+        .strike_price = 180.00,
+        .time_to_expiry = 30.0 / 365.0,  // 30 days
+        .risk_free_rate = 0.05,
+        .volatility = 0.25,
+        .dividend_yield = 0.005,
+        .option_type = 'C',
+        .exercise_style = 'A'  // American
+    };
+
+    OptionPricer pricer;
+
+    auto price = pricer.price_option_auto(aapl_call);
+    if (price.has_value()) {
+        std::cout << "Option price: $" << price.value() << std::endl;
+    }
+
+    auto greeks = pricer.calculate_greeks_auto(aapl_call);
+    if (greeks.has_value()) {
+        std::cout << "Delta: " << greeks.value().delta << std::endl;
+        std::cout << "Gamma: " << greeks.value().gamma << std::endl;
+        std::cout << "Theta: " << greeks.value().theta << "/day" << std::endl;
+        std::cout << "Vega: " << greeks.value().vega << "/1%" << std::endl;
+    }
+}
+
+} // namespace valuation
+```
+
+### 14b.4 Parallel Options Pricing (Portfolio-Level)
+
+**Price entire options portfolio in parallel:**
+
+```cpp
+// File: src/valuation/portfolio_pricer.hpp
+// Parallel pricing for multiple options
+
+#include <vector>
+#include <omp.h>
+
+namespace valuation {
+
+class PortfolioPricer {
+public:
+    // Price all options in portfolio (parallel with OpenMP)
+    auto price_all_options(
+        const std::vector<OptionParams>& options
+    ) -> std::vector<double> {
+
+        std::vector<double> prices(options.size());
+
+        #pragma omp parallel for schedule(dynamic)
+        for (size_t i = 0; i < options.size(); ++i) {
+            OptionPricer pricer;
+            auto result = pricer.price_option_auto(options[i]);
+
+            if (result.has_value()) {
+                prices[i] = result.value();
+            } else {
+                prices[i] = 0.0;  // Mark error
+            }
+        }
+
+        return prices;
+    }
+
+    // Calculate portfolio Greeks (parallel)
+    auto calculate_portfolio_greeks(
+        const std::vector<OptionParams>& options,
+        const std::vector<int>& positions  // +1 for long, -1 for short
+    ) -> PortfolioGreeks {
+
+        PortfolioGreeks total_greeks{};
+
+        #pragma omp parallel for reduction(+:total_greeks.delta, total_greeks.gamma, total_greeks.theta, total_greeks.vega, total_greeks.rho)
+        for (size_t i = 0; i < options.size(); ++i) {
+            OptionPricer pricer;
+            auto greeks = pricer.calculate_greeks_auto(options[i]);
+
+            if (greeks.has_value()) {
+                const int position = positions[i];  // +1 or -1
+
+                total_greeks.delta += greeks.value().delta * position;
+                total_greeks.gamma += greeks.value().gamma * position;
+                total_greeks.theta += greeks.value().theta * position;
+                total_greeks.vega += greeks.value().vega * position;
+                total_greeks.rho += greeks.value().rho * position;
+            }
+        }
+
+        return total_greeks;
+    }
+};
+
+} // namespace valuation
+```
+
+---
+
 ## 15. C++23 Order Execution Engine (Ultra-Low Latency)
 
 ### 15.1 High-Performance Order Management
