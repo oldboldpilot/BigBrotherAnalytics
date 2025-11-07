@@ -1,6 +1,6 @@
 # Product Requirements Document: BigBrotherAnalytics
 
-**Version:** 0.6.0
+**Version:** 0.7.0
 **Date:** November 6, 2025
 **Status:** Draft - Planning Phase
 **Author:** Olumuyiwa Oluwasanmi
@@ -879,6 +879,51 @@ The architecture document includes:
 ### 5.1 Overview
 
 A high-performance machine learning system that integrates insights from the Market Intelligence Engine and Correlation Analysis Tool to select trading opportunities, predict movements, and execute trading strategies. **Initial focus is on algorithmic options day trading**, with stock trading strategies to be developed subsequently.
+
+**📋 Complete Architecture:** For detailed system architecture, mathematical foundations (RL, DNN, GNN), explainability design, low-cost data sources, charting tools, and implementation guidelines, see the **[Intelligent Trading Decision Engine - Architecture Design Document](./architecture/intelligent-trading-decision-engine.md)**.
+
+The architecture document includes:
+- High-level system architecture with Mermaid diagrams (shared 64-core server deployment)
+- Mathematical foundations: Reinforcement Learning (PPO, DQN, A3C), Deep Neural Networks (Transformers, LSTMs), Graph Neural Networks
+- **Explainability & Interpretability Design** - NOT a black box! Every decision explained
+  - SHAP (SHapley Additive exPlanations) for feature attribution
+  - Attention mechanism visualization
+  - Decision tree extraction from neural networks
+  - Multi-level explanations (5 levels from executive summary to full analysis)
+  - Natural language generation for human-readable rationale
+- Fluent composable API design (C++23 builder pattern, consistent with other tools)
+- C++23 ultra-low latency order execution engine (< 10ms order submission)
+- Risk management with microsecond-level checks
+- Complete database schemas (PostgreSQL + TimescaleDB, DuckDB backtesting)
+- REST/WebSocket API specifications (OpenAPI 3.0)
+- **Low-cost historical data collection** (Yahoo Finance, FRED, SEC - all free)
+- **Charting & visualization stack** (Lightweight Charts, Plotly/Dash, Streamlit - all free)
+- Real-time trading dashboard with decision explanations
+- Message format design (JSON + zstd, consistent with other tools)
+- Shared infrastructure with Market Intelligence and Correlation tools (cores 43-63)
+- Quick 4-6 week POC guide (Python + DuckDB + simple models)
+- Portfolio optimization mathematics (Markowitz, Kelly Criterion)
+- Performance benchmarks: < 300ms end-to-end decision latency
+
+**Tier 1 Implementation Focus:**
+- Start with **simple rule-based logic** for POC (Week 1, $0 cost)
+- Add **XGBoost/LightGBM** with SHAP explainability (Week 2-3)
+- Add **Streamlit dashboard** for visualization (Week 4)
+- Implement **RL agent + DNN** after POC validation (Month 2+)
+- **Explainability-first:** Every decision must be explainable to humans
+
+**Shared Infrastructure:**
+- Same 64-128 core server as other two tools
+- Cores 43-63 (21 cores) allocated to Trading Decision Engine
+- Shared PostgreSQL/Redis/GPU (separate namespaces: td:*)
+- **Zero additional hardware cost** - uses existing server
+
+**Key Differentiator:**
+- **100% Explainable** - No black box AI
+- Every decision traceable with human-readable rationale
+- SHAP values, attention weights, decision trees
+- What-if scenario analysis
+- Full audit trail
 
 ### 5.2 Input Sources
 
@@ -3226,6 +3271,7 @@ Annual Savings: $60,280
 | 0.4.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | Major update: Added comprehensive data extraction technologies for all government departments and sectors (Congress, Treasury, USDA, FDA, EPA, HHS, etc.). Unified technology stack with PostgreSQL-centric architecture (TimescaleDB, pgvector, Apache AGE). Consolidated expensive tools into affordable open-source alternatives. Added detailed cost estimates ($250-1K/month vs $25K+/month). Removed Bloomberg Terminal and other expensive dependencies. |
 | 0.5.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Critical Addition: Zero-Fee Rapid Deployment Strategy.** Added DuckDB as embedded analytics database for instant prototyping without infrastructure setup. Created comprehensive "Quick Start" section with zero-subscription deployment path using only free data sources (Yahoo Finance, Alpha Vantage free tier, FRED, SEC, all government APIs). Added phased cost structure: $0/month Months 1-2 (validation), $200/month Month 3 (if validated), $250-1K Month 4+ (if profitable). Updated cost comparison to show three tiers: Enterprise ($300K/year), Production ($3-12K/year), Zero-Fee ($0/year initial). Includes complete code examples for DuckDB usage, Parquet file queries, and correlation analysis. Emphasizes validate-then-scale approach to minimize financial risk. |
 | 0.6.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Major Addition: Complete Architecture Documents for Both Core Tools.** Created comprehensive architecture design documents for Market Intelligence Engine and Trading Correlation Analysis Tool with 6,000+ lines of technical specifications. Added Tier 1 deployment stack with Homebrew (GCC 15+), uv (Python 3.14+), Ansible automation, OpenShift/Kubernetes support. Documented C++23/MPI/OpenMP/UPC++ implementations with fluent composable APIs. Added CUDA/cuBLAS/Intel MKL acceleration strategies. Created eBay hardware procurement guide for 64-128 core enterprise servers ($3-9K vs $20-40K new, 80-90% savings). Documented shared infrastructure design (both tools on same server, $3.5-9.7K total vs $7-19K separate). Added loose coupling architecture with API-only communication. Created 2-4 week POC guides using Python/DuckDB/CUDA before C++23 production implementation. Includes 20+ Mermaid diagrams, OpenAPI 3.0 specs, complete database schemas, and ready-to-execute code examples. Emphasizes consistent toolset across tools for maintainability. Total documentation: Market Intelligence (1,900 lines), Correlation Tool (3,300 lines). |
+| 0.7.0 | 2025-11-06 | Olumuyiwa Oluwasanmi | **Complete Platform Architecture: Added Trading Decision Engine.** Created comprehensive architecture design document (3,900+ lines) for Intelligent Trading Decision Engine completing the three-pillar platform. **Key Feature: 100% Explainable AI - NOT a black box.** Every trading decision includes multi-level explanations (SHAP, attention visualization, decision trees, natural language summaries). Added mathematical foundations: Reinforcement Learning (PPO/DQN/A3C), Deep Neural Networks (Transformers/LSTMs), Graph Neural Networks for impact propagation. Documented complete explainability framework with 5 explanation levels from executive summary to full analysis. Added low-cost historical data collection (Yahoo Finance, FRED, SEC EDGAR - all free). Comprehensive charting stack: Lightweight Charts (TradingView-like), Plotly/Dash dashboards, Streamlit prototyping (all free, $0 cost). C++23 ultra-low latency order execution (< 10ms). Shared infrastructure design: all three tools on single 64-core server (cores 0-21: MI, 22-42: Correlation, 43-63: Trading). Portfolio optimization with Markowitz framework and Kelly Criterion. Message format with JSON+zstd compression (consistent across all tools). 4-6 week POC guide with simple rules → XGBoost+SHAP → RL+DNN progression. Total platform documentation: 13,300+ lines across 4 documents (PRD + 3 architecture docs). Zero additional hardware cost - complete platform on single eBay server ($3.9-9.3K). Emphasizes explainability, interpretability, and human understanding of all AI decisions. |
 
 ---
 
