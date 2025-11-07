@@ -66,21 +66,33 @@
 - name: BigBrotherAnalytics - Complete Tier 1 Development Environment Setup
   hosts: localhost
   become: yes
+  module_defaults:
+    shell:
+      executable: /bin/bash
   vars:
     gcc_version: "15"
     python_version: "3.14"
     cuda_version: "13.0"              # Latest CUDA Toolkit
     pytorch_cuda_version: "cu130"      # PyTorch CUDA version string
     postgresql_version: "16"
-    gasnet_version: "2024.5.0"
-    upcxx_version: "2024.3.0"
+    gasnet_version: "2025.8.0"
+    upcxx_version: "2025.10.0"
     install_prefix: "/opt/berkeley"
     homebrew_prefix: "/home/linuxbrew/.linuxbrew"
-    project_dir: "/opt/bigbrother"
+    project_dir: "/home/{{ ansible_user_id }}/Development/BigBrotherAnalytics"
     num_build_jobs: "{{ ansible_processor_vcpus }}"
-    user: "{{ ansible_user_id }}"
 
   tasks:
+    # Get the real user (not root after become)
+    - name: Get the real user
+      shell: echo $USER
+      register: real_user_result
+      become: no
+      changed_when: false
+
+    - name: Set user variable
+      set_fact:
+        user: "{{ real_user_result.stdout }}"
     # ═══════════════════════════════════════════════════════════
     # SECTION 1: System Dependencies
     # ═══════════════════════════════════════════════════════════
@@ -123,6 +135,17 @@
         state: latest
       when: ansible_os_family == "RedHat"
 
+    - name: Check if systemd is available (for WSL compatibility)
+      shell: systemctl --version
+      register: systemd_check
+      failed_when: false
+      changed_when: false
+
+    - name: Detect if running in WSL
+      shell: grep -qi microsoft /proc/version && echo "true" || echo "false"
+      register: is_wsl
+      changed_when: false
+
     - name: Install base system dependencies (Ubuntu)
       apt:
         name:
@@ -136,23 +159,21 @@
           - python3
           - python3-pip
           - build-essential
-          - linux-headers-{{ ansible_kernel }}
           - pciutils
           - lshw
           - software-properties-common
         state: latest
       when: ansible_os_family == "Debian"
 
-    - name: Check if systemd is available (for WSL compatibility)
-      shell: systemctl --version
-      register: systemd_check
-      failed_when: false
-      changed_when: false
-
-    - name: Detect if running in WSL
-      shell: grep -qi microsoft /proc/version && echo "true" || echo "false"
-      register: is_wsl
-      changed_when: false
+    - name: Install kernel headers (Ubuntu, non-WSL)
+      apt:
+        name:
+          - linux-headers-{{ ansible_kernel }}
+        state: latest
+      when:
+        - ansible_os_family == "Debian"
+        - is_wsl.stdout == "false"
+      ignore_errors: yes
 
     - name: Display environment information
       debug:
@@ -207,8 +228,10 @@
           - automake
           - libtool
           - pkg-config
-          - llvm                       # LLVM 18+ (includes clang-tidy)
+          - llvm                       # LLVM 21+ (includes clang-tidy)
           - cppcheck                   # C++ static analyzer
+          - rustup                     # Rust toolchain manager
+          - rust                       # Rust compiler (installed via rustup)
         state: latest
       become_user: "{{ user }}"
       environment:
@@ -235,11 +258,14 @@
         owner: "{{ user }}"
         mode: '0755'
 
+    # GASNet/UPC++ are optional for Tier 1 POC - nice for scaling but not essential
+    # They're more relevant for Tier 2 when scaling to larger systems
     - name: Download GASNet-EX
       get_url:
-        url: "https://gasnet.lbl.gov/download/GASNet-{{ gasnet_version }}.tar.gz"
+        url: "https://gasnet.lbl.gov/EX/GASNet-{{ gasnet_version }}.tar.gz"
         dest: "/tmp/GASNet-{{ gasnet_version }}.tar.gz"
       become_user: "{{ user }}"
+      ignore_errors: yes
 
     - name: Extract GASNet-EX
       unarchive:
@@ -247,23 +273,26 @@
         dest: "/tmp/"
         remote_src: yes
       become_user: "{{ user }}"
+      ignore_errors: yes
 
     - name: Configure GASNet-EX
       shell: |
         {{ homebrew_prefix }}/bin/brew shellenv
         cd /tmp/GASNet-{{ gasnet_version }}
+        CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
+        CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
         ./configure \
           --prefix={{ install_prefix }}/gasnet \
           --enable-mpi \
+          --enable-smp \
+          --enable-udp \
+          --disable-seq \
           --enable-par \
-          --enable-pshm \
-          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
-          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++ \
-          CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
-          CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }}
+          --with-mpicc={{ homebrew_prefix }}/bin/mpicc
       become_user: "{{ user }}"
       args:
         creates: "/tmp/GASNet-{{ gasnet_version }}/Makefile"
+      ignore_errors: yes
 
     - name: Build and install GASNet-EX
       shell: |
@@ -273,12 +302,14 @@
       become_user: "{{ user }}"
       args:
         creates: "{{ install_prefix }}/gasnet/bin/gasnetrun_mpi"
+      ignore_errors: yes
 
     - name: Download UPC++
       get_url:
         url: "https://bitbucket.org/berkeleylab/upcxx/downloads/upcxx-{{ upcxx_version }}.tar.gz"
         dest: "/tmp/upcxx-{{ upcxx_version }}.tar.gz"
       become_user: "{{ user }}"
+      ignore_errors: yes
 
     - name: Extract UPC++
       unarchive:
@@ -286,6 +317,7 @@
         dest: "/tmp/"
         remote_src: yes
       become_user: "{{ user }}"
+      ignore_errors: yes
 
     - name: Install UPC++
       shell: |
@@ -299,6 +331,48 @@
       become_user: "{{ user }}"
       args:
         creates: "{{ install_prefix }}/upcxx/bin/upcxx"
+      ignore_errors: yes
+
+    # OpenSHMEM Installation
+    - name: Download OpenSHMEM
+      get_url:
+        url: "https://github.com/Sandia-OpenSHMEM/SOS/releases/download/v1.5.2/SOS-1.5.2.tar.gz"
+        dest: "/tmp/SOS-1.5.2.tar.gz"
+      become_user: "{{ user }}"
+      ignore_errors: yes
+
+    - name: Extract OpenSHMEM
+      unarchive:
+        src: "/tmp/SOS-1.5.2.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ user }}"
+      ignore_errors: yes
+
+    - name: Configure OpenSHMEM
+      shell: |
+        cd /tmp/SOS-1.5.2
+        CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
+        CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
+        ./configure \
+          --prefix={{ install_prefix }}/openshmem \
+          --enable-pmi-simple \
+          --enable-static \
+          --enable-shared
+      become_user: "{{ user }}"
+      args:
+        creates: "/tmp/SOS-1.5.2/Makefile"
+      ignore_errors: yes
+
+    - name: Build and install OpenSHMEM
+      shell: |
+        cd /tmp/SOS-1.5.2
+        make -j {{ num_build_jobs }}
+        make install
+      become_user: "{{ user }}"
+      args:
+        creates: "{{ install_prefix }}/openshmem/bin/oshcc"
+      ignore_errors: yes
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5: Intel MKL (Math Kernel Library)
@@ -384,27 +458,15 @@
     # SECTION 7: Python 3.14+ and uv Package Manager
     # ═══════════════════════════════════════════════════════════
 
-    - name: Install Python 3.14 via Homebrew
+    - name: Install Python 3.14 and uv via Homebrew
       homebrew:
-        name: python@{{ python_version }}
+        name:
+          - python@{{ python_version }}
+          - uv
         state: latest
       become_user: "{{ user }}"
       environment:
         PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
-
-    - name: Install uv (Rust-based Python package manager)
-      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
-      become_user: "{{ user }}"
-      args:
-        creates: "/home/{{ user }}/.cargo/bin/uv"
-
-    - name: Install Ansible via uv (for future playbook runs)
-      shell: |
-        source ~/.cargo/env
-        ~/.cargo/bin/uv pip install --system ansible
-      become_user: "{{ user }}"
-      args:
-        creates: "/home/{{ user }}/.local/bin/ansible"
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 8: DuckDB (Embedded Analytics Database)
@@ -492,21 +554,19 @@
         version: master
       become_user: "{{ user }}"
 
-    - name: Create Python virtual environment with uv
+    - name: Initialize uv project (creates pyproject.toml)
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        ~/.cargo/bin/uv venv --python {{ python_version }}
+        {{ homebrew_prefix }}/bin/uv init --python {{ python_version }} --no-readme
       become_user: "{{ user }}"
       args:
-        creates: "{{ project_dir }}/.venv"
+        creates: "{{ project_dir }}/pyproject.toml"
+      ignore_errors: yes
 
-    - name: Install core Python packages
+    - name: Install core Python packages via uv
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
+        {{ homebrew_prefix }}/bin/uv add \
           numpy scipy pandas polars pyarrow \
           matplotlib seaborn plotly \
           scikit-learn xgboost lightgbm \
@@ -514,38 +574,28 @@
           fastapi uvicorn pydantic \
           streamlit dash jupyter jupyterlab
       become_user: "{{ user }}"
-      # NOTE: Removed psycopg2-binary (PostgreSQL) and redis for Tier 1
-      #       DuckDB is the primary database - zero setup, embedded!
+      # NOTE: Using uv project management - no venv needed!
+      #       All code runs with: uv run python script.py
 
-    - name: Install Python static analysis tools
+    - name: Install Python static analysis tools via uv
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
+        {{ homebrew_prefix }}/bin/uv add --dev \
           mypy pylint pytype \
           black isort flake8 \
           pre-commit
       become_user: "{{ user }}"
 
-    - name: Install PyTorch with CUDA 13.0 support
+    - name: Install PyTorch via uv (CPU version for WSL2)
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        {% if nvidia_check.rc == 0 %}
-        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/{{ pytorch_cuda_version }}
-        {% else %}
-        ~/.cargo/bin/uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        {% endif %}
+        {{ homebrew_prefix }}/bin/uv add torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
       become_user: "{{ user }}"
 
-    - name: Install ML/AI frameworks
+    - name: Install ML/AI frameworks via uv
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
+        {{ homebrew_prefix }}/bin/uv add \
           transformers accelerate \
           sentence-transformers \
           stable-baselines3 \
@@ -557,31 +607,16 @@
           nltk
       become_user: "{{ user }}"
 
-    - name: Install GPU-accelerated libraries (if NVIDIA GPU present)
-      shell: |
-        source ~/.cargo/env
-        cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
-          cupy-cuda13x \
-          nvidia-ml-py3
-      become_user: "{{ user }}"
-      when: nvidia_check.rc == 0
-
     - name: Download spaCy English model
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        python -m spacy download en_core_web_lg
+        {{ homebrew_prefix }}/bin/uv run python -m spacy download en_core_web_lg
       become_user: "{{ user }}"
 
-    - name: Install web scraping and data collection tools
+    - name: Install web scraping and data collection tools via uv
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
+        {{ homebrew_prefix }}/bin/uv add \
           scrapy playwright beautifulsoup4 \
           yfinance alpha-vantage fredapi \
           requests aiohttp httpx \
@@ -592,16 +627,13 @@
     - name: Install Playwright browsers
       shell: |
         cd {{ project_dir }}
-        source .venv/bin/activate
-        playwright install chromium
+        {{ homebrew_prefix }}/bin/uv run playwright install chromium
       become_user: "{{ user }}"
 
-    - name: Install monitoring and observability tools
+    - name: Install monitoring and observability tools via uv
       shell: |
-        source ~/.cargo/env
         cd {{ project_dir }}
-        source .venv/bin/activate
-        ~/.cargo/bin/uv pip install \
+        {{ homebrew_prefix }}/bin/uv add \
           prometheus-client \
           sentry-sdk \
           python-json-logger
@@ -638,9 +670,11 @@
           # Berkeley PGAS Components
           export BERKELEY_PREFIX={{ install_prefix }}
           export GASNET_HOME={{ install_prefix }}/gasnet
+          export GASNET_INSTALL={{ install_prefix }}/gasnet
           export UPCXX_INSTALL={{ install_prefix }}/upcxx
-          export PATH={{ install_prefix }}/upcxx/bin:{{ install_prefix }}/gasnet/bin:$PATH
-          export LD_LIBRARY_PATH={{ install_prefix }}/upcxx/lib:{{ install_prefix }}/gasnet/lib:$LD_LIBRARY_PATH
+          export OPENSHMEM_INSTALL={{ install_prefix }}/openshmem
+          export PATH={{ install_prefix }}/upcxx/bin:{{ install_prefix }}/gasnet/bin:{{ install_prefix }}/openshmem/bin:$PATH
+          export LD_LIBRARY_PATH={{ install_prefix }}/upcxx/lib:{{ install_prefix }}/gasnet/lib:{{ install_prefix }}/openshmem/lib:$LD_LIBRARY_PATH
           export UPCXX_GASNET_CONDUIT=mpi
           export UPCXX_NETWORK=mpi
 
@@ -654,12 +688,10 @@
           # Intel MKL
           source /opt/intel/oneapi/setvars.sh --force > /dev/null 2>&1
 
-          # Python
-          export PYTHON_ENV={{ project_dir }}/.venv
-          alias activate-bigbrother='source {{ project_dir }}/.venv/bin/activate'
-
-          # Project
+          # Python (uv-managed, no venv activation needed)
           export BIGBROTHER_HOME={{ project_dir }}
+          alias bb='cd {{ project_dir }}'
+          alias bbrun='cd {{ project_dir }} && uv run'
         mode: '0644'
 
     # ═══════════════════════════════════════════════════════════
@@ -742,33 +774,28 @@
           # Check Python
           echo "PYTHON:"
           check_command "python{{ python_version }}" "Python {{ python_version }}"
-          check_command "~/.cargo/bin/uv" "uv package manager"
+          check_command "{{ homebrew_prefix }}/bin/uv" "uv package manager"
           echo ""
 
-          # Activate venv and check Python packages
-          if [ -f "{{ project_dir }}/.venv/bin/activate" ]; then
-              source {{ project_dir }}/.venv/bin/activate
+          # Check Python packages using uv (no venv activation needed!)
+          cd {{ project_dir }}
+          echo "PYTHON PACKAGES (via uv):"
+          uv run python -c "import numpy; print(f'✓ NumPy: {numpy.__version__}')" 2>/dev/null || echo "✗ NumPy"
+          uv run python -c "import pandas; print(f'✓ Pandas: {pandas.__version__}')" 2>/dev/null || echo "✗ Pandas"
+          uv run python -c "import torch; print(f'✓ PyTorch: {torch.__version__}')" 2>/dev/null || echo "✗ PyTorch"
+          uv run python -c "import torch; print(f'  CUDA Available: {torch.cuda.is_available()}')" 2>/dev/null
+          uv run python -c "import transformers; print(f'✓ Transformers: {transformers.__version__}')" 2>/dev/null || echo "✗ Transformers"
+          uv run python -c "import duckdb; print(f'✓ DuckDB: {duckdb.__version__}')" 2>/dev/null || echo "✗ DuckDB"
+          uv run python -c "import xgboost; print(f'✓ XGBoost: {xgboost.__version__}')" 2>/dev/null || echo "✗ XGBoost"
+          uv run python -c "import shap; print(f'✓ SHAP: {shap.__version__}')" 2>/dev/null || echo "✗ SHAP"
+          uv run python -c "import stable_baselines3; print(f'✓ Stable-Baselines3: {stable_baselines3.__version__}')" 2>/dev/null || echo "✗ SB3"
+          echo ""
 
-              echo "PYTHON PACKAGES:"
-              python -c "import numpy; print(f'✓ NumPy: {numpy.__version__}')" 2>/dev/null || echo "✗ NumPy"
-              python -c "import pandas; print(f'✓ Pandas: {pandas.__version__}')" 2>/dev/null || echo "✗ Pandas"
-              python -c "import torch; print(f'✓ PyTorch: {torch.__version__}')" 2>/dev/null || echo "✗ PyTorch"
-              python -c "import torch; print(f'  CUDA Available: {torch.cuda.is_available()}')" 2>/dev/null
-              python -c "import transformers; print(f'✓ Transformers: {transformers.__version__}')" 2>/dev/null || echo "✗ Transformers"
-              python -c "import duckdb; print(f'✓ DuckDB: {duckdb.__version__}')" 2>/dev/null || echo "✗ DuckDB"
-              python -c "import xgboost; print(f'✓ XGBoost: {xgboost.__version__}')" 2>/dev/null || echo "✗ XGBoost"
-              python -c "import shap; print(f'✓ SHAP: {shap.__version__}')" 2>/dev/null || echo "✗ SHAP"
-              python -c "import stable_baselines3; print(f'✓ Stable-Baselines3: {stable_baselines3.__version__}')" 2>/dev/null || echo "✗ SB3"
-              echo ""
-
-              echo "PYTHON STATIC ANALYSIS TOOLS:"
-              python -c "import mypy; print(f'✓ mypy: {mypy.__version__}')" 2>/dev/null || echo "✗ mypy"
-              check_command "pylint" "pylint"
-              check_command "pytype" "pytype"
-              echo ""
-
-              deactivate
-          fi
+          echo "PYTHON STATIC ANALYSIS TOOLS:"
+          check_command "mypy" "mypy"
+          check_command "pylint" "pylint"
+          check_command "pytype" "pytype"
+          echo ""
 
           # Summary
           echo "═══════════════════════════════════════════════════════════"
@@ -777,12 +804,12 @@
           echo "To activate environment:"
           echo "  source /etc/profile.d/bigbrother_env.sh"
           echo "  cd {{ project_dir }}"
-          echo "  source .venv/bin/activate"
           echo ""
-          echo "To start development:"
+          echo "To start development (no venv activation needed!):"
           echo "  cd {{ project_dir }}"
-          echo "  source .venv/bin/activate"
-          echo "  jupyter lab  # or streamlit run scripts/dashboard.py"
+          echo "  uv run python script.py        # Run any Python script"
+          echo "  uv run jupyter lab             # Launch Jupyter"
+          echo "  uv run streamlit run app.py    # Run Streamlit apps"
           echo "═══════════════════════════════════════════════════════════"
         mode: '0755'
         owner: "{{ user }}"
@@ -860,16 +887,16 @@
 
           ## Getting Started
 
-          ### 1. Activate Environment
+          ### 1. Set Up Environment
           ```bash
           source /etc/profile.d/bigbrother_env.sh
           cd {{ project_dir }}
-          source .venv/bin/activate
+          # No venv activation needed with uv!
           ```
 
           ### 2. Collect Free Historical Data
           ```bash
-          python scripts/collect_free_data.py
+          uv run python scripts/collect_free_data.py
           # Downloads 10 years of data from Yahoo Finance, FRED, SEC
           # Takes ~3 hours, completely free
           ```
@@ -878,29 +905,29 @@
 
           **Market Intelligence Engine POC:**
           ```bash
-          python poc/mi_simple_poc.py
+          uv run python poc/mi_simple_poc.py
           ```
 
           **Correlation Analysis Tool POC:**
           ```bash
-          python poc/correlation_poc.py
+          uv run python poc/correlation_poc.py
           ```
 
           **Trading Decision Engine POC:**
           ```bash
-          python poc/trading_simple_poc.py
+          uv run python poc/trading_simple_poc.py
           ```
 
           ### 4. Launch Dashboard
           ```bash
-          streamlit run poc/trading_dashboard_poc.py
+          uv run streamlit run poc/trading_dashboard_poc.py
           # Open browser to http://localhost:8501
           ```
 
           ### 5. Run Validation Framework
           ```bash
-          python scripts/run_backtest.py
-          python scripts/walk_forward_validation.py
+          uv run python scripts/run_backtest.py
+          uv run python scripts/walk_forward_validation.py
           ```
 
           ## Next Steps
@@ -957,6 +984,9 @@
           NOTE: Using DuckDB-first approach for rapid validation
                 PostgreSQL/Redis deferred until Tier 2 (after profitability)
 
+          NOTE: Using modern uv workflow - no venv activation needed!
+                All Python code runs with: uv run python script.py
+
           Installation Directory: {{ project_dir }}
           Quick Start Guide: {{ project_dir }}/QUICKSTART.md
           Verification: {{ project_dir }}/scripts/verify_complete_setup.sh
@@ -964,9 +994,8 @@
           Next Steps:
             1. source /etc/profile.d/bigbrother_env.sh
             2. cd {{ project_dir }}
-            3. source .venv/bin/activate
-            4. Read QUICKSTART.md
-            5. Start with: python scripts/collect_free_data.py
+            3. Read QUICKSTART.md
+            4. Start with: uv run python scripts/collect_free_data.py
 
           Total Cost: $0 (100% open-source)
           Ready for Tier 1 POC!
