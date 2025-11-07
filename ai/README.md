@@ -437,6 +437,140 @@ metrics = {
 
 ---
 
+## Getting Started After Cloning Repository
+
+When you clone this repository to a new machine, the AI orchestration system is immediately available:
+
+### 1. Verify AI System Files
+```bash
+cd BigBrotherAnalytics
+ls -la ai/
+
+# You should see:
+# - README.md (this file)
+# - CLAUDE.md (AI assistant guide)
+# - MANIFEST.md (project goals)
+# - IMPLEMENTATION_PLAN.md (task breakdown)
+# - PROMPTS/ (7 agent prompts)
+# - WORKFLOWS/ (2 workflow guides)
+```
+
+### 2. Using AI Agents on New Machine
+
+The AI agents are **self-contained markdown files** that work immediately after cloning:
+
+**For Simple Tasks:**
+```
+When working with an AI assistant (like Claude Code), reference the prompts:
+
+"Please implement the correlation engine using the File Creator prompt
+from ai/PROMPTS/file_creator.md"
+```
+
+**For Complex Tasks:**
+```
+"Please orchestrate the implementation of the Options Pricing Engine
+using the ai/PROMPTS/orchestrator.md workflow"
+```
+
+**Quick Reference:**
+```
+Always loaded: ai/CLAUDE.md (AI assistant will read this automatically)
+Task planning: ai/IMPLEMENTATION_PLAN.md
+Agent prompts: ai/PROMPTS/*.md
+Workflows: ai/WORKFLOWS/*.md
+```
+
+### 3. Portability Checklist
+
+✅ **Already Portable (No Setup Needed):**
+- All AI agent prompts (markdown files)
+- Architecture documentation
+- PRD with complete requirements
+- Workflow guides
+- Implementation plans
+
+⏸️ **Requires Setup on New Machine:**
+- Development environment (run Ansible playbook)
+- C++23 compiler (GCC 15)
+- Python 3.14+
+- DuckDB
+- Build tools
+
+**Setup Command:**
+```bash
+cd BigBrotherAnalytics
+ansible-playbook playbooks/complete-tier1-setup.yml
+```
+
+### 4. Verifying AI System After Clone
+
+```bash
+# Verify all AI files present
+test -d ai/PROMPTS && test -d ai/WORKFLOWS && echo "✅ AI system complete"
+
+# Count documentation
+find ai/ -name "*.md" | wc -l  # Should be 13 files
+
+# Total lines
+wc -l ai/**/*.md ai/*.md | tail -1  # Should be ~5,200 lines
+```
+
+### 5. Using on Different Machines
+
+**Laptop/Workstation:**
+```bash
+git clone https://github.com/oldboldpilot/BigBrotherAnalytics.git
+cd BigBrotherAnalytics
+
+# AI agents work immediately - no installation needed
+# Just reference ai/PROMPTS/*.md when working with AI assistants
+```
+
+**Production Server:**
+```bash
+git clone https://github.com/oldboldpilot/BigBrotherAnalytics.git
+cd BigBrotherAnalytics
+
+# 1. AI agents work immediately
+# 2. Install development environment:
+ansible-playbook playbooks/complete-tier1-setup.yml
+
+# 3. Start implementing with AI agents:
+#    "Please implement correlation engine using ai/PROMPTS/file_creator.md"
+```
+
+**Team Collaboration:**
+- All team members have access to same AI agent prompts
+- Consistent code generation standards across team
+- Shared workflows for features and bug fixes
+- Version controlled AI instructions (in git)
+
+---
+
+## Transferability Guarantees
+
+✅ **All AI agents are:**
+- Pure markdown files (no external dependencies)
+- Version controlled in git
+- Self-contained with complete examples
+- Platform independent
+- Ready to use immediately after `git clone`
+
+✅ **All requirements documented:**
+- PRD has complete C++23 standards
+- Architecture docs have fluent API patterns
+- File Creator has comprehensive examples
+- Standards are enforceable with static analysis tools
+
+✅ **Works across:**
+- Linux, macOS, Windows (WSL2)
+- Different hardware (laptop to 64-core server)
+- Different AI assistants (any can read the prompts)
+- Team environments (consistent standards for all developers)
+
+---
+
 ## Version History
 
 **v1.0.0 (2025-11-06):**
@@ -444,7 +578,14 @@ metrics = {
 - 7 specialized agents
 - 2 complete workflows
 - Self-correction with git hooks
+- Complete C++23 modern standards
+- Fluent API requirements
+- C++ Core Guidelines compliance
+- STL-first approach
+- **Fully portable and transferrable**
 
 ---
 
 **For questions or issues with the AI orchestration system, consult this README or the specific agent/workflow documentation.**
+
+**The AI orchestration system is now ready to use on ANY machine after a simple `git clone`.**
