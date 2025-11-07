@@ -3,6 +3,7 @@
 #include "correlation.hpp"
 #include <optional>
 #include <initializer_list>
+#include <unordered_map>
 
 namespace bigbrother::correlation {
 
@@ -68,7 +69,7 @@ public:
     }
 
     // Data source
-    [[nodiscard]] auto using_(std::map<std::string, TimeSeries> data) noexcept
+    [[nodiscard]] auto using_(std::unordered_map<std::string, TimeSeries> data) noexcept
         -> CorrelationAnalyzer& {
         data_ = std::move(data);
         return *this;
@@ -298,7 +299,7 @@ private:
     std::string symbol1_;
     std::string symbol2_;
     std::vector<std::string> symbols_;
-    std::map<std::string, TimeSeries> data_;
+    std::unordered_map<std::string, TimeSeries> data_;
     CorrelationType type_{CorrelationType::Pearson};
     bool use_lagged_{false};
     bool use_rolling_{false};
@@ -314,7 +315,7 @@ private:
 [[nodiscard]] inline auto calculateCorrelation(
     std::string const& symbol1,
     std::string const& symbol2,
-    std::map<std::string, TimeSeries> const& data
+    std::unordered_map<std::string, TimeSeries> const& data
 ) -> Result<double> {
     return CorrelationAnalyzer()
         .between(symbol1, symbol2)
@@ -327,7 +328,7 @@ private:
 [[nodiscard]] inline auto findOptimalLag(
     std::string const& symbol1,
     std::string const& symbol2,
-    std::map<std::string, TimeSeries> const& data,
+    std::unordered_map<std::string, TimeSeries> const& data,
     int max_lag = 30
 ) -> Result<std::pair<int, double>> {
     return CorrelationAnalyzer()
@@ -340,7 +341,7 @@ private:
 // Build correlation matrix for portfolio
 [[nodiscard]] inline auto buildCorrelationMatrix(
     std::vector<std::string> const& symbols,
-    std::map<std::string, TimeSeries> const& data
+    std::unordered_map<std::string, TimeSeries> const& data
 ) -> Result<CorrelationMatrix> {
     return CorrelationAnalyzer()
         .forSymbols(symbols)

@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <unordered_map>
 #include <chrono>
 
 namespace bigbrother::strategy {
@@ -58,9 +59,9 @@ struct TradingSignal {
  */
 struct StrategyContext {
     // Market data
-    std::map<std::string, Quote> current_quotes;
-    std::map<std::string, std::vector<Bar>> historical_bars;
-    std::map<std::string, schwab::OptionsChainData> options_chains;
+    std::unordered_map<std::string, Quote> current_quotes;
+    std::unordered_map<std::string, std::vector<Bar>> historical_bars;
+    std::unordered_map<std::string, schwab::OptionsChainData> options_chains;
 
     // Correlation data
     std::shared_ptr<correlation::CorrelationMatrix> correlation_matrix;

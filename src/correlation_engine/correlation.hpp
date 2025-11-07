@@ -5,6 +5,7 @@
 #include <vector>
 #include <span>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <concepts>
 #include <ranges>
@@ -402,7 +403,7 @@ public:
      */
     [[nodiscard]] static auto calculateIntraSectorCorrelation(
         std::vector<std::string> const& sector_symbols,
-        std::map<std::string, TimeSeries> const& prices
+        std::unordered_map<std::string, TimeSeries> const& prices
     ) -> Result<double>;
 
     /**
@@ -419,7 +420,7 @@ public:
     [[nodiscard]] static auto detectSectorRotation(
         std::vector<std::string> const& sector1_symbols,
         std::vector<std::string> const& sector2_symbols,
-        std::map<std::string, TimeSeries> const& prices
+        std::unordered_map<std::string, TimeSeries> const& prices
     ) -> std::optional<CorrelationSignalGenerator::CorrelationSignal>;
 };
 

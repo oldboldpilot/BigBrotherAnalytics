@@ -6,6 +6,7 @@
 #include <optional>
 #include <variant>
 #include <map>
+#include <unordered_map>
 
 namespace bigbrother {
 namespace utils {
@@ -31,7 +32,7 @@ using DBValue = std::variant<
  * Represents a single row from a query result.
  * Maps column names to their values.
  */
-using DBRow = std::map<std::string, DBValue>;
+using DBRow = std::unordered_map<std::string, DBValue>;
 
 /**
  * Database Result Set
