@@ -1,13 +1,21 @@
 /**
  * Risk Manager Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
  * Thread-safe risk management for algorithmic trading.
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.risk_management;
-import bigbrother.utils.logger;
+// Global module fragment
+module;
 
 #include <algorithm>
+
+// Module implementation unit declaration
+module bigbrother.risk_management;
+
+import bigbrother.utils.logger;
 
 namespace bigbrother::risk {
 

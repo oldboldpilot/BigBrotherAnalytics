@@ -304,17 +304,55 @@ auto process_prices(std::vector<Price> const& prices) -> double {
 
 ## 6. Performance Guidelines
 
-### Cache-Friendly Containers:
-```cpp
-// ✅ Use std::flat_map for small, frequent lookups
-std::flat_map<std::string, Price> prices;
+### Container Selection (CRITICAL for Performance)
 
-// ✅ Use std::vector by default
+**Rule:** Prefer `std::unordered_map` over `std::map` for speed and flexibility unless ordering is required.
+
+#### ✅ Preferred - std::unordered_map (O(1) average):
+```cpp
+// ✅ PREFERRED: Fast lookups, insertions (O(1) average)
+std::unordered_map<std::string, Price> price_cache;
+std::unordered_map<Symbol, QuoteData> market_data;
+std::unordered_map<int, Trade> trade_history;
+
+// For custom key types, provide hash function:
+struct PairHash {
+    auto operator()(std::pair<std::string, std::string> const& p) const noexcept -> size_t {
+        auto h1 = std::hash<std::string>{}(p.first);
+        auto h2 = std::hash<std::string>{}(p.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+std::unordered_map<std::pair<std::string, std::string>, double, PairHash> correlations;
+```
+
+#### ⚠️ Use std::map only when ordering required (O(log n)):
+```cpp
+// ⚠️ Only when you need sorted iteration
+std::map<Timestamp, Trade> time_ordered_trades;  // Need chronological order
+std::map<Price, int> price_ladder;  // Need price-ordered book
+```
+
+#### Additional Container Guidelines:
+```cpp
+// ✅ Use std::vector by default for sequences
 std::vector<Trade> trades;
 
-// ⚠️ Use std::unordered_map only for large datasets
-std::unordered_map<Symbol, QuoteData> market_data;
+// ✅ Use std::flat_map (C++23) for small, cache-friendly maps
+std::flat_map<std::string, Price> small_lookup;  // < 100 entries
 ```
+
+**Rationale:**
+- `unordered_map` is **faster** for most use cases (O(1) vs O(log n))
+- More **flexible** - doesn't require operator< on keys
+- Better for **real-time trading** where latency matters
+- Only use `map` when you explicitly need sorted iteration
+
+**Enforcement:**
+- CodeQL checks prefer unordered_map usage
+- Reviewers will question map usage without justification
+- Pre-commit hooks suggest unordered_map alternatives
 
 ### Move Semantics:
 ```cpp

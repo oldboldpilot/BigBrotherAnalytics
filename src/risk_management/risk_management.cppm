@@ -24,6 +24,7 @@ module;
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <expected>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -433,14 +434,15 @@ class RiskManager {
 public:
     explicit RiskManager(RiskLimits limits = RiskLimits::forThirtyKAccount())
         : limits_{limits}, daily_pnl_{0.0}, daily_loss_remaining_{limits.max_daily_loss} {
-        limits_.validate();
+        auto result = limits_.validate();
+        (void)result;  // Suppress nodiscard - constructor can't fail
     }
 
-    // C.21: Rule of Five
+    // C.21: Rule of Five - deleted due to mutex member in pImpl
     RiskManager(RiskManager const&) = delete;
     auto operator=(RiskManager const&) -> RiskManager& = delete;
-    RiskManager(RiskManager&&) noexcept = default;
-    auto operator=(RiskManager&&) noexcept -> RiskManager& = default;
+    RiskManager(RiskManager&&) noexcept = delete;
+    auto operator=(RiskManager&&) noexcept -> RiskManager& = delete;
     ~RiskManager() = default;
 
     // Fluent API

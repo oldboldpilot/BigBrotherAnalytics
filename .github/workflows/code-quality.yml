@@ -71,6 +71,38 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
 
+  container-selection-check:
+    name: Container Selection (unordered_map preferred)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check for std::map usage
+      run: |
+        echo "🔍 Checking for std::map usage (prefer std::unordered_map)..."
+
+        map_usage=$(grep -rn "std::map<" src/ --include="*.cpp" --include="*.cppm" | grep -v "std::unordered_map\|Timestamp.*Trade\|Price.*int\|// JUSTIFIED:" || true)
+
+        if [ -n "$map_usage" ]; then
+          echo "⚠️  Found std::map usage - consider std::unordered_map for better performance:"
+          echo "$map_usage"
+          echo ""
+          echo "💡 std::unordered_map is preferred for:"
+          echo "  - O(1) average lookup vs O(log n)"
+          echo "  - Better performance in real-time trading"
+          echo "  - More flexible (no operator< required)"
+          echo ""
+          echo "📚 Only use std::map when you need:"
+          echo "  - Sorted iteration (time-ordered, price-ordered)"
+          echo "  - Range queries"
+          echo ""
+          echo "To justify std::map usage, add comment: // JUSTIFIED: need sorted order"
+        else
+          echo "✅ All maps use unordered_map (preferred for performance)"
+        fi
+
   cpp-standards-check:
     name: C++23 Standards Enforcement
     runs-on: ubuntu-latest

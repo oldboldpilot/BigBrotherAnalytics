@@ -23,6 +23,7 @@ module;
 #include <atomic>
 #include <mutex>
 #include <optional>
+#include <expected>
 
 // Module declaration
 export module bigbrother.schwab_api;
@@ -71,6 +72,38 @@ struct OAuth2Config {
 // ============================================================================
 // Market Data Types
 // ============================================================================
+
+/**
+ * Market Quote Data
+ */
+struct Quote {
+    std::string symbol;
+    Price bid{0.0};
+    Price ask{0.0};
+    Price last{0.0};
+    Volume volume{0};
+    Timestamp timestamp{0};
+
+    [[nodiscard]] constexpr auto midPrice() const noexcept -> Price {
+        return (bid + ask) / 2.0;
+    }
+
+    [[nodiscard]] constexpr auto spread() const noexcept -> Price {
+        return ask - bid;
+    }
+};
+
+/**
+ * Option Contract Specification
+ */
+struct OptionContract {
+    std::string symbol;           // Option symbol (e.g., "SPY250117C00580000")
+    std::string underlying;       // Underlying symbol (e.g., "SPY")
+    OptionType type{OptionType::Call};
+    Price strike{0.0};
+    Timestamp expiration{0};
+    int contract_size{100};       // Shares per contract
+};
 
 struct OptionsChainRequest {
     std::string symbol;
@@ -190,11 +223,11 @@ public:
     explicit TokenManager(OAuth2Config config)
         : config_{std::move(config)}, refreshing_{false} {}
 
-    // C.21: Rule of Five
+    // C.21: Rule of Five - deleted due to mutex member
     TokenManager(TokenManager const&) = delete;
     auto operator=(TokenManager const&) -> TokenManager& = delete;
-    TokenManager(TokenManager&&) noexcept = default;
-    auto operator=(TokenManager&&) noexcept -> TokenManager& = default;
+    TokenManager(TokenManager&&) noexcept = delete;
+    auto operator=(TokenManager&&) noexcept -> TokenManager& = delete;
     ~TokenManager() = default;
 
     // Fluent API
@@ -288,11 +321,11 @@ public:
     explicit OrderManager(std::shared_ptr<TokenManager> token_mgr)
         : token_mgr_{std::move(token_mgr)}, order_counter_{0} {}
 
-    // C.21: Rule of Five
+    // C.21: Rule of Five - deleted due to mutex member
     OrderManager(OrderManager const&) = delete;
     auto operator=(OrderManager const&) -> OrderManager& = delete;
-    OrderManager(OrderManager&&) noexcept = default;
-    auto operator=(OrderManager&&) noexcept -> OrderManager& = default;
+    OrderManager(OrderManager&&) noexcept = delete;
+    auto operator=(OrderManager&&) noexcept -> OrderManager& = delete;
     ~OrderManager() = default;
 
     // Fluent API
@@ -391,10 +424,11 @@ public:
         : token_mgr_{std::move(token_mgr)}, connected_{false} {}
 
     // C.21: Rule of Five
+    // C.21: Rule of Five - deleted due to atomic member
     WebSocketClient(WebSocketClient const&) = delete;
     auto operator=(WebSocketClient const&) -> WebSocketClient& = delete;
-    WebSocketClient(WebSocketClient&&) noexcept = default;
-    auto operator=(WebSocketClient&&) noexcept -> WebSocketClient& = default;
+    WebSocketClient(WebSocketClient&&) noexcept = delete;
+    auto operator=(WebSocketClient&&) noexcept -> WebSocketClient& = delete;
     ~WebSocketClient() { disconnect(); }
 
     [[nodiscard]] auto connect() -> Result<void> {
@@ -437,10 +471,11 @@ public:
           websocket_{token_mgr_} {}
 
     // C.21: Rule of Five
+    // C.21: Rule of Five - deleted due to non-moveable members
     SchwabClient(SchwabClient const&) = delete;
     auto operator=(SchwabClient const&) -> SchwabClient& = delete;
-    SchwabClient(SchwabClient&&) noexcept = default;
-    auto operator=(SchwabClient&&) noexcept -> SchwabClient& = default;
+    SchwabClient(SchwabClient&&) noexcept = delete;
+    auto operator=(SchwabClient&&) noexcept -> SchwabClient& = delete;
     ~SchwabClient() = default;
 
     // Fluent API accessors

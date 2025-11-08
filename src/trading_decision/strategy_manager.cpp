@@ -1,12 +1,20 @@
 /**
  * Strategy Manager Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.strategies;
-import bigbrother.utils.logger;
+// Global module fragment
+module;
 
 #include <algorithm>
+
+// Module implementation unit declaration
+module bigbrother.strategies;
+
+import bigbrother.utils.logger;
 
 namespace bigbrother::strategy {
 

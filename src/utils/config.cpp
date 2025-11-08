@@ -1,10 +1,13 @@
 /**
  * Config Module Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.utils.config;
-import bigbrother.utils.logger;
+// Global module fragment - standard library headers MUST go here
+module;
 
 #include <fstream>
 #include <sstream>
@@ -15,6 +18,11 @@ import bigbrother.utils.logger;
 #ifdef HAS_YAML_CPP
 #include <yaml-cpp/yaml.h>
 #endif
+
+// Module implementation unit declaration
+module bigbrother.utils.config;
+
+import bigbrother.utils.logger;
 
 namespace bigbrother {
 namespace utils {

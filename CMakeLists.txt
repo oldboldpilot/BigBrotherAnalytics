@@ -88,7 +88,7 @@ find_package(yaml-cpp)
 add_library(utils SHARED
     src/utils/logger.cpp
     src/utils/config.cpp
-    src/utils/database.cpp
+    # database.cpp removed - stub implementation in database.cppm module
 )
 
 # C++23 modules with trailing return syntax and fluent APIs
@@ -290,6 +290,7 @@ target_compile_options(schwab_api PRIVATE -fmodule-output)
 target_link_libraries(schwab_api
     PUBLIC
     utils
+    options_pricing
     CURL::libcurl
     OpenMP::OpenMP_CXX
     Threads::Threads

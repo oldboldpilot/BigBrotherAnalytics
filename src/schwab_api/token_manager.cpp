@@ -1,11 +1,13 @@
 /**
  * Schwab API Token Manager Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.schwab_api;
-import bigbrother.utils.logger;
-import bigbrother.utils.timer;
+// Global module fragment
+module;
 
 #include <curl/curl.h>
 #include <mutex>
@@ -14,6 +16,12 @@ import bigbrother.utils.timer;
 #include <iostream>
 #include <thread>
 #include <atomic>
+
+// Module implementation unit declaration
+module bigbrother.schwab_api;
+
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
 
 // JSON parsing
 #ifdef HAS_NLOHMANN_JSON

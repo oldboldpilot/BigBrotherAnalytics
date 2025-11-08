@@ -1,9 +1,13 @@
 /**
  * Logger Module Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.utils.logger;
+// Global module fragment - standard library headers MUST go here
+module;
 
 #include <iostream>
 #include <fstream>
@@ -13,6 +17,9 @@ import bigbrother.utils.logger;
 #include <sstream>
 #include <mutex>
 #include <source_location>
+
+// Module implementation unit declaration
+module bigbrother.utils.logger;
 
 namespace bigbrother::utils {
 

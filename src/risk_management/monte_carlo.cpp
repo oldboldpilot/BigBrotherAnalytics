@@ -1,12 +1,13 @@
 /**
  * Monte Carlo Simulation Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.risk_management;
-import bigbrother.utils.logger;
-import bigbrother.utils.timer;
-import bigbrother.utils.math;
+// Global module fragment
+module;
 
 #include <random>
 #include <algorithm>
@@ -16,6 +17,13 @@ import bigbrother.utils.math;
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+// Module implementation unit declaration
+module bigbrother.risk_management;
+
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
+import bigbrother.utils.math;
 
 namespace bigbrother::risk {
 

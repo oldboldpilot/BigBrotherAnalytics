@@ -1,9 +1,16 @@
 /**
  * Volatility Arbitrage Strategy
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.strategies;
+// Global module fragment
+module;
+
+// Module implementation unit declaration
+module bigbrother.strategies;
 
 namespace bigbrother::strategy {
 

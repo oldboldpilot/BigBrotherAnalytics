@@ -22,6 +22,7 @@ module;
 
 #include <vector>
 #include <span>
+#include <map>
 #include <unordered_map>
 #include <memory>
 #include <concepts>
@@ -32,6 +33,8 @@ module;
 #include <cmath>
 #include <numbers>
 #include <optional>
+#include <functional>
+#include <expected>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -116,6 +119,17 @@ struct TimeSeries {
 };
 
 /**
+ * Custom hash for std::pair<std::string, std::string>
+ */
+struct PairHash {
+    auto operator()(std::pair<std::string, std::string> const& p) const noexcept -> size_t {
+        auto h1 = std::hash<std::string>{}(p.first);
+        auto h2 = std::hash<std::string>{}(p.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+/**
  * Correlation Matrix (NxN pairwise correlations)
  */
 class CorrelationMatrix {
@@ -166,8 +180,8 @@ public:
 
 private:
     std::vector<std::string> symbols_;
-    std::unordered_map<std::pair<std::string, std::string>, double,
-        std::hash<std::pair<std::string, std::string>>> matrix_;
+    // Use unordered_map with custom hash for better performance
+    std::unordered_map<std::pair<std::string, std::string>, double, PairHash> matrix_;
 };
 
 // ============================================================================

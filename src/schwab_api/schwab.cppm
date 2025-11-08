@@ -38,6 +38,50 @@ export namespace bigbrother::schwab {
 using namespace bigbrother::types;
 
 // ============================================================================
+// Basic Type Definitions
+// ============================================================================
+
+/**
+ * Quote Data
+ */
+struct Quote {
+    std::string symbol;
+    Price bid{0.0};
+    Price ask{0.0};
+    Price last{0.0};
+    Volume volume{0};
+};
+
+/**
+ * Option Contract Details
+ */
+struct OptionContract {
+    std::string symbol;
+    std::string underlying;
+    OptionType type{OptionType::Call};
+    Price strike{0.0};
+    Timestamp expiration{0};
+};
+
+/**
+ * Account Information
+ */
+struct AccountInfo {
+    std::string account_id;
+    double cash_balance{0.0};
+    double buying_power{0.0};
+};
+
+/**
+ * Order Request
+ */
+struct OrderRequest {
+    std::string symbol;
+    int quantity{0};
+    std::string order_type{"MARKET"};
+};
+
+// ============================================================================
 // OAuth2 Configuration
 // ============================================================================
 
@@ -83,27 +127,28 @@ struct OptionsChainRequest {
 };
 
 /**
+ * Option Quote Data (un-nested for std::optional compatibility)
+ */
+struct OptionQuote {
+    OptionContract contract;
+    Quote quote;
+    options::Greeks greeks;
+    double implied_volatility{0.0};
+    int volume{0};
+    int open_interest{0};
+};
+
+/**
  * Options Chain Data
  */
 struct OptionsChainData {
     std::string symbol;
     std::string status;
-
-    struct OptionQuote {
-        options::OptionContract contract;
-        Quote quote;
-        options::Greeks greeks;
-        double implied_volatility;
-    };
-
     std::vector<OptionQuote> calls;
     std::vector<OptionQuote> puts;
 
-    [[nodiscard]] auto findContract(
-        options::OptionType type,
-        Price strike,
-        Timestamp expiration
-    ) const noexcept -> std::optional<OptionQuote>;
+    // Removed findContract method - causes std::optional compatibility issues
+    // TODO: Implement when needed using pointer or Result<> instead
 };
 
 // ============================================================================
@@ -252,14 +297,6 @@ auto OAuth2Config::validate() const noexcept -> Result<void> {
     return {};
 }
 
-// OptionsChainData implementation
-auto OptionsChainData::findContract(
-    options::OptionType type,
-    Price strike,
-    Timestamp expiration
-) const noexcept -> std::optional<OptionQuote> {
-    // Stub
-    return std::nullopt;
-}
+// OptionsChainData::findContract removed due to std::optional<OptionQuote> compatibility issues
 
 } // namespace bigbrother::schwab

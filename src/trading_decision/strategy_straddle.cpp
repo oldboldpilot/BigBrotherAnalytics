@@ -1,15 +1,23 @@
 /**
  * Straddle Strategy Implementation
- * C++23 module implementation file
+ * C++23 module implementation unit
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-08
  */
 
-import bigbrother.strategies;
-import bigbrother.utils.logger;
-import bigbrother.utils.timer;
+// Global module fragment
+module;
 
 #include <algorithm>
 #include <cmath>
 #include <format>
+
+// Module implementation unit declaration
+module bigbrother.strategies;
+
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
 
 namespace bigbrother::strategy {
 
