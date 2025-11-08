@@ -161,16 +161,19 @@ endif()
 # Correlation Engine
 # ============================================================================
 
-add_library(correlation_engine SHARED
-    src/correlation_engine/correlation.cpp
-    src/correlation_engine/pearson.cpp
-    src/correlation_engine/spearman.cpp
-    src/correlation_engine/time_lagged.cpp
-    src/correlation_engine/rolling_window.cpp
-)
+add_library(correlation_engine INTERFACE)
+
+# C++23 module available in correlation.cppm (disabled due to OpenMP config issues)
+# Using compatibility header for now
+# target_sources(correlation_engine
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/correlation_engine/correlation.cppm
+# )
+# target_compile_options(correlation_engine PRIVATE -fmodule-output)
 
 target_link_libraries(correlation_engine
-    PUBLIC
+    INTERFACE
     utils
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
@@ -206,15 +209,19 @@ target_link_libraries(options_pricing
 
 add_library(trading_decision SHARED
     src/trading_decision/strategy_manager.cpp
-    src/trading_decision/strategy_base.cpp
-    src/trading_decision/signal_aggregator.cpp
     src/trading_decision/strategy_straddle.cpp
     src/trading_decision/strategy_strangle.cpp
     src/trading_decision/strategy_volatility_arb.cpp
-    src/trading_decision/strategy_mean_reversion.cpp
-    src/trading_decision/ml_predictor.cpp
-    src/trading_decision/portfolio_optimizer.cpp
 )
+
+# C++23 modules available (disabled due to OpenMP issues)
+# target_sources(trading_decision
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/trading_decision/strategy.cppm
+#             src/trading_decision/strategy_iron_condor.cppm
+# )
+# target_compile_options(trading_decision PRIVATE -fmodule-output)
 
 # C++23 modules DISABLED - using traditional headers
 # Iron Condor strategy module available in strategy_iron_condor.cppm
@@ -245,10 +252,16 @@ add_library(risk_management SHARED
     src/risk_management/risk_manager.cpp
     src/risk_management/position_sizer.cpp
     src/risk_management/stop_loss.cpp
-    src/risk_management/portfolio_constraints.cpp
-    src/risk_management/kelly_criterion.cpp
     src/risk_management/monte_carlo.cpp
 )
+
+# C++23 module available in risk.cppm (disabled)
+# target_sources(risk_management
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/risk_management/risk.cppm
+# )
+# target_compile_options(risk_management PRIVATE -fmodule-output)
 
 target_link_libraries(risk_management
     PUBLIC
@@ -263,7 +276,6 @@ target_link_libraries(risk_management
 
 add_library(schwab_api SHARED
     src/schwab_api/schwab_client.cpp
-    src/schwab_api/auth.cpp
     src/schwab_api/token_manager.cpp
     src/schwab_api/market_data.cpp
     src/schwab_api/options_chain.cpp
@@ -271,6 +283,14 @@ add_library(schwab_api SHARED
     src/schwab_api/account.cpp
     src/schwab_api/websocket_client.cpp
 )
+
+# C++23 module available in schwab.cppm (disabled)
+# target_sources(schwab_api
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/schwab_api/schwab.cppm
+# )
+# target_compile_options(schwab_api PRIVATE -fmodule-output)
 
 target_link_libraries(schwab_api
     PUBLIC
@@ -326,11 +346,15 @@ target_link_libraries(bigbrother
 
 add_executable(backtest
     src/backtest_main.cpp
-    src/backtesting/backtest_engine.cpp
     src/backtesting/backtest_engine_impl.cpp
-    src/backtesting/order_simulator.cpp
-    src/backtesting/performance_metrics.cpp
 )
+
+# C++23 module available in backtest.cppm (disabled)
+# target_sources(backtest
+#     PRIVATE
+#         FILE_SET CXX_MODULES FILES
+#             src/backtesting/backtest.cppm
+# )
 
 target_link_libraries(backtest
     PRIVATE

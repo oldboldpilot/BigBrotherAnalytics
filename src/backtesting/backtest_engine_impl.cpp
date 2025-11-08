@@ -11,6 +11,7 @@
 #include "../utils/logger.hpp"
 #include "../utils/database.hpp"
 #include <algorithm>
+#include <numeric>
 #include <fstream>
 #include <ranges>
 #include <format>
