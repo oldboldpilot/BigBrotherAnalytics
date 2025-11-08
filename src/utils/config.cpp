@@ -1,5 +1,10 @@
-#include "config.hpp"
-#include "logger.hpp"
+/**
+ * Config Module Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.utils.config;
+import bigbrother.utils.logger;
 
 #include <fstream>
 #include <sstream>

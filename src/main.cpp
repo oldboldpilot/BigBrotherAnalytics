@@ -26,16 +26,16 @@
  *   ./bigbrother --backtest --start 2020-01-01 --end 2024-01-01
  */
 
-#include "utils/logger.hpp"
-#include "utils/config.hpp"
-#include "utils/database.hpp"
-#include "utils/timer.hpp"
-#include "correlation_engine/options_pricing.hpp"
-#include "correlation_engine/correlation.hpp"
-#include "risk_management/risk_manager.hpp"
-#include "schwab_api/schwab_client.hpp"
-#include "trading_decision/strategy.hpp"
-#include "trading_decision/strategy_manager.hpp"
+import bigbrother.utils.logger;
+import bigbrother.utils.config;
+import bigbrother.utils.database;
+import bigbrother.utils.timer;
+import bigbrother.options.pricing;
+import bigbrother.correlation;
+import bigbrother.risk_management;
+import bigbrother.schwab_api;
+import bigbrother.strategy;
+import bigbrother.strategies;
 
 #include <iostream>
 #include <string>

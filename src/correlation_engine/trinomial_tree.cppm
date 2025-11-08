@@ -28,16 +28,43 @@
 // Global module fragment
 module;
 
+#include <string>
 #include <vector>
 #include <cmath>
 #include <numbers>
 #include <algorithm>
 #include <expected>
+#include <optional>
 
 // Module declaration
 export module bigbrother.pricing.trinomial_tree;
 
+// Import dependencies
+import bigbrother.utils.types;
+
 export namespace bigbrother::options {
+
+using namespace bigbrother::types;
+
+/**
+ * Greeks structure
+ *
+ * C.1: struct for passive data
+ * Must be defined before TrinomialPricer to avoid forward declaration issues
+ */
+struct Greeks {
+    double delta{0.0};
+    double gamma{0.0};
+    double theta{0.0};
+    double vega{0.0};
+    double rho{0.0};
+
+    [[nodiscard]] constexpr auto isValid() const noexcept -> bool {
+        return !std::isnan(delta) && !std::isnan(gamma) &&
+               !std::isnan(theta) && !std::isnan(vega) &&
+               !std::isnan(rho);
+    }
+};
 
 /**
  * Trinomial Tree Pricer - Fluent Builder API
@@ -394,26 +421,6 @@ public:
 
         // Clamp to reasonable range
         return std::clamp(steps, 50, 1000);
-    }
-};
-
-/**
- * Greeks structure
- *
- * C.1: struct for passive data
- * Defined here to avoid circular dependency
- */
-struct Greeks {
-    double delta{0.0};
-    double gamma{0.0};
-    double theta{0.0};
-    double vega{0.0};
-    double rho{0.0};
-
-    [[nodiscard]] constexpr auto isValid() const noexcept -> bool {
-        return !std::isnan(delta) && !std::isnan(gamma) &&
-               !std::isnan(theta) && !std::isnan(vega) &&
-               !std::isnan(rho);
     }
 };
 

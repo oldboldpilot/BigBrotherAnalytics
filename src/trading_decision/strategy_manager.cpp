@@ -1,9 +1,11 @@
 /**
  * Strategy Manager Implementation
+ * C++23 module implementation file
  */
 
-#include "strategy_manager.hpp"
-#include "../utils/logger.hpp"
+import bigbrother.strategies;
+import bigbrother.utils.logger;
+
 #include <algorithm>
 
 namespace bigbrother::strategy {

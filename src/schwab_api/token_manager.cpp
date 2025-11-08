@@ -1,6 +1,11 @@
-#include "schwab_client.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/timer.hpp"
+/**
+ * Schwab API Token Manager Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.schwab_api;
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
 
 #include <curl/curl.h>
 #include <mutex>

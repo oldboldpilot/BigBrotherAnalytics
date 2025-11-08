@@ -1,11 +1,12 @@
 /**
  * Risk Manager Implementation
- *
+ * C++23 module implementation file
  * Thread-safe risk management for algorithmic trading.
  */
 
-#include "risk_manager.hpp"
-#include "../utils/logger.hpp"
+import bigbrother.risk_management;
+import bigbrother.utils.logger;
+
 #include <algorithm>
 
 namespace bigbrother::risk {

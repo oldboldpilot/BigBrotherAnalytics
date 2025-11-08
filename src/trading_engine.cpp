@@ -4,7 +4,7 @@
  * Core trading orchestration logic.
  */
 
-#include "utils/logger.hpp"
+import bigbrother.utils.logger;
 
 namespace bigbrother {
 

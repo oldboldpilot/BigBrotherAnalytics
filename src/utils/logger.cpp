@@ -1,7 +1,9 @@
-// Module implementation file
-// Note: During transition, we include the header. Later switch to:
-// import bigbrother.utils.logger;
-#include "logger.hpp"  // Will be replaced with module import
+/**
+ * Logger Module Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.utils.logger;
 
 #include <iostream>
 #include <fstream>

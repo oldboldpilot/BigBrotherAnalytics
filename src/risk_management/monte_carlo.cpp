@@ -1,7 +1,12 @@
-#include "risk_manager.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/timer.hpp"
-#include "../utils/math.hpp"
+/**
+ * Monte Carlo Simulation Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.risk_management;
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
+import bigbrother.utils.math;
 
 #include <random>
 #include <algorithm>

@@ -1,5 +1,10 @@
-#include "database.hpp"
-#include "logger.hpp"
+/**
+ * Database Module Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.utils.database;
+import bigbrother.utils.logger;
 
 #include <mutex>
 #include <condition_variable>

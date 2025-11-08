@@ -8,9 +8,9 @@
  * - TAX CALCULATIONS for true profitability
  */
 
-#include "backtest_engine.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/database.hpp"
+import bigbrother.backtest;
+import bigbrother.utils.logger;
+import bigbrother.utils.database;
 #include <algorithm>
 #include <numeric>
 #include <fstream>

@@ -9,12 +9,11 @@
  *   ./backtest --config configs/backtest.yaml
  */
 
-#include "utils/logger.hpp"
-#include "utils/config.hpp"
-#include "utils/timer.hpp"
-#include "backtesting/backtest_engine.hpp"
-#include "trading_decision/strategy_straddle.hpp"
-#include "trading_decision/strategy_volatility_arb.hpp"
+import bigbrother.utils.logger;
+import bigbrother.utils.config;
+import bigbrother.utils.timer;
+import bigbrother.backtest;
+import bigbrother.strategies;
 
 #include <iostream>
 #include <string>

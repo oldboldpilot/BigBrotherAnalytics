@@ -1,4 +1,9 @@
-#include "strategy_volatility_arb.hpp"
+/**
+ * Volatility Arbitrage Strategy
+ * C++23 module implementation file
+ */
+
+import bigbrother.strategies;
 
 namespace bigbrother::strategy {
 

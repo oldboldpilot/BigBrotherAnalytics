@@ -77,6 +77,7 @@ def calculate_correlations(
 
 ### Database Schema (DuckDB)
 ```sql
+-- Example: Correlations table
 CREATE TABLE correlations (
     id INTEGER PRIMARY KEY,
     symbol_a VARCHAR NOT NULL,
@@ -88,6 +89,39 @@ CREATE TABLE correlations (
 );
 
 CREATE INDEX idx_correlations_symbols ON correlations(symbol_a, symbol_b);
+
+-- Example: Employment data tables (MANDATORY for Tier 1)
+-- See PRD Section 3.2.12 for complete sector schema requirements
+
+CREATE TABLE sector_employment (
+    id INTEGER PRIMARY KEY,
+    sector_id INTEGER NOT NULL,
+    report_date DATE NOT NULL,
+    employment_count INTEGER,
+    unemployment_rate DOUBLE,
+    job_openings INTEGER,
+    layoff_count INTEGER,
+    hiring_count INTEGER,
+    data_source VARCHAR,  -- BLS, WARN, Layoffs.fyi
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE employment_events (
+    id INTEGER PRIMARY KEY,
+    event_date DATE NOT NULL,
+    company_ticker VARCHAR,
+    sector_id INTEGER,
+    event_type VARCHAR NOT NULL,  -- layoff, hiring, freeze
+    employee_count INTEGER,
+    event_source VARCHAR,
+    impact_magnitude VARCHAR,  -- High, Medium, Low
+    news_url VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_employment_sector ON sector_employment(sector_id, report_date);
+CREATE INDEX idx_employment_events_date ON employment_events(event_date);
+CREATE INDEX idx_employment_events_ticker ON employment_events(company_ticker);
 ```
 
 ### Performance Considerations

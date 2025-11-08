@@ -1,6 +1,11 @@
-#include "risk_manager.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/timer.hpp"
+/**
+ * Stop Loss Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.risk_management;
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
 
 #include <algorithm>
 

@@ -608,6 +608,41 @@ The architecture document includes:
 - **NIH Reporter API** - Research grants
 - **PubMed API** - Biomedical literature
 
+**U.S. Department of Labor (DOL):**
+- **Bureau of Labor Statistics (BLS) API** - Employment statistics, unemployment rates, inflation (CPI), wages
+  - Employment Situation Report (monthly jobs report)
+  - JOLTS (Job Openings and Labor Turnover Survey)
+  - Unemployment Insurance Weekly Claims
+  - Employment Cost Index (ECI)
+  - Producer Price Index (PPI)
+  - Industry-specific employment data
+  - Occupational employment statistics
+- **OSHA API** - Workplace safety violations, enforcement actions
+- **WARN Act Database** - Mass layoff notifications, plant closures (state-level data)
+- **Private Sector Job Data:**
+  - **Layoffs.fyi API** - Tech sector layoffs (community-sourced)
+  - **Company Press Releases** - Hiring freezes, layoffs, workforce expansions
+  - **LinkedIn API** - Job postings trends, hiring activity by company
+  - **Indeed API** - Job market trends, hiring demand
+  - **Glassdoor API** - Company reviews, hiring sentiment
+- **Timing and Event Tracking:**
+  - Monthly jobs report (first Friday of month) - Major market moving event
+  - Weekly initial jobless claims (Thursday 8:30 AM ET) - Leading indicator
+  - JOLTS report (monthly, 1-month lag) - Job openings as recession signal
+  - Layoff announcements - Immediate sentiment impact on company/sector
+  - Mass hiring announcements - Bullish signal for company/sector
+  - Industry-specific employment trends - Sector rotation indicators
+
+**Employment Data as Market Indicators:**
+- **Leading Indicators:** Initial jobless claims spike → recession warning → defensive positioning
+- **Coincident Indicators:** Nonfarm payrolls, employment rate → current economic health
+- **Lagging Indicators:** Long-term unemployment → recession confirmation
+- **Sector-Specific Impact:**
+  - Tech layoffs → Tech sector weakness → Short tech stocks/ETFs
+  - Healthcare hiring → Healthcare sector strength → Long healthcare stocks
+  - Manufacturing employment decline → Industrial sector weakness → Rotate to services
+  - Retail hiring (holiday season) → Consumer sector strength → Long retail
+
 #### 3.2.11 Additional Data Extraction Technologies by Sector
 
 **Legal Intelligence Extraction:**
@@ -688,6 +723,231 @@ The architecture document includes:
   - IMF Data API (free)
   - IMF eLibrary API
   - Web scraping for country reports
+
+#### 3.2.12 Business Sector Classification and Analysis
+
+**CRITICAL:** The system must track and analyze business sectors comprehensively to identify sector rotation opportunities, sector-specific impacts from news/events, and employment trends by industry.
+
+**Primary Sector Classification (GICS - Global Industry Classification Standard):**
+
+**11 Major Sectors:**
+
+1. **Energy (10)**
+   - Oil, Gas & Consumable Fuels (Exxon, Chevron, ConocoPhillips)
+   - Energy Equipment & Services (Halliburton, Schlumberger, Baker Hughes)
+   - ETFs: XLE (Energy Select Sector SPDR)
+   - Employment Indicators: Oil rig count, energy sector jobs (BLS)
+   - News Impact: OPEC decisions, oil prices, renewable energy policies
+
+2. **Materials (15)**
+   - Chemicals (Dow, DuPont, LyondellBasell)
+   - Metals & Mining (Freeport-McMoRan, Newmont, Southern Copper)
+   - Construction Materials (Martin Marietta, Vulcan Materials)
+   - Paper & Forest Products
+   - ETFs: XLB (Materials Select Sector SPDR)
+   - Employment Indicators: Manufacturing jobs, mining employment (BLS)
+   - News Impact: Commodity prices, infrastructure spending, housing starts
+
+3. **Industrials (20)**
+   - Aerospace & Defense (Boeing, Lockheed Martin, Raytheon)
+   - Airlines (Delta, United, American Airlines)
+   - Machinery (Caterpillar, Deere, Parker-Hannifin)
+   - Construction & Engineering
+   - Transportation (FedEx, UPS, Union Pacific)
+   - ETFs: XLI (Industrial Select Sector SPDR)
+   - Employment Indicators: Manufacturing employment, construction jobs (BLS)
+   - News Impact: Infrastructure bills, defense spending, trade policies
+
+4. **Consumer Discretionary (25)**
+   - Automobiles (Tesla, Ford, GM)
+   - Retail (Amazon, Home Depot, Lowe's, Target, Walmart)
+   - Hotels & Restaurants (Marriott, Hilton, McDonald's, Starbucks)
+   - Apparel (Nike, Lululemon, VF Corp)
+   - Leisure Products & Entertainment
+   - ETFs: XLY (Consumer Discretionary Select Sector SPDR)
+   - Employment Indicators: Retail trade jobs, leisure & hospitality (BLS)
+   - News Impact: Consumer confidence, holiday sales, gas prices
+
+5. **Consumer Staples (30)**
+   - Food Products (General Mills, Kraft Heinz, Mondelez)
+   - Beverages (Coca-Cola, PepsiCo, Monster Beverage)
+   - Household Products (Procter & Gamble, Colgate-Palmolive)
+   - Tobacco (Altria, Philip Morris)
+   - Food & Drug Retail (Costco, Kroger, Walgreens)
+   - ETFs: XLP (Consumer Staples Select Sector SPDR)
+   - Employment Indicators: Retail trade, food services (BLS)
+   - News Impact: FDA actions, commodity prices, consumer spending
+
+6. **Health Care (35)**
+   - Pharmaceuticals (Pfizer, Johnson & Johnson, Merck, Eli Lilly)
+   - Biotechnology (Amgen, Gilead, Biogen, Moderna)
+   - Medical Devices (Medtronic, Abbott Labs, Stryker)
+   - Health Care Providers (UnitedHealth, CVS Health, Cigna)
+   - ETFs: XLV (Health Care Select Sector SPDR)
+   - Employment Indicators: Healthcare jobs, hospital employment (BLS)
+   - News Impact: FDA approvals, drug trials, healthcare policy, Medicare/Medicaid
+
+7. **Financials (40)**
+   - Banks (JPMorgan, Bank of America, Wells Fargo, Citigroup)
+   - Insurance (Berkshire Hathaway, Progressive, Allstate)
+   - Capital Markets (Goldman Sachs, Morgan Stanley, BlackRock)
+   - Consumer Finance (American Express, Visa, Mastercard)
+   - REITs (Real Estate Investment Trusts)
+   - ETFs: XLF (Financial Select Sector SPDR)
+   - Employment Indicators: Financial activities employment (BLS)
+   - News Impact: Fed rate decisions, banking regulations, credit conditions
+
+8. **Information Technology (45)**
+   - Software (Microsoft, Oracle, Salesforce, Adobe)
+   - Hardware (Apple, Dell, HP Inc.)
+   - Semiconductors (NVIDIA, Intel, AMD, Qualcomm, Broadcom)
+   - IT Services (Accenture, IBM, Cognizant)
+   - Communications Equipment (Cisco, Arista Networks)
+   - ETFs: XLK (Technology Select Sector SPDR)
+   - Employment Indicators: Information sector jobs, tech sector layoffs/hiring
+   - News Impact: Chip shortages, AI developments, tech regulations, earnings
+
+9. **Communication Services (50)**
+   - Media & Entertainment (Disney, Netflix, Comcast, Paramount)
+   - Interactive Media (Meta, Google/Alphabet, Twitter/X)
+   - Telecommunications (Verizon, AT&T, T-Mobile)
+   - ETFs: XLC (Communication Services Select Sector SPDR)
+   - Employment Indicators: Information sector, media jobs (BLS)
+   - News Impact: FCC regulations, streaming wars, social media policy
+
+10. **Utilities (55)**
+    - Electric Utilities (NextEra Energy, Duke Energy, Southern Company)
+    - Gas Utilities (Sempra Energy, Atmos Energy)
+    - Water Utilities (American Water Works)
+    - Renewable Energy Utilities
+    - ETFs: XLU (Utilities Select Sector SPDR)
+    - Employment Indicators: Utilities sector employment (BLS)
+    - News Impact: Energy policy, rate regulations, renewable mandates
+
+11. **Real Estate (60)**
+    - REITs - Residential (AvalonBay, Equity Residential)
+    - REITs - Commercial (Simon Property Group, Boston Properties)
+    - REITs - Healthcare (Welltower, Healthpeak)
+    - REITs - Industrial (Prologis, Duke Realty)
+    - Real Estate Management & Development
+    - ETFs: XLRE (Real Estate Select Sector SPDR)
+    - Employment Indicators: Construction jobs, real estate agents (BLS)
+    - News Impact: Interest rates, housing starts, commercial occupancy
+
+**Sector Analysis Requirements:**
+
+**A. News Impact by Sector:**
+- System MUST classify news events by affected sector(s)
+- Track sector-specific sentiment from news analysis
+- Identify cross-sector impacts (e.g., oil prices → transportation costs → airlines)
+- Monitor sector rotation signals from news flow
+
+**B. Employment Data by Sector:**
+- Map BLS industry codes to GICS sectors
+- Track sector-specific employment trends (hiring vs. layoffs)
+- Monitor mass layoff events by sector (WARN Act data)
+- Identify sector strength/weakness from employment data
+- Use employment as leading indicator for sector performance
+
+**C. Sector Correlation and Rotation:**
+- Calculate inter-sector correlations
+- Track sector ETF performance relative to S&P 500
+- Identify defensive vs. cyclical sector rotation
+- Monitor sector leadership changes
+- Risk-on vs. risk-off sector positioning
+
+**D. Database Schema Requirements:**
+```sql
+-- Sector master table
+CREATE TABLE sectors (
+    sector_id INTEGER PRIMARY KEY,
+    sector_code INTEGER NOT NULL,  -- GICS code
+    sector_name VARCHAR NOT NULL,
+    sector_category VARCHAR NOT NULL,  -- Defensive, Cyclical, Sensitive
+    etf_ticker VARCHAR,
+    description TEXT
+);
+
+-- Company to sector mapping
+CREATE TABLE company_sectors (
+    ticker VARCHAR PRIMARY KEY,
+    sector_id INTEGER REFERENCES sectors(sector_id),
+    industry VARCHAR,
+    sub_industry VARCHAR,
+    market_cap_category VARCHAR  -- Large, Mid, Small cap
+);
+
+-- Sector employment data
+CREATE TABLE sector_employment (
+    id INTEGER PRIMARY KEY,
+    sector_id INTEGER REFERENCES sectors(sector_id),
+    report_date DATE NOT NULL,
+    employment_count INTEGER,
+    unemployment_rate DOUBLE,
+    job_openings INTEGER,
+    layoff_count INTEGER,
+    hiring_count INTEGER,
+    data_source VARCHAR,  -- BLS, WARN, Layoffs.fyi
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sector news sentiment
+CREATE TABLE sector_news_sentiment (
+    id INTEGER PRIMARY KEY,
+    sector_id INTEGER REFERENCES sectors(sector_id),
+    news_date TIMESTAMP NOT NULL,
+    sentiment_score DOUBLE,  -- -1.0 to 1.0
+    news_count INTEGER,
+    major_events TEXT[],
+    impact_magnitude VARCHAR  -- High, Medium, Low
+);
+```
+
+**E. API Integration Requirements for Tier 1:**
+
+**BLS API Integration (MANDATORY):**
+```python
+# Example BLS API call for sector employment
+import requests
+
+BLS_API_KEY = os.getenv('BLS_API_KEY')  # Free API key from BLS
+BLS_BASE_URL = 'https://api.bls.gov/publicAPI/v2/timeseries/data/'
+
+# Series IDs for major sectors (CES - Current Employment Statistics)
+SECTOR_SERIES = {
+    'mining_logging': 'CES1000000001',  # Energy/Materials
+    'construction': 'CES2000000001',     # Industrials
+    'manufacturing': 'CES3000000001',    # Industrials/Materials
+    'trade_transport': 'CES4000000001',  # Consumer Discretionary
+    'information': 'CES5000000001',      # Technology/Communication
+    'financial': 'CES5500000001',        # Financials
+    'professional': 'CES6000000001',     # IT Services
+    'education_health': 'CES6500000001', # Health Care
+    'leisure': 'CES7000000001',          # Consumer Discretionary
+}
+
+def fetch_sector_employment(series_id, start_year, end_year):
+    """Fetch employment data from BLS API"""
+    payload = {
+        'seriesid': [series_id],
+        'startyear': str(start_year),
+        'endyear': str(end_year),
+        'registrationkey': BLS_API_KEY
+    }
+    response = requests.post(BLS_BASE_URL, json=payload)
+    return response.json()
+```
+
+**F. Sector Decision-Making Integration:**
+
+- **Sector Rotation Strategy:** Identify sectors transitioning from weak to strong
+- **Defensive Positioning:** Rotate to Utilities, Consumer Staples, Healthcare during downturns
+- **Cyclical Positioning:** Rotate to Energy, Financials, Industrials during recovery
+- **Employment Signals:**
+  - Tech layoffs → Avoid/short tech sector
+  - Healthcare hiring → Long healthcare sector
+  - Retail hiring surge → Long consumer discretionary
+  - Manufacturing decline → Rotate out of industrials
 
 ### 3.3 Core Features
 

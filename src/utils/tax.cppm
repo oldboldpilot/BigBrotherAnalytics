@@ -28,6 +28,8 @@ module;
 
 #include <vector>
 #include <unordered_map>
+#include <numeric>
+#include <algorithm>
 #include <string>
 #include <chrono>
 #include <algorithm>

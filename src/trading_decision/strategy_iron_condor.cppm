@@ -155,18 +155,14 @@ public:
 
         // Check entry criteria
         if (iv_rank < params_.min_iv_rank) {
-            // Logger::getInstance().debug(
-                "{}: IV rank {} below threshold {}",
-                symbol, iv_rank, params_.min_iv_rank
-            );
+            // Logger::getInstance().debug("{}: IV rank {} below threshold {}", 
+            //     symbol, iv_rank, params_.min_iv_rank);
             return std::nullopt;
         }
 
         if (dte < params_.min_days_to_expiration || dte > params_.max_days_to_expiration) {
-            // Logger::getInstance().debug(
-                "{}: DTE {} outside range {}-{}",
-                symbol, dte, params_.min_days_to_expiration, params_.max_days_to_expiration
-            );
+            // Logger::getInstance().debug("{}: DTE {} outside range {}-{}",
+            //     symbol, dte, params_.min_days_to_expiration, params_.max_days_to_expiration);
             return std::nullopt;
         }
 
@@ -201,17 +197,13 @@ public:
 
         // Validate minimum credit
         if (position.total_credit < params_.min_credit_per_contract) {
-            // Logger::getInstance().debug(
-                "{}: Credit ${} below minimum ${}",
-                symbol, position.total_credit, params_.min_credit_per_contract
-            );
+            // Logger::getInstance().debug("{}: Credit ${} below minimum ${}",
+            //     symbol, position.total_credit, params_.min_credit_per_contract);
             return std::nullopt;
         }
 
-        // Logger::getInstance().info(
-            "{}: Iron condor generated - Credit: ${}, Max Loss: ${}",
-            symbol, position.total_credit, position.max_loss
-        );
+        // Logger::getInstance().info("{}: Iron condor generated - Credit: ${}, Max Loss: ${}",
+        //     symbol, position.total_credit, position.max_loss);
 
         return position;
     }
@@ -230,29 +222,23 @@ public:
 
         // Take profit at 50%
         if (profit_percent >= params_.profit_target_percent) {
-            // Logger::getInstance().info(
-                "{}: Take profit triggered at {}% profit",
-                position.symbol, profit_percent
-            );
+            // Logger::getInstance().info("{}: Take profit triggered at {}% profit",
+            //     position.symbol, profit_percent);
             return true;
         }
 
         // Stop loss at 2x credit
         double const loss = current_value - position.total_credit;
         if (loss >= position.total_credit * params_.stop_loss_multiplier) {
-            // Logger::getInstance().warn(
-                "{}: Stop loss triggered - Loss: ${}",
-                position.symbol, loss
-            );
+            // Logger::getInstance().warn("{}: Stop loss triggered - Loss: ${}",
+            //     position.symbol, loss);
             return true;
         }
 
         // Close if near expiration
         if (position.days_to_expiration <= 7) {
-            // Logger::getInstance().info(
-                "{}: Closing position - 7 DTE reached",
-                position.symbol
-            );
+            // Logger::getInstance().info("{}: Closing position - 7 DTE reached",
+            //     position.symbol);
             return true;
         }
 

@@ -1,6 +1,11 @@
-#include "strategy_straddle.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/timer.hpp"
+/**
+ * Straddle Strategy Implementation
+ * C++23 module implementation file
+ */
+
+import bigbrother.strategies;
+import bigbrother.utils.logger;
+import bigbrother.utils.timer;
 
 #include <algorithm>
 #include <cmath>

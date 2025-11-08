@@ -305,6 +305,13 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
 - **23 unique symbols**
 - Optimized for backtesting queries
 
+**⚠️ TIER 1 EXTENSION REQUIRED:**
+- **Department of Labor API Integration** - BLS employment data by sector
+- **Sector employment tracking** - 11 GICS sectors with employment indicators
+- **Layoff/hiring event tracking** - WARN Act, Layoffs.fyi, company announcements
+- **Sector-level decision making** - Employment signals for sector rotation
+- **Database schema additions** - See PRD Section 3.2.12 for complete requirements
+
 ---
 
 ## 📝 Documentation Created
@@ -471,16 +478,61 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
 
 ---
 
-## 🔮 Next Steps (Tier 2)
+## 🔮 Next Steps (Tier 1 Extension + Tier 2)
 
-### Immediate (Weeks 5-6)
+### Immediate - Tier 1 Extension (Weeks 5-6)
+**CRITICAL: Department of Labor & Sector Analysis Integration**
+
+**A. BLS API Integration:**
+- Implement BLS API client for employment data
+- Fetch sector-specific employment statistics (9 major BLS series)
+- Track weekly initial jobless claims
+- Monitor monthly nonfarm payrolls
+- Store data in `sector_employment` table
+
+**B. Private Sector Job Data:**
+- Integrate Layoffs.fyi API for tech sector layoffs
+- Parse WARN Act database for mass layoff notifications
+- Track company hiring announcements from press releases
+- Build `employment_events` table
+
+**C. Sector Analysis Module:**
+- Create 11 GICS sector definitions in database
+- Map companies to sectors (`company_sectors` table)
+- Implement sector news sentiment analysis
+- Calculate sector-level employment indicators
+- Build sector rotation signals
+
+**D. Decision Engine Integration:**
+- Add employment signals to trading decisions
+- Implement sector-based filters
+- Create sector rotation strategy
+- Track sector exposure limits
+- Generate sector-specific alerts
+
+**E. Database Schema Implementation:**
+```sql
+-- See PRD Section 3.2.12 for complete schema
+-- Tables to add:
+- sectors (11 GICS sectors)
+- company_sectors (ticker to sector mapping)
+- sector_employment (BLS employment data)
+- employment_events (layoffs, hiring events)
+- sector_news_sentiment (sector sentiment scores)
+```
+
+**F. Configuration & Testing:**
+- Add BLS_API_KEY to environment variables
+- Test BLS API integration
+- Validate sector classification
+- Backtest sector rotation strategy
+- Verify employment signal accuracy
+
+### Tier 2 (Weeks 7-10)
 - Implement full Iron Condor strategy from module
 - Connect real DuckDB data to backtest
 - Enhance strategy logic with real options chains
 - Add more sophisticated tax optimization
-
-### Short-term (Weeks 7-10)
-- Implement remaining strategies (Strangle, Vol Arb)
 - Real-time Schwab API integration
 - WebSocket streaming data
 - ML-based sentiment analysis

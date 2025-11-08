@@ -84,35 +84,43 @@ find_package(yaml-cpp)
 # Core Libraries
 # ============================================================================
 
-# Utils Library (C++23 modules ENABLED)
+# Utils Library (C++23 modules only)
 add_library(utils SHARED
     src/utils/logger.cpp
     src/utils/config.cpp
     src/utils/database.cpp
 )
 
-# C++23 modules with trailing return syntax and fluent APIs
-# All modules converted following C++ Core Guidelines
-target_sources(utils
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/utils/types.cppm
-            src/utils/logger.cppm
-            src/utils/config.cppm
-            src/utils/database_api.cppm
-            src/utils/database.cppm
-            src/utils/timer.cppm
-            src/utils/math.cppm
-            src/utils/tax.cppm
-            src/utils/risk_free_rate.cppm
-            src/utils/utils.cppm
-)
-target_compile_options(utils PRIVATE -fmodule-output)
+# C++23 modules available but DISABLED (OpenMP configuration issues)
+# All 17 modules created with trailing return syntax and fluent APIs:
+# Utils: types, logger, config, database_api, timer, math, tax, utils
+# Options: black_scholes, trinomial_tree, options_pricing
+# Correlation: correlation (with CorrelationAnalyzer fluent API)
+# Risk: risk (with RiskAssessor fluent API)
+# Schwab: schwab (with SchwabQuery fluent API)
+# Strategy: strategy (with StrategyExecutor fluent API), iron_condor
+# Backtest: backtest (with BacktestRunner fluent API)
+#
+# To enable modules: uncomment target_sources and target_compile_options
+# Currently using compatibility headers for stable builds
+#
+# target_sources(utils
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/utils/types.cppm
+#             src/utils/logger.cppm
+#             src/utils/config.cppm
+#             src/utils/database_api.cppm
+#             src/utils/timer.cppm
+#             src/utils/math.cppm
+#             src/utils/tax.cppm
+#             src/utils/utils.cppm
+# )
+# target_compile_options(utils PRIVATE -fmodule-output)
 
 target_link_libraries(utils
     PUBLIC
     Threads::Threads
-    OpenMP::OpenMP_CXX
 )
 
 if(spdlog_FOUND)
@@ -130,18 +138,16 @@ if(DUCKDB_LIB AND DUCKDB_INCLUDE)
 endif()
 
 # ============================================================================
-# Market Intelligence Engine (C++23 Module)
+# Market Intelligence Engine
 # ============================================================================
 
-add_library(market_intelligence SHARED)
-
-# C++23 module with fluent API
-target_sources(market_intelligence
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/market_intelligence/market_intelligence.cppm
+add_library(market_intelligence SHARED
+    src/market_intelligence/data_fetcher.cpp
+    src/market_intelligence/market_data_client.cpp
+    src/market_intelligence/news_client.cpp
+    src/market_intelligence/sentiment_analyzer.cpp
+    src/market_intelligence/entity_recognizer.cpp
 )
-target_compile_options(market_intelligence PRIVATE -fmodule-output)
 
 target_link_libraries(market_intelligence
     PUBLIC
@@ -161,21 +167,22 @@ if(ONNXRUNTIME_LIB AND ONNXRUNTIME_INCLUDE)
 endif()
 
 # ============================================================================
-# Correlation Engine (C++23 Module ENABLED - Header-only as SHARED library)
+# Correlation Engine
 # ============================================================================
 
-add_library(correlation_engine SHARED)
+add_library(correlation_engine INTERFACE)
 
-# C++23 module with fluent API
-target_sources(correlation_engine
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/correlation_engine/correlation.cppm
-)
-target_compile_options(correlation_engine PRIVATE -fmodule-output)
+# C++23 module available in correlation.cppm (disabled due to OpenMP config issues)
+# Using compatibility header for now
+# target_sources(correlation_engine
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/correlation_engine/correlation.cppm
+# )
+# target_compile_options(correlation_engine PRIVATE -fmodule-output)
 
 target_link_libraries(correlation_engine
-    PUBLIC
+    INTERFACE
     utils
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
@@ -188,47 +195,50 @@ if(MPI_FOUND)
 endif()
 
 # ============================================================================
-# Options Pricing Engine (C++23 Modules ENABLED - Header-only as SHARED library)
+# Options Pricing Engine (header-only for now)
 # ============================================================================
 
-add_library(options_pricing SHARED)
-
-# C++23 modules with fluent API and trailing return syntax
-target_sources(options_pricing
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/correlation_engine/black_scholes.cppm
-            src/correlation_engine/trinomial_tree.cppm
-            src/correlation_engine/options_pricing.cppm
-)
-target_compile_options(options_pricing PRIVATE -fmodule-output)
+# Header-only library - using compatibility header (options_pricing.hpp)
+# Full implementation available in C++23 modules (.cppm files) when enabled
+add_library(options_pricing INTERFACE)
 
 target_link_libraries(options_pricing
-    PUBLIC
+    INTERFACE
     utils
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
 )
 
+# C++23 modules available but DISABLED - using traditional headers for now
+# Full implementation in: black_scholes.cppm, trinomial_tree.cppm, options_pricing.cppm
+
 # ============================================================================
-# Trading Decision Engine (C++23 Modules ENABLED)
+# Trading Decision Engine
 # ============================================================================
 
 add_library(trading_decision SHARED
     src/trading_decision/strategy_manager.cpp
     src/trading_decision/strategy_straddle.cpp
+    src/trading_decision/strategy_strangle.cpp
     src/trading_decision/strategy_volatility_arb.cpp
 )
 
-# C++23 modules with fluent API and trailing return syntax
-target_sources(trading_decision
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/trading_decision/strategy.cppm
-            src/trading_decision/strategy_iron_condor.cppm
-            src/trading_decision/strategies.cppm
-)
-target_compile_options(trading_decision PRIVATE -fmodule-output)
+# C++23 modules available (disabled due to OpenMP issues)
+# target_sources(trading_decision
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/trading_decision/strategy.cppm
+#             src/trading_decision/strategy_iron_condor.cppm
+# )
+# target_compile_options(trading_decision PRIVATE -fmodule-output)
+
+# C++23 modules DISABLED - using traditional headers
+# Iron Condor strategy module available in strategy_iron_condor.cppm
+# target_sources(trading_decision
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/trading_decision/strategy_iron_condor.cppm
+# )
 
 target_link_libraries(trading_decision
     PUBLIC
@@ -244,7 +254,7 @@ if(ONNXRUNTIME_LIB)
 endif()
 
 # ============================================================================
-# Risk Management System (C++23 Modules ENABLED)
+# Risk Management System
 # ============================================================================
 
 add_library(risk_management SHARED
@@ -254,14 +264,13 @@ add_library(risk_management SHARED
     src/risk_management/monte_carlo.cpp
 )
 
-# C++23 modules with fluent API and trailing return syntax
-target_sources(risk_management
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/risk_management/risk.cppm
-            src/risk_management/risk_management.cppm
-)
-target_compile_options(risk_management PRIVATE -fmodule-output)
+# C++23 module available in risk.cppm (disabled)
+# target_sources(risk_management
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/risk_management/risk.cppm
+# )
+# target_compile_options(risk_management PRIVATE -fmodule-output)
 
 target_link_libraries(risk_management
     PUBLIC
@@ -271,21 +280,26 @@ target_link_libraries(risk_management
 )
 
 # ============================================================================
-# Schwab API Client (C++23 Modules ENABLED)
+# Schwab API Client
 # ============================================================================
 
 add_library(schwab_api SHARED
+    src/schwab_api/schwab_client.cpp
     src/schwab_api/token_manager.cpp
+    src/schwab_api/market_data.cpp
+    src/schwab_api/options_chain.cpp
+    src/schwab_api/orders.cpp
+    src/schwab_api/account.cpp
+    src/schwab_api/websocket_client.cpp
 )
 
-# C++23 modules with fluent API and trailing return syntax
-target_sources(schwab_api
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/schwab_api/schwab.cppm
-            src/schwab_api/schwab_api.cppm
-)
-target_compile_options(schwab_api PRIVATE -fmodule-output)
+# C++23 module available in schwab.cppm (disabled)
+# target_sources(schwab_api
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/schwab_api/schwab.cppm
+# )
+# target_compile_options(schwab_api PRIVATE -fmodule-output)
 
 target_link_libraries(schwab_api
     PUBLIC
@@ -300,18 +314,14 @@ if(nlohmann_json_FOUND)
 endif()
 
 # ============================================================================
-# Explainability Layer (C++23 Module ENABLED)
+# Explainability Layer
 # ============================================================================
 
-add_library(explainability SHARED)
-
-# C++23 module with fluent API and trailing return syntax
-target_sources(explainability
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/explainability/explainability.cppm
+add_library(explainability SHARED
+    src/explainability/decision_logger.cpp
+    src/explainability/feature_importance.cpp
+    src/explainability/trade_analyzer.cpp
 )
-target_compile_options(explainability PRIVATE -fmodule-output)
 
 target_link_libraries(explainability
     PUBLIC
@@ -340,7 +350,7 @@ target_link_libraries(bigbrother
 )
 
 # ============================================================================
-# Backtesting Application (C++23 Modules ENABLED)
+# Backtesting Application
 # ============================================================================
 
 add_executable(backtest
@@ -348,13 +358,12 @@ add_executable(backtest
     src/backtesting/backtest_engine_impl.cpp
 )
 
-# C++23 modules with fluent API and trailing return syntax
-target_sources(backtest
-    PRIVATE
-        FILE_SET CXX_MODULES FILES
-            src/backtesting/backtest.cppm
-            src/backtesting/backtest_engine.cppm
-)
+# C++23 module available in backtest.cppm (disabled)
+# target_sources(backtest
+#     PRIVATE
+#         FILE_SET CXX_MODULES FILES
+#             src/backtesting/backtest.cppm
+# )
 
 target_link_libraries(backtest
     PRIVATE
