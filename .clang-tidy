@@ -13,7 +13,18 @@ Checks: >
   bugprone-*,
   clang-analyzer-*,
   concurrency-*,
-  -modernize-use-trailing-return-type,
+  modernize-use-trailing-return-type,
+  modernize-use-auto,
+  modernize-use-nodiscard,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-owning-memory,
+  cppcoreguidelines-prefer-member-initializer,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-slicing,
   -readability-magic-numbers,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
@@ -21,7 +32,13 @@ Checks: >
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay
 
-WarningsAsErrors: ''
+# Treat violations as errors (enforces compliance)
+WarningsAsErrors: >
+  modernize-use-trailing-return-type,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-no-malloc,
+  modernize-use-nullptr,
+  modernize-use-nodiscard
 
 CheckOptions:
   # C++ Core Guidelines specific
@@ -54,11 +71,19 @@ CheckOptions:
   - key: readability-identifier-naming.EnumConstantCase
     value: CamelCase
 
+  # C++23 and modern C++ enforcement
+  - key: modernize-use-trailing-return-type.MinTypeNameLength
+    value: 0
+  - key: modernize-use-trailing-return-type.CheckConstexpr
+    value: true
+
   # Modernize checks
   - key: modernize-use-auto.MinTypeNameLength
     value: 5
   - key: modernize-use-auto.RemoveStars
     value: true
+  - key: modernize-use-nodiscard.ReplacementString
+    value: '[[nodiscard]]'
 
   # Performance checks
   - key: performance-move-const-arg.CheckTriviallyCopyableMove
@@ -77,31 +102,89 @@ CheckOptions:
 HeaderFilterRegex: '.*'
 FormatStyle: none
 
-# Project-specific rules
-# These checks enforce BigBrotherAnalytics coding standards:
+# ============================================================================
+# BigBrotherAnalytics Coding Standards Enforcement
+# ============================================================================
 #
-# 1. Trailing return syntax (enforced separately in CI)
-#    - All functions must use: auto func() -> ReturnType
+# This configuration enforces the following standards:
 #
-# 2. C++ Core Guidelines
-#    - C.1: Use struct for passive data, class for invariants
-#    - C.21: Define or delete all default operations
-#    - F.16: Pass cheap types by value
-#    - F.20: Return values, not output parameters
+# 1. TRAILING RETURN SYNTAX (ENFORCED AS ERROR)
+#    Check: modernize-use-trailing-return-type
+#    Rule: ALL functions MUST use: auto func() -> ReturnType
+#    Severity: ERROR (blocks commit)
+#    Example:
+#      ✅ auto calculatePrice(double x) -> double { return x * 2; }
+#      ❌ double calculatePrice(double x) { return x * 2; }
+#
+# 2. C++ CORE GUIDELINES (COMPREHENSIVE ENFORCEMENT)
+#    Checks: cppcoreguidelines-*
+#
+#    Key Rules Enforced:
+#    - C.1: struct for passive data, class for invariants
+#    - C.21: Define or delete all 5 special members (Rule of Five)
+#      Check: cppcoreguidelines-special-member-functions (ERROR)
+#    - C.41: Constructors establish invariants
+#    - C.47: Initialize members in declaration order
 #    - E: Use std::expected for error handling
+#    - F.16: Pass cheap types by value, expensive by const&
+#    - F.20: Return values, not output parameters
+#    - R.1: RAII for resource management
+#      Check: cppcoreguidelines-owning-memory
+#    - R.3: Don't use raw pointers
+#      Check: cppcoreguidelines-no-malloc (ERROR)
+#    - I.11: Never transfer ownership by raw pointer
 #
-# 3. Modern C++23 features
-#    - Concepts for template constraints
-#    - Ranges for efficient pipelines
-#    - std::expected for error handling
-#    - [[nodiscard]] for getters and queries
+# 3. C++23 MODULE SYSTEM
+#    Checks: modernize-*, readability-*
 #
-# 4. Fluent APIs
-#    - Builder patterns for complex construction
-#    - Method chaining (return *this or Self&)
-#    - Declarative, readable interfaces
+#    Module Structure Requirements:
+#    - Global module fragment (module;) comes first
+#    - Only standard library in global fragment
+#    - Module declaration: export module bigbrother.component;
+#    - Module imports: import bigbrother.dependency;
+#    - Export namespace: export namespace bigbrother::component {}
 #
-# 5. Module system
-#    - Proper module structure (module;, export module, export namespace)
-#    - Module imports instead of #include for internal code
-#    - Global module fragment for standard library
+#    Note: clang-tidy has limited module-specific checks
+#    Full module validation done by pre-commit hooks
+#
+# 4. MODERN C++23 FEATURES
+#    - [[nodiscard]] for getters/queries
+#      Check: modernize-use-nodiscard (ERROR)
+#    - nullptr instead of NULL
+#      Check: modernize-use-nullptr (ERROR)
+#    - override for virtual functions
+#      Check: modernize-use-override
+#    - using instead of typedef
+#      Check: modernize-use-using
+#    - auto for type deduction
+#      Check: modernize-use-auto
+#
+# 5. PERFORMANCE OPTIMIZATION
+#    Checks: performance-*
+#    - Avoid unnecessary copies
+#    - Use move semantics
+#    - Prefer emplace over insert
+#    - Check for unnecessary value parameters
+#
+# 6. CONCURRENCY SAFETY
+#    Checks: concurrency-*
+#    - Thread-safe operations
+#    - Proper mutex usage
+#    - Atomic operations
+#
+# 7. BUG DETECTION
+#    Checks: bugprone-*, clang-analyzer-*
+#    - Potential bugs and logic errors
+#    - Undefined behavior
+#    - Memory issues
+#    - Security vulnerabilities
+#
+# ============================================================================
+# ENFORCEMENT LEVEL: ERRORS (Will block commit/build)
+# ============================================================================
+# The following violations are treated as ERRORS and will fail the build:
+# - modernize-use-trailing-return-type (ALL functions must use trailing syntax)
+# - cppcoreguidelines-special-member-functions (Rule of Five)
+# - cppcoreguidelines-no-malloc (No raw memory management)
+# - modernize-use-nullptr (No NULL, use nullptr)
+# - modernize-use-nodiscard (Getters must have [[nodiscard]])
