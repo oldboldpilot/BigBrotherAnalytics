@@ -155,7 +155,7 @@ def download_economic_data(series_id: str, name: str, fred_api_key: str) -> pd.D
 
         df = pd.DataFrame({
             "series_id": series_id,
-            "timestamp": data.index.astype(np.int64) // 1'000'000,  # Convert to microseconds
+            "timestamp": data.index.astype(np.int64) // 1000000,  # Convert to microseconds
             "value": data.values
         })
 
