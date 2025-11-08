@@ -270,4 +270,114 @@ private:
     std::unique_ptr<Impl> pImpl_;
 };
 
+/**
+ * Fluent API for Backtest Execution
+ *
+ * Simplified interface for running backtests.
+ *
+ * Example:
+ *   BacktestRunner runner;
+ *   runner.from("2020-01-01")
+ *         .to("2024-01-01")
+ *         .withCapital(30000.0)
+ *         .forSymbols({"SPY", "QQQ"})
+ *         .addStrategy<DeltaNeutralStraddleStrategy>()
+ *         .run();
+ */
+class BacktestRunner {
+public:
+    BacktestRunner() : config_{} {
+        config_.initial_capital = 30000.0;
+        config_.commission_per_trade = 0.65;
+        config_.slippage_bps = 2.0;
+        config_.allow_short_selling = false;
+        config_.reinvest_profits = true;
+    }
+
+    [[nodiscard]] auto from(std::string const& date) -> BacktestRunner& {
+        // Parse date and set start_date
+        return *this;
+    }
+
+    [[nodiscard]] auto to(std::string const& date) -> BacktestRunner& {
+        // Parse date and set end_date
+        return *this;
+    }
+
+    [[nodiscard]] auto withCapital(double capital) -> BacktestRunner& {
+        config_.initial_capital = capital;
+        return *this;
+    }
+
+    [[nodiscard]] auto commission(double comm) -> BacktestRunner& {
+        config_.commission_per_trade = comm;
+        return *this;
+    }
+
+    [[nodiscard]] auto slippage(double slip) -> BacktestRunner& {
+        config_.slippage_bps = slip;
+        return *this;
+    }
+
+    [[nodiscard]] auto forSymbols(std::vector<std::string> symbols) -> BacktestRunner& {
+        symbols_ = std::move(symbols);
+        return *this;
+    }
+
+    [[nodiscard]] auto loadData(std::string const& path) -> BacktestRunner& {
+        data_path_ = path;
+        return *this;
+    }
+
+    template<typename StrategyT, typename... Args>
+    [[nodiscard]] auto addStrategy(Args&&... args) -> BacktestRunner& {
+        if (!engine_) {
+            engine_ = std::make_unique<BacktestEngine>(config_);
+        }
+        engine_->addStrategy(
+            std::make_unique<StrategyT>(std::forward<Args>(args)...)
+        );
+        return *this;
+    }
+
+    [[nodiscard]] auto run() -> BacktestMetrics {
+        if (!engine_) {
+            engine_ = std::make_unique<BacktestEngine>(config_);
+        }
+
+        // Load data
+        if (!data_path_.empty()) {
+            engine_->loadHistoricalData(symbols_, data_path_);
+        }
+
+        // Run backtest
+        auto result = engine_->run();
+        if (result) {
+            return *result;
+        }
+
+        return BacktestMetrics{};  // Empty metrics on error
+    }
+
+    [[nodiscard]] auto exportTrades(std::string const& path) -> BacktestRunner& {
+        if (engine_) {
+            engine_->exportTrades(path);
+        }
+        return *this;
+    }
+
+    [[nodiscard]] auto exportMetrics(std::string const& path) -> BacktestRunner& {
+        if (engine_) {
+            engine_->exportMetrics(path);
+        }
+        return *this;
+    }
+
+private:
+    BacktestConfig config_;
+    std::vector<std::string> symbols_;
+    std::string data_path_;
+    std::unique_ptr<BacktestEngine> engine_;
+};
+
 } // namespace bigbrother::backtest

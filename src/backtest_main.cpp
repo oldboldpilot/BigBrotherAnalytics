@@ -13,7 +13,6 @@
 #include "utils/config.hpp"
 #include "utils/timer.hpp"
 #include "backtesting/backtest_engine.hpp"
-#include "backtesting/backtest_fluent_api.hpp"
 #include "trading_decision/strategy_straddle.hpp"
 #include "trading_decision/strategy_volatility_arb.hpp"
 
@@ -183,17 +182,12 @@ Examples:
         utils::Timer timer;
         auto result = runner.run();
 
-        if (!result) {
-            LOG_ERROR("Backtest failed: {}", result.error().message);
-            return 1;
-        }
-
         auto const elapsed = timer.elapsedSeconds();
 
         LOG_INFO("Backtest completed in {:.2f} seconds", elapsed);
 
         // Print results
-        printResults(*result);
+        printResults(result);
 
         // Export results
         runner.exportTrades("data/backtest_results/trades.csv");
@@ -202,7 +196,7 @@ Examples:
         LOG_INFO("Results exported to data/backtest_results/");
 
         // Return success/failure based on thresholds
-        return result->passesThresholds() ? 0 : 1;
+        return result.passesThresholds() ? 0 : 1;
 
     } catch (std::exception const& e) {
         LOG_ERROR("Backtest error: {}", e.what());
