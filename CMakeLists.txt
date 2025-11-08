@@ -87,7 +87,7 @@ find_package(yaml-cpp)
 # Utils Library (C++23 modules ENABLED)
 add_library(utils SHARED
     src/utils/logger.cpp
-    src/utils/config.cpp
+    # config.cpp removed - template specializations conflict with module interface
     # database.cpp removed - stub implementation in database.cppm module
 )
 
@@ -275,7 +275,7 @@ target_link_libraries(risk_management
 # ============================================================================
 
 add_library(schwab_api SHARED
-    src/schwab_api/token_manager.cpp
+    # token_manager.cpp removed - inline implementation in schwab_api.cppm module
 )
 
 # C++23 modules with fluent API and trailing return syntax

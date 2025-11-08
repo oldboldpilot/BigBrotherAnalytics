@@ -219,10 +219,11 @@ class StopLossManager {
 public:
     // C.21: Rule of Five
     StopLossManager() = default;
+    // C.21: Rule of Five - deleted due to mutex member
     StopLossManager(StopLossManager const&) = delete;
     auto operator=(StopLossManager const&) -> StopLossManager& = delete;
-    StopLossManager(StopLossManager&&) noexcept = default;
-    auto operator=(StopLossManager&&) noexcept -> StopLossManager& = default;
+    StopLossManager(StopLossManager&&) noexcept = delete;
+    auto operator=(StopLossManager&&) noexcept -> StopLossManager& = delete;
     ~StopLossManager() = default;
 
     // Fluent API
@@ -363,7 +364,18 @@ public:
             );
         }
 
-        auto price_result = OptionsPricer::price(params, OptionsPricer::Model::BlackScholes);
+        // Convert PricingParams to ExtendedPricingParams
+        options::ExtendedPricingParams extended_params{
+            .spot_price = params.spot_price,
+            .strike_price = params.strike_price,
+            .time_to_expiration = params.time_to_expiration,
+            .risk_free_rate = params.risk_free_rate,
+            .volatility = params.volatility,
+            .dividend_yield = 0.0,
+            .option_type = params.option_type,
+            .option_style = options::OptionStyle::American
+        };
+        auto price_result = OptionsPricer::price(extended_params, OptionsPricer::Model::BlackScholes);
         if (!price_result) {
             return std::unexpected(price_result.error());
         }
