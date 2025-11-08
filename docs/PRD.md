@@ -2624,6 +2624,8 @@ The systems integration document includes:
 **📋 Additional Integration Documents:**
 - **[Schwab API Integration Guide](./architecture/schwab-api-integration.md)**: Complete C++23 implementation design for Schwab Developer API with OAuth 2.0 token management, secure credential storage, rate limiting, and integration patterns from SchwabFirstAPI repository
 - **[Database Strategy Analysis](./architecture/database-strategy-analysis.md)**: DuckDB-First vs PostgreSQL comparison with decision scenarios and migration strategy
+- **[Trading Types and Strategies](./architecture/trading-types-and-strategies.md)**: Comprehensive reference for stock/options trading types, pricing models (Black-Scholes, binomial, trinomial), Greeks calculations, volatility strategies, P/L calculations, and tax implications
+- **[Risk Metrics and Evaluation](./architecture/risk-metrics-and-evaluation.md)**: Complete risk management framework including VaR, stress testing, correlation analysis, position sizing (Kelly criterion), and real-time risk monitoring
 
 ### 6.1 Key Integration Features
 
@@ -3848,7 +3850,13 @@ print(f"Analyzed 10 years of data in seconds, found {len(result)} correlations")
 - **GitHub Actions:** Automated testing and deployment
 - **CMake 4.1.2+:** Latest C++23 build system with modern features
 - **Compilers (Latest and Greatest):**
-  - **GCC 15+** or **Clang 18+** for full C++23 support and latest optimizations
+  - **Clang 21.1.5** (LLVM Project) - chosen for C/C++/Fortran compilation
+    - Full C++23 support with latest optimizations
+    - **Flang 21.1.5** - Modern Fortran compiler for numerical libraries
+    - **MLIR** infrastructure for advanced optimizations
+    - OpenMP 21 runtime included
+    - Reason for choice: Superior compatibility with WSL2, no glibc/pthread conflicts
+    - Alternative: GCC 15+ also supported but requires careful glibc matching
   - **Rust 1.75+** for latest language features
   - **Python 3.14+** with free-threaded mode enabled
 - **Cargo:** Rust build system
@@ -3856,7 +3864,10 @@ print(f"Analyzed 10 years of data in seconds, found {len(result)} correlations")
 - **Poetry/uv:** Python dependency management (fast resolver)
 - **Static Analysis Tools (Mandatory):**
   - **Python:** mypy, pylint, pytype (all installed via uv)
-  - **C++:** clang-tidy (LLVM 18+), cppcheck (latest)
+  - **C++:** clang-tidy 21 (from Clang 21 toolchain), cppcheck (latest)
+    - clang-tidy now built-in with Clang 21.1.5 installation
+    - C++ Core Guidelines enforcement
+    - modernize-* checks for C++23 features
   - **Pre-commit hooks:** Automatic static analysis on git commit
   - **CI/CD enforcement:** All PRs must pass static analysis checks
 
@@ -3900,28 +3911,48 @@ Use Ubuntu if:
 
 #### 9.6.1.2 Core Development Tools Installation
 
-**1. Homebrew on Linux (for Latest GCC and Binutils)**
+**1. Clang/LLVM 21 Toolchain (Built from Source)**
 
-Why Homebrew:
-- Latest GCC 15+ with full C++23 support
-- Latest binutils for optimized linking
-- Easy version management
-- Isolated from system packages
+**CHOSEN TOOLCHAIN: Clang 21.1.5 + Flang 21 + MLIR + OpenMP**
 
-Installation:
+Why LLVM/Clang 21:
+- **Latest stable release** (Clang 21.1.5, released 2025)
+- **Full C++23 support** with excellent standards conformance
+- **Flang Fortran compiler** for numerical library integration
+- **Superior WSL2 compatibility** - no glibc/pthread version conflicts
+- **Integrated OpenMP 21** runtime (no separate installation)
+- **Better diagnostics** than GCC for template errors
+- **MLIR infrastructure** for advanced compiler optimizations
+
+Build from Source (Recommended for WSL2):
 ```bash
-# Install Homebrew on Linux
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Install build dependencies
+sudo apt-get install -y build-essential cmake ninja-build python3 \
+    libz3-dev libxml2-dev zlib1g-dev
 
-# Add to PATH
-echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
-source ~/.bashrc
+# Download LLVM 21.1.5
+cd ~/toolchain-build
+wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.5/llvm-project-21.1.5.src.tar.xz
+tar -xf llvm-project-21.1.5.src.tar.xz
 
-# Install latest GCC and binutils
-brew install gcc@15          # GCC 15 with C++23 support
-brew install binutils        # Latest GNU binutils
-brew install cmake           # CMake 4.1.2+
-brew install ninja           # Ninja build system
+# Configure (includes Clang, Flang, MLIR, OpenMP)
+mkdir llvm-build && cd llvm-build
+cmake -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_PROJECTS="clang;flang;openmp" \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DLLVM_ENABLE_LTO=OFF \
+  -DLLVM_TARGETS_TO_BUILD="X86" \
+  ../llvm-project-21.1.5.src/llvm
+
+# Build (takes 45-90 minutes)
+ninja -j$(nproc)
+sudo ninja install
+
+# Verify installation
+clang --version          # Should show 21.1.5
+clang++ --version        # C++ compiler
+flang-new --version      # Fortran compiler
 
 # Verify installations
 gcc-15 --version             # Should show GCC 15.x

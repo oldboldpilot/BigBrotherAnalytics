@@ -30,22 +30,24 @@ enum class LogLevel {
  */
 class Logger {
 public:
-    static Logger& getInstance();
+    [[nodiscard]] static auto getInstance() -> Logger&;
 
     // Delete copy and move constructors
-    Logger(const Logger&) = delete;
-    Logger& operator=(const Logger&) = delete;
+    Logger(Logger const&) = delete;
+    auto operator=(Logger const&) -> Logger& = delete;
     Logger(Logger&&) = delete;
-    Logger& operator=(Logger&&) = delete;
+    auto operator=(Logger&&) -> Logger& = delete;
 
     // Initialize logger with configuration
-    void initialize(const std::string& log_file_path = "logs/bigbrother.log",
-                   LogLevel level = LogLevel::INFO,
-                   bool console_output = true);
+    auto initialize(
+        std::string const& log_file_path = "logs/bigbrother.log",
+        LogLevel level = LogLevel::INFO,
+        bool console_output = true
+    ) -> void;
 
     // Set log level
-    void setLevel(LogLevel level);
-    LogLevel getLevel() const;
+    auto setLevel(LogLevel level) -> void;
+    [[nodiscard]] auto getLevel() const -> LogLevel;
 
     // Logging methods with automatic source location
     template<typename... Args>
@@ -86,7 +88,7 @@ private:
     ~Logger();
 
     // Internal logging method
-    void logMessage(LogLevel level, const std::string& msg);
+    auto logMessage(LogLevel level, std::string const& msg) -> void;
 
     template<typename... Args>
     void logFormatted(LogLevel level, const std::string& fmt, Args&&... args) {

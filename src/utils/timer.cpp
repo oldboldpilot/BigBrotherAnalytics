@@ -185,7 +185,7 @@ private:
                sorted_samples[upper_idx] * weight;
     }
 
-    std::map<std::string, std::vector<double>> measurements_;
+    std::unordered_map<std::string, std::vector<double>> measurements_;
     mutable std::shared_mutex mutex_;  // Thread-safety (read-write lock)
 };
 

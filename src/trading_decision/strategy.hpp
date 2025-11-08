@@ -9,7 +9,6 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include <map>
 #include <unordered_map>
 #include <chrono>
 
@@ -125,7 +124,7 @@ public:
      * Get strategy parameters
      */
     [[nodiscard]] virtual auto getParameters() const
-        -> std::map<std::string, std::string> = 0;
+        -> std::unordered_map<std::string, std::string> = 0;
 };
 
 /**

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <chrono>
+#include <cmath>
 #include <expected>
 #include <optional>
 

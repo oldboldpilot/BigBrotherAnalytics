@@ -215,14 +215,121 @@
       become_user: "{{ user }}"
 
     # ═══════════════════════════════════════════════════════════
-    # SECTION 3: C++23 Toolchain via Homebrew
+    # SECTION 3: Build Clang/LLVM 21 Toolchain from Source
     # ═══════════════════════════════════════════════════════════
+    # NOTE: Building LLVM/Clang from source ensures C++23 support
+    #       and avoids pthread/glibc version conflicts on WSL2
+    #       Using Clang instead of GCC for better compatibility
 
-    - name: Install C++23 development toolchain via Homebrew
+    - name: Install system GCC 14 as bootstrap compiler
+      apt:
+        name:
+          - build-essential
+          - gcc
+          - g++
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install LLVM build dependencies (Ubuntu)
+      apt:
+        name:
+          - cmake
+          - ninja-build
+          - build-essential
+          - python3
+          - libgmp-dev
+          - libmpfr-dev
+          - libmpc-dev
+          - libisl-dev
+          - libz3-dev
+          - zlib1g-dev
+          - libxml2-dev
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install LLVM build dependencies (RHEL)
+      dnf:
+        name:
+          - cmake
+          - ninja-build
+          - python3
+          - gmp-devel
+          - mpfr-devel
+          - libmpc-devel
+          - isl-devel
+          - z3-devel
+          - zlib-devel
+          - libxml2-devel
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Create toolchain build directory
+      file:
+        path: "/home/{{ user }}/toolchain-build"
+        state: directory
+        owner: "{{ user }}"
+        mode: '0755'
+
+    # Build LLVM/Clang 21.1.5 with OpenMP
+    - name: Download LLVM 21.1.5 source
+      get_url:
+        url: "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.5/llvm-project-21.1.5.src.tar.xz"
+        dest: "/home/{{ user }}/toolchain-build/llvm-project-21.1.5.src.tar.xz"
+      become_user: "{{ user }}"
+
+    - name: Extract LLVM 21.1.5
+      unarchive:
+        src: "/home/{{ user }}/toolchain-build/llvm-project-21.1.5.src.tar.xz"
+        dest: "/home/{{ user }}/toolchain-build/"
+        remote_src: yes
+      become_user: "{{ user }}"
+
+    - name: Configure LLVM/Clang 21 with OpenMP (no LTO for compatibility)
+      shell: |
+        mkdir -p /home/{{ user }}/toolchain-build/llvm-build
+        cd /home/{{ user }}/toolchain-build/llvm-build
+        PATH=/usr/bin:$PATH \
+        CC=gcc \
+        CXX=g++ \
+        cmake -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_ENABLE_PROJECTS="clang;openmp" \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DCMAKE_LINKER=/usr/bin/ld \
+          -DLLVM_ENABLE_LTO=OFF \
+          -DLLVM_ENABLE_ASSERTIONS=OFF \
+          -DLLVM_TARGETS_TO_BUILD="X86" \
+          -DLLVM_OPTIMIZED_TABLEGEN=ON \
+          ../llvm-project-21.1.5.src/llvm
+      become_user: "{{ user }}"
+      args:
+        creates: "/home/{{ user }}/toolchain-build/llvm-build/build.ninja"
+
+    - name: Build and install LLVM/Clang 21 (uses system tools, no LTO plugin)
+      shell: |
+        cd /home/{{ user }}/toolchain-build/llvm-build
+        PATH=/usr/bin:$PATH \
+        AR=/usr/bin/ar \
+        RANLIB=/usr/bin/ranlib \
+        ninja -j{{ num_build_jobs }}
+        ninja install
+      args:
+        creates: "/usr/local/bin/clang"
+
+    - name: Create Clang symlinks
+      file:
+        src: "/usr/local/bin/{{ item.src }}"
+        dest: "/usr/local/bin/{{ item.dest }}"
+        state: link
+        force: yes
+      loop:
+        - { src: 'clang', dest: 'cc' }
+        - { src: 'clang++', dest: 'c++' }
+
+    # Install additional build tools via Homebrew
+    - name: Install build tools via Homebrew
       homebrew:
         name:
-          - gcc@{{ gcc_version }}     # GCC 15 with C++23
-          - binutils                   # Latest GNU binutils
           - cmake                      # CMake 4.1.2+
           - ninja                      # Ninja build system
           - make                       # GNU Make
@@ -230,7 +337,6 @@
           - automake
           - libtool
           - pkg-config
-          - llvm                       # LLVM 21+ (includes clang-tidy)
           - cppcheck                   # C++ static analyzer
           - rustup                     # Rust toolchain manager
           - rust                       # Rust compiler (installed via rustup)
@@ -240,31 +346,88 @@
       environment:
         PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
 
-    - name: Create GCC symlinks (for MPI/PGAS compatibility)
-      file:
-        src: "{{ homebrew_prefix }}/bin/{{ item.src }}"
-        dest: "{{ homebrew_prefix }}/bin/{{ item.dest }}"
-        state: link
-        force: yes
-      loop:
-        - { src: 'gcc-{{ gcc_version }}', dest: 'gcc' }
-        - { src: 'g++-{{ gcc_version }}', dest: 'g++' }
-        - { src: 'gfortran-{{ gcc_version }}', dest: 'gfortran' }
-      # NOTE: Required for OpenMPI/PGAS - they expect unversioned compiler names
-
     # ═══════════════════════════════════════════════════════════
-    # SECTION 4: Parallel Computing (OpenMP, MPI, UPC++)
+    # SECTION 4: Build OpenMPI 5.x from Source
     # ═══════════════════════════════════════════════════════════
+    # NOTE: OpenMP is built as part of LLVM in Section 3
+    #       OpenMPI needs to be built with Clang for consistency
 
-    - name: Install parallel computing libraries via Homebrew
-      homebrew:
-        name:
-          - open-mpi                   # OpenMPI 5.x
-          - libomp                     # OpenMP runtime
-        state: latest
+    - name: Download OpenMPI 5.0.7 source
+      get_url:
+        url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.7.tar.gz"
+        dest: "/home/{{ user }}/toolchain-build/openmpi-5.0.7.tar.gz"
       become_user: "{{ user }}"
+
+    - name: Extract OpenMPI
+      unarchive:
+        src: "/home/{{ user }}/toolchain-build/openmpi-5.0.7.tar.gz"
+        dest: "/home/{{ user }}/toolchain-build/"
+        remote_src: yes
+      become_user: "{{ user }}"
+
+    - name: Configure OpenMPI with Clang
+      shell: |
+        cd /home/{{ user }}/toolchain-build/openmpi-5.0.7
+        CC=/usr/local/bin/clang \
+        CXX=/usr/local/bin/clang++ \
+        ./configure \
+          --prefix=/usr/local \
+          --enable-mpi-cxx \
+          --enable-shared \
+          --enable-static \
+          --with-libevent=internal \
+          --with-hwloc=internal \
+          --with-pmix=internal
+      become_user: "{{ user }}"
+      args:
+        creates: "/home/{{ user }}/toolchain-build/openmpi-5.0.7/Makefile"
       environment:
-        PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+
+    - name: Build and install OpenMPI
+      shell: |
+        cd /home/{{ user }}/toolchain-build/openmpi-5.0.7
+        make -j{{ num_build_jobs }}
+        make install
+      args:
+        creates: "/usr/local/bin/mpirun"
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4.5: Build DuckDB from Source (C++ API)
+    # ═══════════════════════════════════════════════════════════
+    # Build DuckDB for fast C++ integration
+    # Resolves C++ header compatibility issues with pre-built packages
+
+    - name: Download DuckDB v1.2.0 source
+      git:
+        repo: 'https://github.com/duckdb/duckdb.git'
+        dest: "/home/{{ user }}/toolchain-build/duckdb"
+        version: v1.2.0
+      become_user: "{{ user }}"
+
+    - name: Configure DuckDB with Clang
+      shell: |
+        mkdir -p /home/{{ user }}/toolchain-build/duckdb/build
+        cd /home/{{ user }}/toolchain-build/duckdb/build
+        CC=/usr/local/bin/clang \
+        CXX=/usr/local/bin/clang++ \
+        cmake -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          ..
+      become_user: "{{ user }}"
+      args:
+        creates: "/home/{{ user }}/toolchain-build/duckdb/build/build.ninja"
+
+    - name: Build and install DuckDB
+      shell: |
+        cd /home/{{ user }}/toolchain-build/duckdb/build
+        ninja -j{{ num_build_jobs }}
+        ninja install
+      args:
+        creates: "/usr/local/lib/libduckdb.so"
 
     - name: Create Berkeley components directory
       file:
@@ -290,12 +453,11 @@
       become_user: "{{ user }}"
       ignore_errors: yes
 
-    - name: Configure GASNet-EX
+    - name: Configure GASNet-EX with Clang
       shell: |
-        {{ homebrew_prefix }}/bin/brew shellenv
         cd /tmp/GASNet-{{ gasnet_version }}
-        CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
-        CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
+        CC=/usr/local/bin/clang \
+        CXX=/usr/local/bin/clang++ \
         ./configure \
           --prefix={{ install_prefix }}/gasnet \
           --enable-mpi \
@@ -303,11 +465,13 @@
           --enable-udp \
           --disable-seq \
           --enable-par \
-          --with-mpicc={{ homebrew_prefix }}/bin/mpicc
+          --with-mpicc=/usr/local/bin/mpicc
       become_user: "{{ user }}"
       args:
         creates: "/tmp/GASNet-{{ gasnet_version }}/Makefile"
       ignore_errors: yes
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
 
     - name: Build and install GASNet-EX
       shell: |
@@ -334,19 +498,21 @@
       become_user: "{{ user }}"
       ignore_errors: yes
 
-    - name: Install UPC++
+    - name: Install UPC++ with Clang
       shell: |
         cd /tmp/upcxx-{{ upcxx_version }}
         ./install {{ install_prefix }}/upcxx \
           --with-gasnet={{ install_prefix }}/gasnet \
-          --with-cc={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
-          --with-cxx={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
-          --with-mpi-cc={{ homebrew_prefix }}/bin/mpicc \
-          --with-mpi-cxx={{ homebrew_prefix }}/bin/mpic++
+          --with-cc=/usr/local/bin/clang \
+          --with-cxx=/usr/local/bin/clang++ \
+          --with-mpi-cc=/usr/local/bin/mpicc \
+          --with-mpi-cxx=/usr/local/bin/mpic++
       become_user: "{{ user }}"
       args:
         creates: "{{ install_prefix }}/upcxx/bin/upcxx"
       ignore_errors: yes
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
 
     # OpenSHMEM Installation
     - name: Download OpenSHMEM
@@ -364,11 +530,11 @@
       become_user: "{{ user }}"
       ignore_errors: yes
 
-    - name: Configure OpenSHMEM
+    - name: Configure OpenSHMEM with Clang
       shell: |
         cd /tmp/SOS-1.5.2
-        CC={{ homebrew_prefix }}/bin/gcc-{{ gcc_version }} \
-        CXX={{ homebrew_prefix }}/bin/g++-{{ gcc_version }} \
+        CC=/usr/local/bin/clang \
+        CXX=/usr/local/bin/clang++ \
         ./configure \
           --prefix={{ install_prefix }}/openshmem \
           --enable-pmi-simple \
@@ -378,6 +544,8 @@
       args:
         creates: "/tmp/SOS-1.5.2/Makefile"
       ignore_errors: yes
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
 
     - name: Build and install OpenSHMEM
       shell: |
@@ -670,16 +838,17 @@
           # Homebrew
           eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
 
-          # Compilers (use symlinks for MPI/PGAS compatibility)
-          export CC={{ homebrew_prefix }}/bin/gcc
-          export CXX={{ homebrew_prefix }}/bin/g++
-          export FC={{ homebrew_prefix }}/bin/gfortran
+          # Compilers (Clang/LLVM 21 built from source in /usr/local)
+          export CC=/usr/local/bin/clang
+          export CXX=/usr/local/bin/clang++
+          export PATH=/usr/local/bin:$PATH
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
-          # MPI
-          export MPICC={{ homebrew_prefix }}/bin/mpicc
-          export MPICXX={{ homebrew_prefix }}/bin/mpic++
-          export OMPI_CC={{ homebrew_prefix }}/bin/gcc
-          export OMPI_CXX={{ homebrew_prefix }}/bin/g++
+          # MPI (built with Clang)
+          export MPICC=/usr/local/bin/mpicc
+          export MPICXX=/usr/local/bin/mpic++
+          export OMPI_CC=/usr/local/bin/clang
+          export OMPI_CXX=/usr/local/bin/clang++
 
           # Static Analysis Tools
           export PATH={{ homebrew_prefix }}/opt/llvm/bin:$PATH
@@ -742,8 +911,8 @@
 
           # Check compilers
           echo "COMPILERS:"
-          check_command "gcc-{{ gcc_version }}" "GCC {{ gcc_version }}"
-          check_command "g++-{{ gcc_version }}" "G++ {{ gcc_version }}"
+          check_command "clang" "Clang/LLVM 21"
+          check_command "clang++" "Clang++ 21"
           check_command "cmake" "CMake"
           echo ""
 

@@ -55,13 +55,14 @@ public:
         [[nodiscard]] auto validate() const noexcept -> Result<void>;
     };
 
-    explicit DeltaNeutralStraddleStrategy(Parameters params = Parameters{});
+    DeltaNeutralStraddleStrategy();  // Use default parameters
+    explicit DeltaNeutralStraddleStrategy(Parameters params);
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<TradingSignal> override;
 
     [[nodiscard]] auto getParameters() const
-        -> std::map<std::string, std::string> override;
+        -> std::unordered_map<std::string, std::string> override;
 
 private:
     /**
@@ -136,13 +137,14 @@ public:
         [[nodiscard]] auto validate() const noexcept -> Result<void>;
     };
 
-    explicit DeltaNeutralStrangleStrategy(Parameters params = Parameters{});
+    DeltaNeutralStrangleStrategy();  // Use default parameters
+    explicit DeltaNeutralStrangleStrategy(Parameters params);
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<TradingSignal> override;
 
     [[nodiscard]] auto getParameters() const
-        -> std::map<std::string, std::string> override;
+        -> std::unordered_map<std::string, std::string> override;
 
 private:
     [[nodiscard]] auto findBestStrangle(

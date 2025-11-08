@@ -4,7 +4,6 @@
 #include "../utils/math.hpp"
 #include <vector>
 #include <span>
-#include <map>
 #include <unordered_map>
 #include <memory>
 #include <concepts>
@@ -13,6 +12,17 @@
 namespace bigbrother::correlation {
 
 using namespace types;
+
+// Hash function for std::pair (for unordered_map keys)
+struct PairHash {
+    template <typename T1, typename T2>
+    std::size_t operator()(const std::pair<T1, T2>& pair) const {
+        auto hash1 = std::hash<T1>{}(pair.first);
+        auto hash2 = std::hash<T2>{}(pair.second);
+        // Combine hashes using shift and XOR
+        return hash1 ^ (hash2 << 1);
+    }
+};
 
 /**
  * Correlation Engine
@@ -126,7 +136,7 @@ public:
 
 private:
     std::vector<std::string> symbols_;
-    std::map<std::pair<std::string, std::string>, double> matrix_;
+    std::unordered_map<std::pair<std::string, std::string>, double, PairHash> matrix_;
 };
 
 /**

@@ -3,7 +3,7 @@
 #include "../utils/types.hpp"
 #include "../correlation_engine/options_pricing.hpp"
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -235,7 +235,7 @@ public:
      * @return List of triggered stops
      */
     [[nodiscard]] auto update(
-        std::map<std::string, Price> const& current_prices
+        std::unordered_map<std::string, Price> const& current_prices
     ) -> std::vector<std::string>;
 
     /**

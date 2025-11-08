@@ -55,13 +55,14 @@ public:
         [[nodiscard]] auto validate() const noexcept -> Result<void>;
     };
 
-    explicit VolatilityArbitrageStrategy(Parameters params = Parameters{});
+    VolatilityArbitrageStrategy();  // Use default parameters
+    explicit VolatilityArbitrageStrategy(Parameters params);
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<TradingSignal> override;
 
     [[nodiscard]] auto getParameters() const
-        -> std::map<std::string, std::string> override;
+        -> std::unordered_map<std::string, std::string> override;
 
 private:
     /**
@@ -128,13 +129,14 @@ public:
         [[nodiscard]] auto validate() const noexcept -> Result<void>;
     };
 
-    explicit MeanReversionStrategy(Parameters params = Parameters{});
+    MeanReversionStrategy();  // Use default parameters
+    explicit MeanReversionStrategy(Parameters params);
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<TradingSignal> override;
 
     [[nodiscard]] auto getParameters() const
-        -> std::map<std::string, std::string> override;
+        -> std::unordered_map<std::string, std::string> override;
 
 private:
     Parameters params_;

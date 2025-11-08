@@ -50,7 +50,7 @@ namespace bigbrother::risk {
 
         case StopType::TimeStop: {
             // Exit after time limit
-            auto const now = Timer::now();
+            auto const now = utils::Timer::now();
             return now >= expiration;
         }
 
@@ -121,7 +121,7 @@ auto StopLossManager::addStop(
 }
 
 [[nodiscard]] auto StopLossManager::update(
-    std::map<std::string, Price> const& current_prices
+    std::unordered_map<std::string, Price> const& current_prices
 ) -> std::vector<std::string> {
 
     PROFILE_SCOPE("StopLossManager::update");

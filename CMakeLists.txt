@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
 project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # Require C++23
@@ -6,18 +6,23 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable C++23 modules
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
 # Build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Compiler flags - Use Homebrew libraries with GCC 15
+# Compiler flags for Clang 21
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG -ffast-math")
+# Removed -ffast-math due to isnan/infinity usage in Greeks calculations
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-# Use Homebrew's runtime libraries to match GCC 15
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,/home/linuxbrew/.linuxbrew/lib")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-rpath,/home/linuxbrew/.linuxbrew/lib")
+# Clang-specific flags for C++23 modules
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-fprebuilt-module-path=${CMAKE_BINARY_DIR}/modules)
+endif()
 
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -86,6 +91,21 @@ add_library(utils SHARED
     src/utils/database.cpp
     src/utils/timer.cpp
 )
+
+# C++23 modules using Clang 21 approach (global module fragment)
+# Following C++ Core Guidelines and Clang 21 standards
+# See: https://releases.llvm.org/21.1.0/tools/clang/docs/StandardCPlusPlusModules.html
+# See: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
+target_sources(utils
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            src/utils/types.cppm
+            src/utils/logger.cppm
+            src/utils/config.cppm
+)
+
+# Module compilation flags for Clang 21
+target_compile_options(utils PRIVATE -fmodule-output)
 
 target_link_libraries(utils
     PUBLIC
@@ -193,6 +213,13 @@ add_library(trading_decision SHARED
     src/trading_decision/strategy_volatility_arb.cpp
     src/trading_decision/ml_predictor.cpp
     src/trading_decision/portfolio_optimizer.cpp
+)
+
+# C++23 module for Iron Condor strategy
+target_sources(trading_decision
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            src/trading_decision/strategy_iron_condor.cppm
 )
 
 target_link_libraries(trading_decision

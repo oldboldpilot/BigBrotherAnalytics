@@ -1,4 +1,7 @@
-#include "logger.hpp"
+// Module implementation file
+// Note: During transition, we include the header. Later switch to:
+// import bigbrother.utils.logger;
+#include "logger.hpp"  // Will be replaced with module import
 
 #include <iostream>
 #include <fstream>
@@ -7,6 +10,7 @@
 #include <iomanip>
 #include <sstream>
 #include <mutex>
+#include <source_location>
 
 namespace bigbrother::utils {
 
@@ -24,7 +28,7 @@ class Logger::Impl {
 public:
     Impl() : current_level(LogLevel::INFO), console_enabled(true), initialized(false) {}
 
-    void initialize(const std::string& log_file_path, LogLevel level, bool console) {
+    auto initialize(std::string const& log_file_path, LogLevel level, bool console) -> void {
         current_level = level;
         console_enabled = console;
 
@@ -42,15 +46,15 @@ public:
         }
     }
 
-    void setLevel(LogLevel level) {
+    auto setLevel(LogLevel level) -> void {
         current_level = level;
     }
 
-    LogLevel getLevel() const {
+    [[nodiscard]] auto getLevel() const -> LogLevel {
         return current_level;
     }
 
-    void log(LogLevel level, const std::string& msg, const std::source_location& loc) {
+    auto log(LogLevel level, std::string const& msg, std::source_location const& loc) -> void {
         if (level < current_level) {
             return;  // Skip if level is below threshold
         }
@@ -85,14 +89,14 @@ public:
         }
     }
 
-    void flush() {
+    auto flush() -> void {
         if (log_file.is_open()) {
             log_file.flush();
         }
     }
 
 private:
-    static std::string levelToString(LogLevel level) {
+    [[nodiscard]] static auto levelToString(LogLevel level) -> std::string {
         switch (level) {
             case LogLevel::TRACE: return "TRACE";
             case LogLevel::DEBUG: return "DEBUG";
@@ -118,28 +122,32 @@ Logger::~Logger() {
     flush();
 }
 
-Logger& Logger::getInstance() {
+[[nodiscard]] auto Logger::getInstance() -> Logger& {
     static Logger instance;
     return instance;
 }
 
-void Logger::initialize(const std::string& log_file_path, LogLevel level, bool console_output) {
+auto Logger::initialize(
+    std::string const& log_file_path,
+    LogLevel level,
+    bool console_output
+) -> void {
     pImpl->initialize(log_file_path, level, console_output);
 }
 
-void Logger::setLevel(LogLevel level) {
+auto Logger::setLevel(LogLevel level) -> void {
     pImpl->setLevel(level);
 }
 
-LogLevel Logger::getLevel() const {
+[[nodiscard]] auto Logger::getLevel() const -> LogLevel {
     return pImpl->getLevel();
 }
 
-void Logger::flush() {
+auto Logger::flush() -> void {
     pImpl->flush();
 }
 
-void Logger::logMessage(LogLevel level, const std::string& msg) {
+auto Logger::logMessage(LogLevel level, std::string const& msg) -> void {
     pImpl->log(level, msg, std::source_location::current());
 }
 

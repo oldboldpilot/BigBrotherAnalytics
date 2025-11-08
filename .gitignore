@@ -94,3 +94,4 @@ htmlcov/
 *.bak
 tmp/
 temp/
+api_keys.yaml

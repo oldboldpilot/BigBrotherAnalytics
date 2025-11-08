@@ -6,6 +6,7 @@
 #include <mutex>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <thread>
 #include <atomic>
 

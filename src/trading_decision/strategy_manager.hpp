@@ -1,6 +1,8 @@
 #pragma once
 
 #include "strategy.hpp"
+#include "strategy_straddle.hpp"
+#include "strategy_volatility_arb.hpp"
 #include <memory>
 #include <vector>
 #include <mutex>
@@ -102,7 +104,7 @@ private:
     mutable std::mutex mutex_;
 
     // Performance tracking
-    std::map<std::string, StrategyPerformance> performance_;
+    std::unordered_map<std::string, StrategyPerformance> performance_;
 };
 
 /**

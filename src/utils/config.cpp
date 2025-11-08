@@ -5,6 +5,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <regex>
+#include <unordered_map>
 
 #ifdef HAS_YAML_CPP
 #include <yaml-cpp/yaml.h>
@@ -197,7 +198,7 @@ private:
         return result;
     }
 
-    std::map<std::string, std::string> values;
+    std::unordered_map<std::string, std::string> values;
     std::string current_file;
     bool loaded;
 };

@@ -242,7 +242,7 @@ using std::numbers::pi;
              n, n,
              type == CorrelationType::Pearson ? "Pearson" : "Spearman");
 
-    auto const start_time = Timer::timepoint();
+    auto const start_time = utils::Timer::timepoint();
 
     // Parallel computation of upper triangle
     // (matrix is symmetric, so we only compute half)
@@ -301,7 +301,7 @@ using std::numbers::pi;
     }
 
     auto const elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        Timer::timepoint() - start_time
+        utils::Timer::timepoint() - start_time
     ).count();
 
     LOG_INFO("Correlation matrix calculated in {} ms ({} correlations)",

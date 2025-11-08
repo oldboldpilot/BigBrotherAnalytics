@@ -11,6 +11,7 @@
 
 #include "utils/logger.hpp"
 #include "utils/config.hpp"
+#include "utils/timer.hpp"
 #include "backtesting/backtest_engine.hpp"
 #include "backtesting/backtest_fluent_api.hpp"
 #include "trading_decision/strategy_straddle.hpp"
@@ -83,10 +84,10 @@ auto main(int argc, char* argv[]) -> int {
     // Initialize logger
     utils::Logger::getInstance().initialize("logs/backtest.log", utils::LogLevel::INFO, true);
 
-    utils::LOG_INFO("╔════════════════════════════════════════════════════════════╗");
-    utils::LOG_INFO("║         BigBrotherAnalytics Backtesting Engine            ║");
-    utils::LOG_INFO("╚════════════════════════════════════════════════════════════╝");
-    utils::LOG_INFO("");
+    LOG_INFO("╔════════════════════════════════════════════════════════════╗");
+    LOG_INFO("║         BigBrotherAnalytics Backtesting Engine            ║");
+    LOG_INFO("╚════════════════════════════════════════════════════════════╝");
+    LOG_INFO("");
 
     // Parse command line arguments
     std::string start_date = "2020-01-01";
@@ -137,12 +138,12 @@ Examples:
         }
     }
 
-    utils::LOG_INFO("Backtest Configuration:");
-    utils::LOG_INFO("  Start Date: {}", start_date);
-    utils::LOG_INFO("  End Date:   {}", end_date);
-    utils::LOG_INFO("  Strategy:   {}", all_strategies ? "ALL" : strategy_name);
-    utils::LOG_INFO("  Data Path:  {}", data_path);
-    utils::LOG_INFO("");
+    LOG_INFO("Backtest Configuration:");
+    LOG_INFO("  Start Date: {}", start_date);
+    LOG_INFO("  End Date:   {}", end_date);
+    LOG_INFO("  Strategy:   {}", all_strategies ? "ALL" : strategy_name);
+    LOG_INFO("  Data Path:  {}", data_path);
+    LOG_INFO("");
 
     // Symbols to backtest
     std::vector<std::string> symbols = {
@@ -177,19 +178,19 @@ Examples:
             runner.addStrategy<strategy::MeanReversionStrategy>();
         }
 
-        utils::LOG_INFO("Running backtest...");
+        LOG_INFO("Running backtest...");
 
         utils::Timer timer;
         auto result = runner.run();
 
         if (!result) {
-            utils::LOG_ERROR("Backtest failed: {}", result.error().message);
+            LOG_ERROR("Backtest failed: {}", result.error().message);
             return 1;
         }
 
         auto const elapsed = timer.elapsedSeconds();
 
-        utils::LOG_INFO("Backtest completed in {:.2f} seconds", elapsed);
+        LOG_INFO("Backtest completed in {:.2f} seconds", elapsed);
 
         // Print results
         printResults(*result);
@@ -198,13 +199,13 @@ Examples:
         runner.exportTrades("data/backtest_results/trades.csv");
         runner.exportMetrics("data/backtest_results/metrics.csv");
 
-        utils::LOG_INFO("Results exported to data/backtest_results/");
+        LOG_INFO("Results exported to data/backtest_results/");
 
         // Return success/failure based on thresholds
         return result->passesThresholds() ? 0 : 1;
 
     } catch (std::exception const& e) {
-        utils::LOG_ERROR("Backtest error: {}", e.what());
+        LOG_ERROR("Backtest error: {}", e.what());
         return 1;
     }
 }

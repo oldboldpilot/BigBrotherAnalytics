@@ -64,6 +64,10 @@ namespace bigbrother::strategy {
     return {};
 }
 
+// Default constructor with default parameters
+DeltaNeutralStraddleStrategy::DeltaNeutralStraddleStrategy()
+    : DeltaNeutralStraddleStrategy(Parameters{}) {}
+
 DeltaNeutralStraddleStrategy::DeltaNeutralStraddleStrategy(Parameters params)
     : BaseStrategy("DeltaNeutralStraddle",
                   "Profit from volatility by buying ATM call and put"),
@@ -336,8 +340,16 @@ DeltaNeutralStraddleStrategy::DeltaNeutralStraddleStrategy(Parameters params)
     return std::abs(total_delta) <= tolerance;
 }
 
+// DeltaNeutralStrangleStrategy implementation (stub - TODO)
+DeltaNeutralStrangleStrategy::DeltaNeutralStrangleStrategy()
+    : BaseStrategy("DeltaNeutralStrangle", "Strangle strategy") {}
+
+DeltaNeutralStrangleStrategy::DeltaNeutralStrangleStrategy(Parameters params)
+    : BaseStrategy("DeltaNeutralStrangle", "Strangle strategy"),
+      params_{std::move(params)} {}
+
 [[nodiscard]] auto DeltaNeutralStraddleStrategy::getParameters() const
-    -> std::map<std::string, std::string> {
+    -> std::unordered_map<std::string, std::string> {
 
     return {
         {"max_position_size", std::to_string(params_.max_position_size)},

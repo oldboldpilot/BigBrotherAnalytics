@@ -6,14 +6,17 @@
 #include <queue>
 #include <stdexcept>
 
-#ifdef HAS_DUCKDB
+// DuckDB C++ headers have compatibility issues with Clang 21 + C++23
+// Using stub implementation for now - will use Python DuckDB via uv/pybind11
+// TODO: Upgrade to newer DuckDB version or use Python bindings
+#if 0  // Temporarily disabled
 #include <duckdb.hpp>
 #endif
 
 namespace bigbrother {
 namespace utils {
 
-#ifdef HAS_DUCKDB
+#if 0  // DuckDB C++ disabled - using stub until Python integration ready
 
 class Database::Impl {
 public:
