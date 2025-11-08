@@ -95,6 +95,12 @@
 
 ## AI Assistant Guidelines
 
+**CRITICAL: Authorship Standard**
+- **ALL files created/modified MUST include:** Author: Olumuyiwa Oluwasanmi
+- Include author in file headers for: .cpp, .cppm, .hpp, .py, .sh, .yaml, .md
+- See `docs/CODING_STANDARDS.md` Section 11 for templates
+- Git commits include: Co-Authored-By: Claude <noreply@anthropic.com>
+
 When helping with this project:
 1. Always check database strategy first - use DuckDB for Tier 1, not PostgreSQL
 2. Reference `ai/MANIFEST.md` for current goals and active agents

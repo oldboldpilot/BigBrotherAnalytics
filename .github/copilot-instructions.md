@@ -4,6 +4,12 @@
 
 BigBrotherAnalytics is a high-performance AI-powered trading platform with **microsecond-level latency** requirements. **Tier 1 Foundation is COMPLETE** with 17 production-ready C++23 modules (7,415 lines) and validated profitability.
 
+**CRITICAL AUTHORSHIP STANDARD:**
+- **ALL files MUST include:** Author: Olumuyiwa Oluwasanmi
+- **Applies to:** Code, configs, docs, scripts, tests, CI/CD files
+- **Format:** See Section 11 in docs/CODING_STANDARDS.md
+- **Enforcement:** Pre-commit hooks + CI/CD checks
+
 **Current Status (Nov 2025):**
 - ✅ C++23 module migration complete - 17 modules with fluent APIs
 - ✅ Tax-aware profitability validated: +14.88% after-tax on backtests
