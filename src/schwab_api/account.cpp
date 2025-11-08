@@ -1,4 +1,12 @@
 #include "schwab_client.hpp"
+
 namespace bigbrother::schwab {
-// Stub - account information
-}
+
+class AccountClient::Impl {
+public:
+    explicit Impl(std::shared_ptr<TokenManager>) {}
+};
+
+AccountClient::~AccountClient() = default;
+
+} // namespace bigbrother::schwab

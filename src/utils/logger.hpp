@@ -108,24 +108,13 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
-// Convenience macros for logging
-#define LOG_TRACE(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().trace(msg, ##__VA_ARGS__)
-
-#define LOG_DEBUG(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().debug(msg, ##__VA_ARGS__)
-
-#define LOG_INFO(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().info(msg, ##__VA_ARGS__)
-
-#define LOG_WARN(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().warn(msg, ##__VA_ARGS__)
-
-#define LOG_ERROR(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().error(msg, ##__VA_ARGS__)
-
-#define LOG_CRITICAL(msg, ...) \
-    ::bigbrother::utils::Logger::getInstance().critical(msg, ##__VA_ARGS__)
-
 } // namespace utils
 } // namespace bigbrother
+
+// Convenience macros for logging
+#define LOG_TRACE(...) ::bigbrother::utils::Logger::getInstance().trace(__VA_ARGS__)
+#define LOG_DEBUG(...) ::bigbrother::utils::Logger::getInstance().debug(__VA_ARGS__)
+#define LOG_INFO(...) ::bigbrother::utils::Logger::getInstance().info(__VA_ARGS__)
+#define LOG_WARN(...) ::bigbrother::utils::Logger::getInstance().warn(__VA_ARGS__)
+#define LOG_ERROR(...) ::bigbrother::utils::Logger::getInstance().error(__VA_ARGS__)
+#define LOG_CRITICAL(...) ::bigbrother::utils::Logger::getInstance().critical(__VA_ARGS__)

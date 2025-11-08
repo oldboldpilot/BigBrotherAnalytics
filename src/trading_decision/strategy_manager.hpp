@@ -206,7 +206,7 @@ public:
     // Terminal: generate signals
     [[nodiscard]] auto generateSignals() -> std::vector<TradingSignal> {
         if (!context_) {
-            LOG_ERROR("Strategy context not provided");
+            // Strategy context not provided
             return {};
         }
 

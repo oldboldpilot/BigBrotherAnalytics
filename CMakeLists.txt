@@ -84,28 +84,30 @@ find_package(yaml-cpp)
 # Core Libraries
 # ============================================================================
 
-# Utils Library (logging, config, database connections)
+# Utils Library (C++23 modules only)
 add_library(utils SHARED
     src/utils/logger.cpp
     src/utils/config.cpp
     src/utils/database.cpp
-    src/utils/timer.cpp
 )
 
-# C++23 modules using Clang 21 approach (global module fragment)
-# Following C++ Core Guidelines and Clang 21 standards
-# See: https://releases.llvm.org/21.1.0/tools/clang/docs/StandardCPlusPlusModules.html
-# See: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
-target_sources(utils
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/utils/types.cppm
-            src/utils/logger.cppm
-            src/utils/config.cppm
-)
-
-# Module compilation flags for Clang 21
-target_compile_options(utils PRIVATE -fmodule-output)
+# C++23 modules - DISABLED temporarily due to OpenMP configuration issues
+# Modules are available in .cppm files for future use
+# Currently using traditional headers for compatibility
+# See: MODULE_MIGRATION_STATUS.md for details
+#
+# target_sources(utils
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/utils/types.cppm
+#             src/utils/logger.cppm
+#             src/utils/config.cppm
+#             src/utils/database_api.cppm
+#             src/utils/timer.cppm
+#             src/utils/math.cppm
+# )
+#
+# target_compile_options(utils PRIVATE -fmodule-output)
 
 target_link_libraries(utils
     PUBLIC
@@ -181,52 +183,53 @@ if(MPI_FOUND)
 endif()
 
 # ============================================================================
-# Options Pricing Engine
+# Options Pricing Engine (header-only for now)
 # ============================================================================
 
-add_library(options_pricing SHARED
-    src/correlation_engine/options_pricing.cpp
-    src/correlation_engine/black_scholes.cpp
-    src/correlation_engine/binomial_tree.cpp
-    src/correlation_engine/trinomial_tree.cpp
-    src/correlation_engine/greeks.cpp
-    src/correlation_engine/implied_volatility.cpp
-    src/correlation_engine/iv_surface.cpp
-)
+# Header-only library - using compatibility header (options_pricing.hpp)
+# Full implementation available in C++23 modules (.cppm files) when enabled
+add_library(options_pricing INTERFACE)
 
 target_link_libraries(options_pricing
-    PUBLIC
+    INTERFACE
     utils
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
 )
+
+# C++23 modules available but DISABLED - using traditional headers for now
+# Full implementation in: black_scholes.cppm, trinomial_tree.cppm, options_pricing.cppm
 
 # ============================================================================
 # Trading Decision Engine
 # ============================================================================
 
 add_library(trading_decision SHARED
+    src/trading_decision/strategy_manager.cpp
     src/trading_decision/strategy_base.cpp
     src/trading_decision/signal_aggregator.cpp
     src/trading_decision/strategy_straddle.cpp
     src/trading_decision/strategy_strangle.cpp
     src/trading_decision/strategy_volatility_arb.cpp
+    src/trading_decision/strategy_mean_reversion.cpp
     src/trading_decision/ml_predictor.cpp
     src/trading_decision/portfolio_optimizer.cpp
 )
 
-# C++23 module for Iron Condor strategy
-target_sources(trading_decision
-    PUBLIC
-        FILE_SET CXX_MODULES FILES
-            src/trading_decision/strategy_iron_condor.cppm
-)
+# C++23 modules DISABLED - using traditional headers
+# Iron Condor strategy module available in strategy_iron_condor.cppm
+# target_sources(trading_decision
+#     PUBLIC
+#         FILE_SET CXX_MODULES FILES
+#             src/trading_decision/strategy_iron_condor.cppm
+# )
 
 target_link_libraries(trading_decision
     PUBLIC
     utils
     correlation_engine
     options_pricing
+    schwab_api
     OpenMP::OpenMP_CXX
 )
 
@@ -239,6 +242,7 @@ endif()
 # ============================================================================
 
 add_library(risk_management SHARED
+    src/risk_management/risk_manager.cpp
     src/risk_management/position_sizer.cpp
     src/risk_management/stop_loss.cpp
     src/risk_management/portfolio_constraints.cpp
@@ -258,6 +262,7 @@ target_link_libraries(risk_management
 # ============================================================================
 
 add_library(schwab_api SHARED
+    src/schwab_api/schwab_client.cpp
     src/schwab_api/auth.cpp
     src/schwab_api/token_manager.cpp
     src/schwab_api/market_data.cpp
@@ -322,6 +327,7 @@ target_link_libraries(bigbrother
 add_executable(backtest
     src/backtest_main.cpp
     src/backtesting/backtest_engine.cpp
+    src/backtesting/backtest_engine_impl.cpp
     src/backtesting/order_simulator.cpp
     src/backtesting/performance_metrics.cpp
 )

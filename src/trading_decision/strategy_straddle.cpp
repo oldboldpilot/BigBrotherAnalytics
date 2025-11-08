@@ -342,11 +342,44 @@ DeltaNeutralStraddleStrategy::DeltaNeutralStraddleStrategy(Parameters params)
 
 // DeltaNeutralStrangleStrategy implementation (stub - TODO)
 DeltaNeutralStrangleStrategy::DeltaNeutralStrangleStrategy()
-    : BaseStrategy("DeltaNeutralStrangle", "Strangle strategy") {}
+    : BaseStrategy("DeltaNeutralStrangle", "Strangle strategy"),
+      params_{} {}
 
 DeltaNeutralStrangleStrategy::DeltaNeutralStrangleStrategy(Parameters params)
     : BaseStrategy("DeltaNeutralStrangle", "Strangle strategy"),
       params_{std::move(params)} {}
+
+[[nodiscard]] auto DeltaNeutralStrangleStrategy::generateSignals(
+    StrategyContext const& context
+) -> std::vector<TradingSignal> {
+    // Stub - similar to straddle but with different strikes
+    return {};
+}
+
+[[nodiscard]] auto DeltaNeutralStrangleStrategy::getParameters() const
+    -> std::unordered_map<std::string, std::string> {
+    return {};
+}
+
+[[nodiscard]] auto DeltaNeutralStrangleStrategy::findBestStrangle(
+    std::string const& symbol,
+    StrategyContext const& context
+) const -> std::optional<TradingSignal> {
+    return std::nullopt;
+}
+
+[[nodiscard]] auto DeltaNeutralStrangleStrategy::findStrikeByDelta(
+    schwab::OptionsChainData const& chain,
+    options::OptionType type,
+    double target_delta,
+    Price spot_price
+) const -> std::optional<schwab::OptionsChainData::OptionQuote> {
+    return std::nullopt;
+}
+
+[[nodiscard]] auto DeltaNeutralStrangleStrategy::Parameters::validate() const noexcept -> Result<void> {
+    return {};
+}
 
 [[nodiscard]] auto DeltaNeutralStraddleStrategy::getParameters() const
     -> std::unordered_map<std::string, std::string> {

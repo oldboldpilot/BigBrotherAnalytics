@@ -1,4 +1,12 @@
 #include "schwab_client.hpp"
+
 namespace bigbrother::schwab {
-// Stub - WebSocket streaming
-}
+
+class StreamingClient::Impl {
+public:
+    explicit Impl(std::shared_ptr<TokenManager>) {}
+};
+
+StreamingClient::~StreamingClient() = default;
+
+} // namespace bigbrother::schwab
