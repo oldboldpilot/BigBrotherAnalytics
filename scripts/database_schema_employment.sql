@@ -1,5 +1,7 @@
 -- BigBrotherAnalytics: Employment & Sector Database Schema
 -- Tier 1 Extension: Department of Labor API Integration
+--
+-- Author: Olumuyiwa Oluwasanmi
 -- Created: 2025-11-08
 -- Database: DuckDB
 

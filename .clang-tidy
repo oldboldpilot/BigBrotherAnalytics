@@ -1,0 +1,107 @@
+# BigBrotherAnalytics - Clang-Tidy Configuration
+# Enforces C++ Core Guidelines, C++23 standards, and project conventions
+#
+# Author: Olumuyiwa Oluwasanmi
+# Date: 2025-11-08
+
+Checks: >
+  -*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  bugprone-*,
+  clang-analyzer-*,
+  concurrency-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -readability-identifier-length,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+
+WarningsAsErrors: ''
+
+CheckOptions:
+  # C++ Core Guidelines specific
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: true
+  - key: cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
+    value: false
+
+  # Naming conventions
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+
+  # Modernize checks
+  - key: modernize-use-auto.MinTypeNameLength
+    value: 5
+  - key: modernize-use-auto.RemoveStars
+    value: true
+
+  # Performance checks
+  - key: performance-move-const-arg.CheckTriviallyCopyableMove
+    value: true
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'std::shared_ptr;std::unique_ptr'
+
+  # Readability
+  - key: readability-function-cognitive-complexity.Threshold
+    value: 25
+  - key: readability-function-size.LineThreshold
+    value: 80
+  - key: readability-function-size.StatementThreshold
+    value: 50
+
+HeaderFilterRegex: '.*'
+FormatStyle: none
+
+# Project-specific rules
+# These checks enforce BigBrotherAnalytics coding standards:
+#
+# 1. Trailing return syntax (enforced separately in CI)
+#    - All functions must use: auto func() -> ReturnType
+#
+# 2. C++ Core Guidelines
+#    - C.1: Use struct for passive data, class for invariants
+#    - C.21: Define or delete all default operations
+#    - F.16: Pass cheap types by value
+#    - F.20: Return values, not output parameters
+#    - E: Use std::expected for error handling
+#
+# 3. Modern C++23 features
+#    - Concepts for template constraints
+#    - Ranges for efficient pipelines
+#    - std::expected for error handling
+#    - [[nodiscard]] for getters and queries
+#
+# 4. Fluent APIs
+#    - Builder patterns for complex construction
+#    - Method chaining (return *this or Self&)
+#    - Declarative, readable interfaces
+#
+# 5. Module system
+#    - Proper module structure (module;, export module, export namespace)
+#    - Module imports instead of #include for internal code
+#    - Global module fragment for standard library

@@ -1,5 +1,9 @@
 # Employment Data Integration Guide
 
+**Author:** Olumuyiwa Oluwasanmi
+**Date:** 2025-11-08
+**Version:** 1.0.0
+
 **Tier 1 Extension: Department of Labor API & Sector Analysis**
 
 This guide explains how to integrate employment statistics and sector analysis into BigBrotherAnalytics for enhanced trading decisions based on labor market indicators.

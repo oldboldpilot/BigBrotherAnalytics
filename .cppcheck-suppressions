@@ -1,0 +1,26 @@
+# BigBrotherAnalytics - cppcheck suppressions
+# Suppress false positives and intentional patterns
+#
+# Author: Olumuyiwa Oluwasanmi
+# Date: 2025-11-08
+
+# Module-related suppressions
+missingInclude
+missingIncludeSystem
+unmatchedSuppression
+
+# C++23 module system not fully supported
+preprocessorErrorDirective:*/*.cppm
+syntaxError:*/*.cppm
+
+# Intentional patterns
+unusedFunction:*/test_*.cpp
+unusedFunction:*/tests/*
+
+# Performance - intentional
+passedByValue:src/utils/types.cppm
+
+# External libraries
+*:*/external/*
+*:*/third_party/*
+*:*/.venv/*

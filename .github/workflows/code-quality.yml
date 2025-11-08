@@ -1,0 +1,382 @@
+name: C++ Code Quality & Standards Enforcement
+# Author: Olumuyiwa Oluwasanmi
+# Date: 2025-11-08
+
+on:
+  # Run full checks on PRs
+  pull_request:
+    branches: [ master, main, develop ]
+    paths:
+      - '**/*.cpp'
+      - '**/*.cppm'
+      - '**/*.hpp'
+      - '**/*.h'
+
+  # Run CodeQL twice daily (8 AM and 8 PM UTC)
+  schedule:
+    - cron: '0 8,20 * * *'
+
+  # Manual trigger
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+  CXX: clang++
+  CC: clang
+
+jobs:
+  codeql-analysis:
+    name: CodeQL Security Analysis (Scheduled Only)
+    runs-on: ubuntu-latest
+    # Only run on schedule or manual trigger, not on every push
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: cpp
+        queries: security-extended,security-and-quality
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang-18 \
+          clang-tidy-18 \
+          cmake \
+          ninja-build \
+          libcurl4-openssl-dev \
+          libyaml-cpp-dev \
+          nlohmann-json3-dev
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DCMAKE_CXX_STANDARD=23 \
+          -DCMAKE_CXX_COMPILER=clang++-18 \
+          -DCMAKE_C_COMPILER=clang-18
+
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} || true
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  cpp-standards-check:
+    name: C++23 Standards Enforcement
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install clang-18 and tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang-18 \
+          clang-tidy-18 \
+          clang-format-18 \
+          cppcheck
+
+    - name: Check Trailing Return Syntax
+      run: |
+        echo "🔍 Checking for trailing return type syntax (auto func() -> ReturnType)..."
+
+        # Find all function declarations without trailing return syntax
+        # Exclude test files, external dependencies, and comments
+        violations=0
+
+        for file in $(find src -name "*.cpp" -o -name "*.cppm" | grep -v "test\|external\|third_party"); do
+          # Look for old-style function declarations (excluding constructors, destructors, operators)
+          # Pattern: return_type function_name(params) {
+          # Should be: auto function_name(params) -> return_type {
+
+          # Check for non-auto function declarations
+          old_style=$(grep -n "^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_:]*[[:space:]]\+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*(" "$file" | \
+                      grep -v "auto\|operator\|~\|if\|while\|for\|switch" | \
+                      grep -v "//") || true
+
+          if [ -n "$old_style" ]; then
+            echo "⚠️  $file: Found old-style function declarations:"
+            echo "$old_style"
+            violations=$((violations + 1))
+          fi
+        done
+
+        if [ $violations -gt 0 ]; then
+          echo "❌ Found $violations files with old-style function syntax"
+          echo "✅ All functions must use trailing return syntax: auto func() -> ReturnType"
+          exit 1
+        else
+          echo "✅ All functions use trailing return syntax"
+        fi
+
+    - name: Check C++ Core Guidelines Compliance
+      run: |
+        echo "🔍 Checking C++ Core Guidelines compliance..."
+
+        # Run clang-tidy with C++ Core Guidelines checks
+        clang-tidy-18 --version
+
+        # Create clang-tidy configuration if not exists
+        if [ ! -f .clang-tidy ]; then
+          cat > .clang-tidy << 'EOF'
+Checks: >
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  bugprone-*,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+FormatStyle: none
+EOF
+        fi
+
+        # Run clang-tidy on source files
+        find src -name "*.cpp" -o -name "*.cppm" | head -10 | while read file; do
+          echo "Checking $file..."
+          clang-tidy-18 "$file" -- -std=c++23 -I./src || true
+        done
+
+    - name: Run cppcheck
+      run: |
+        echo "🔍 Running cppcheck static analysis..."
+
+        cppcheck --version
+
+        cppcheck \
+          --enable=all \
+          --std=c++23 \
+          --language=c++ \
+          --suppress=missingInclude \
+          --suppress=unmatchedSuppression \
+          --suppress=unusedFunction \
+          --inline-suppr \
+          --template='{file}:{line}: {severity}: {message}' \
+          --error-exitcode=1 \
+          -I./src \
+          src/ 2>&1 | tee cppcheck-report.txt || true
+
+        # Check for critical issues
+        if grep -q "error:" cppcheck-report.txt; then
+          echo "❌ cppcheck found critical errors"
+          cat cppcheck-report.txt
+          exit 1
+        else
+          echo "✅ cppcheck passed"
+        fi
+
+  fluent-api-check:
+    name: Fluent API Pattern Verification
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check for Fluent API Patterns
+      run: |
+        echo "🔍 Checking for Fluent API (Builder) patterns in key modules..."
+
+        # Expected fluent API patterns:
+        # 1. Methods returning *this or reference to self
+        # 2. Builder classes with chainable methods
+        # 3. Method chaining examples in tests or docs
+
+        required_apis=(
+          "OptionBuilder"
+          "CorrelationAnalyzer"
+          "RiskAssessor"
+          "TaxCalculatorBuilder"
+          "BacktestRunner"
+        )
+
+        missing_apis=()
+
+        for api in "${required_apis[@]}"; do
+          echo "Checking for $api fluent API..."
+
+          # Look for the API class definition
+          if ! grep -r "class $api\|struct $api" src/; then
+            echo "⚠️  $api not found in codebase"
+            missing_apis+=("$api")
+            continue
+          fi
+
+          # Check for chainable methods (methods returning *this or Self&)
+          if ! grep -r "return \*this\|-> $api&\|-> auto&" src/ | grep -i "$api" > /dev/null; then
+            echo "⚠️  $api may not have proper method chaining"
+            missing_apis+=("$api (no chaining)")
+          else
+            echo "✅ $api has fluent API pattern"
+          fi
+        done
+
+        if [ ${#missing_apis[@]} -gt 0 ]; then
+          echo "❌ Missing or incomplete fluent APIs:"
+          printf '%s\n' "${missing_apis[@]}"
+          echo ""
+          echo "📚 Fluent APIs must:"
+          echo "  - Return *this or Self& for method chaining"
+          echo "  - Provide builder pattern for complex object construction"
+          echo "  - Enable readable, declarative code"
+          exit 1
+        else
+          echo "✅ All required fluent APIs present and properly implemented"
+        fi
+
+  module-standards-check:
+    name: C++23 Module Standards
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Verify Module Structure
+      run: |
+        echo "🔍 Verifying C++23 module structure..."
+
+        violations=0
+
+        # Check all .cppm files for proper module structure
+        for file in $(find src -name "*.cppm"); do
+          echo "Checking $file..."
+
+          # Must have module declaration
+          if ! grep -q "^export module" "$file"; then
+            echo "❌ $file: Missing 'export module' declaration"
+            violations=$((violations + 1))
+          fi
+
+          # Module fragment should come before module declaration
+          if grep -q "^export module" "$file"; then
+            # Check for global module fragment
+            if grep -q "^module;" "$file"; then
+              # Ensure module; comes before export module
+              module_line=$(grep -n "^module;" "$file" | cut -d: -f1 | head -1)
+              export_line=$(grep -n "^export module" "$file" | cut -d: -f1 | head -1)
+
+              if [ "$module_line" -gt "$export_line" ]; then
+                echo "❌ $file: 'module;' must come before 'export module'"
+                violations=$((violations + 1))
+              fi
+            fi
+          fi
+
+          # Check for export namespace
+          if ! grep -q "^export namespace" "$file"; then
+            echo "⚠️  $file: Consider using 'export namespace' for module exports"
+          fi
+        done
+
+        if [ $violations -gt 0 ]; then
+          echo "❌ Found $violations module structure violations"
+          exit 1
+        else
+          echo "✅ All modules follow C++23 standards"
+        fi
+
+    - name: Check [[nodiscard]] Usage
+      run: |
+        echo "🔍 Checking for [[nodiscard]] attribute on getter methods..."
+
+        # Find getter methods that should have [[nodiscard]]
+        violations=0
+
+        for file in $(find src -name "*.cppm" -o -name "*.hpp"); do
+          # Look for const getter methods without [[nodiscard]]
+          getters=$(grep -n "auto get.*() const.*->" "$file" | grep -v "\[\[nodiscard\]\]") || true
+
+          if [ -n "$getters" ]; then
+            echo "⚠️  $file: Getter methods should use [[nodiscard]]:"
+            echo "$getters"
+            violations=$((violations + 1))
+          fi
+        done
+
+        if [ $violations -gt 5 ]; then
+          echo "❌ Too many missing [[nodiscard]] attributes ($violations files)"
+          echo "✅ Recommendation: Add [[nodiscard]] to all getter methods and query functions"
+          exit 1
+        else
+          echo "✅ Most getter methods properly use [[nodiscard]]"
+        fi
+
+  documentation-check:
+    name: Documentation Standards
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check for Module Documentation
+      run: |
+        echo "🔍 Checking module documentation..."
+
+        violations=0
+
+        for file in $(find src -name "*.cppm"); do
+          # Check for file-level documentation comment
+          if ! head -20 "$file" | grep -q "/\*\*"; then
+            echo "⚠️  $file: Missing file-level documentation"
+            violations=$((violations + 1))
+          fi
+
+          # Check for "Following C++ Core Guidelines" mention
+          if ! grep -q "C++ Core Guidelines\|Core Guidelines\|C++23" "$file"; then
+            echo "⚠️  $file: Missing C++ standards documentation"
+            violations=$((violations + 1))
+          fi
+        done
+
+        if [ $violations -gt 0 ]; then
+          echo "⚠️  Found $violations files with incomplete documentation"
+          echo "📚 All modules should document:"
+          echo "  - Purpose and functionality"
+          echo "  - C++ standards compliance"
+          echo "  - Usage examples"
+        else
+          echo "✅ All modules properly documented"
+        fi
+
+  summary:
+    name: Standards Enforcement Summary
+    runs-on: ubuntu-latest
+    needs: [codeql-analysis, cpp-standards-check, fluent-api-check, module-standards-check, documentation-check]
+    if: always()
+
+    steps:
+    - name: Check all jobs
+      run: |
+        echo "📊 Code Quality Summary:"
+        echo "✅ CodeQL Security Analysis: ${{ needs.codeql-analysis.result }}"
+        echo "✅ C++23 Standards Check: ${{ needs.cpp-standards-check.result }}"
+        echo "✅ Fluent API Verification: ${{ needs.fluent-api-check.result }}"
+        echo "✅ Module Standards: ${{ needs.module-standards-check.result }}"
+        echo "✅ Documentation: ${{ needs.documentation-check.result }}"
+
+        if [ "${{ needs.codeql-analysis.result }}" != "success" ] || \
+           [ "${{ needs.cpp-standards-check.result }}" != "success" ] || \
+           [ "${{ needs.fluent-api-check.result }}" != "success" ] || \
+           [ "${{ needs.module-standards-check.result }}" != "success" ]; then
+          echo "❌ Some quality checks failed"
+          exit 1
+        else
+          echo "✅ All code quality checks passed!"
+        fi
