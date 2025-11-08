@@ -91,10 +91,18 @@ add_library(utils SHARED
     src/utils/database.cpp
 )
 
-# C++23 modules - DISABLED temporarily due to OpenMP configuration issues
-# Modules are available in .cppm files for future use
-# Currently using traditional headers for compatibility
-# See: MODULE_MIGRATION_STATUS.md for details
+# C++23 modules available but DISABLED (OpenMP configuration issues)
+# All 17 modules created with trailing return syntax and fluent APIs:
+# Utils: types, logger, config, database_api, timer, math, tax, utils
+# Options: black_scholes, trinomial_tree, options_pricing
+# Correlation: correlation (with CorrelationAnalyzer fluent API)
+# Risk: risk (with RiskAssessor fluent API)
+# Schwab: schwab (with SchwabQuery fluent API)
+# Strategy: strategy (with StrategyExecutor fluent API), iron_condor
+# Backtest: backtest (with BacktestRunner fluent API)
+#
+# To enable modules: uncomment target_sources and target_compile_options
+# Currently using compatibility headers for stable builds
 #
 # target_sources(utils
 #     PUBLIC
@@ -105,8 +113,9 @@ add_library(utils SHARED
 #             src/utils/database_api.cppm
 #             src/utils/timer.cppm
 #             src/utils/math.cppm
+#             src/utils/tax.cppm
+#             src/utils/utils.cppm
 # )
-#
 # target_compile_options(utils PRIVATE -fmodule-output)
 
 target_link_libraries(utils
