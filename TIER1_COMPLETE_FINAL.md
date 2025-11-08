@@ -528,6 +528,31 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
 - Backtest sector rotation strategy
 - Verify employment signal accuracy
 
+**G. Code Quality & Standards (Week 5-6):**
+- **Complete C++ Core Guidelines integration into .clang-tidy**
+  - Enable ALL cppcoreguidelines-* checks
+  - Configure WarningsAsErrors for critical violations
+  - Test against existing codebase
+  - Fix all violations found
+  - Document exceptions/suppressions
+- **Enforce trailing return syntax via clang-tidy**
+  - modernize-use-trailing-return-type enabled
+  - Set as ERROR (blocks commit)
+  - Convert any remaining old-style functions
+- **C++23 module validation**
+  - Verify all modules use proper structure
+  - Check global module fragment usage
+  - Validate export namespace patterns
+- **Run full validation:**
+  ```bash
+  ./scripts/validate_code.sh src/
+  clang-tidy --list-checks
+  ```
+- **Fix all violations before Tier 2**
+  - Zero clang-tidy errors
+  - Zero cppcheck critical issues
+  - 100% C++ Core Guidelines compliance
+
 ### Tier 2 (Weeks 7-10)
 - Implement full Iron Condor strategy from module
 - Connect real DuckDB data to backtest
