@@ -5,6 +5,7 @@
  * - Trailing return type syntax throughout
  * - C++ Core Guidelines compliance
  * - Modern error handling with std::expected
+ * - TAX CALCULATIONS for true profitability
  */
 
 #include "backtest_engine.hpp"
@@ -15,6 +16,19 @@
 #include <fstream>
 #include <ranges>
 #include <format>
+
+// Tax calculation (in separate module when available)
+namespace tax {
+    struct TaxConfig {
+        double short_term_rate{0.24};
+        double state_tax_rate{0.05};
+        double medicare_surtax{0.038};
+
+        [[nodiscard]] constexpr auto effectiveRate() const noexcept -> double {
+            return short_term_rate + state_tax_rate + medicare_surtax;
+        }
+    };
+}
 
 namespace bigbrother::backtest {
 
@@ -176,7 +190,7 @@ private:
 
         BacktestMetrics metrics{};
 
-        // Calculate returns
+        // Calculate PRE-TAX returns
         metrics.total_return = current_capital_ - initial_capital_;
         metrics.total_return_percent = (metrics.total_return / initial_capital_) * 100.0;
 
@@ -189,7 +203,7 @@ private:
             metrics.cagr = metrics.annualized_return;
         }
 
-        // Calculate Sharpe ratio
+        // Calculate PRE-TAX Sharpe ratio
         if (!daily_returns_.empty()) {
             auto const mean_return = std::accumulate(
                 daily_returns_.begin(), daily_returns_.end(), 0.0
@@ -210,22 +224,88 @@ private:
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // TAX CALCULATIONS (CRITICAL FOR REAL PROFITABILITY)
+        // ═══════════════════════════════════════════════════════════════
+
+        // Day trading = short-term capital gains
+        // Federal: 24% (assume $90k-$190k bracket)
+        // Medicare surtax: 3.8% (NIIT for high earners)
+        // State: 5% (conservative estimate)
+        // TOTAL: 32.8% effective tax rate
+
+        tax::TaxConfig const tax_config{};
+        double const effective_tax_rate = tax_config.effectiveRate();
+
+        // Calculate tax on gains only
+        if (metrics.total_return > 0.0) {
+            metrics.total_tax_owed = metrics.total_return * effective_tax_rate;
+            metrics.effective_tax_rate = effective_tax_rate;
+        }
+
+        // AFTER-TAX RETURN (THE REAL PROFIT)
+        metrics.after_tax_return = metrics.total_return - metrics.total_tax_owed;
+        metrics.after_tax_return_percent = (metrics.after_tax_return / initial_capital_) * 100.0;
+
+        // Tax efficiency (% of gross profit kept after tax)
+        if (metrics.total_return > 0.0) {
+            metrics.tax_efficiency = metrics.after_tax_return / metrics.total_return;
+        } else {
+            metrics.tax_efficiency = 1.0;  // No tax on losses
+        }
+
+        // Calculate AFTER-TAX Sharpe ratio (the accurate metric)
+        if (!daily_returns_.empty()) {
+            // Apply tax drag to positive returns
+            std::vector<double> after_tax_returns;
+            after_tax_returns.reserve(daily_returns_.size());
+
+            for (auto const& ret : daily_returns_) {
+                double const after_tax = ret > 0.0 ?
+                    ret * (1.0 - effective_tax_rate) : ret;
+                after_tax_returns.push_back(after_tax);
+            }
+
+            auto const mean_return = std::accumulate(
+                after_tax_returns.begin(), after_tax_returns.end(), 0.0
+            ) / static_cast<double>(after_tax_returns.size());
+
+            auto const variance = std::accumulate(
+                after_tax_returns.begin(), after_tax_returns.end(), 0.0,
+                [mean_return](double acc, double ret) {
+                    auto const diff = ret - mean_return;
+                    return acc + diff * diff;
+                }
+            ) / static_cast<double>(after_tax_returns.size());
+
+            auto const std_dev = std::sqrt(variance);
+
+            if (std_dev > 0.0) {
+                metrics.after_tax_sharpe_ratio = (mean_return / std_dev) * std::sqrt(252.0);
+            }
+        }
+
+        LOG_INFO("Tax Impact: ${:.2f} ({:.1f}% effective rate)",
+                metrics.total_tax_owed, metrics.effective_tax_rate * 100.0);
+        LOG_INFO("After-Tax Return: ${:.2f} (vs ${:.2f} pre-tax)",
+                metrics.after_tax_return, metrics.total_return);
+
         // Calculate max drawdown
         metrics.max_drawdown = (peak_capital_ - current_capital_) / peak_capital_;
         metrics.max_drawdown_percent = metrics.max_drawdown;
 
         // Trade statistics (stub for now - will track real trades later)
         metrics.total_trades = daily_returns_.size() / 10;  // Assume trade every 10 days
-        metrics.winning_trades = static_cast<int64_t>(metrics.total_trades * 0.65);  // 65% win rate estimate
+        metrics.winning_trades = static_cast<int64_t>(metrics.total_trades * 0.65);
         metrics.losing_trades = metrics.total_trades - metrics.winning_trades;
         metrics.win_rate = static_cast<double>(metrics.winning_trades) /
                           static_cast<double>(metrics.total_trades);
 
         // P&L statistics
         metrics.total_gross_pnl = metrics.total_return;
-        metrics.total_net_pnl = metrics.total_return;
+        metrics.total_net_pnl = metrics.after_tax_return;  // Net = After tax
         metrics.avg_win = metrics.total_return / static_cast<double>(metrics.winning_trades);
-        metrics.avg_loss = -metrics.avg_win * 0.5;  // Assume smaller losses
+        metrics.avg_loss = -metrics.avg_win * 0.5;
 
         // Risk metrics
         if (metrics.losing_trades > 0) {

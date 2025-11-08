@@ -32,15 +32,31 @@ auto printResults(backtest::BacktestMetrics const& metrics) -> void {
     std::cout << "╚════════════════════════════════════════════════════════════╝\n";
     std::cout << "\n";
 
-    std::cout << "Returns:\n";
-    std::cout << "  Total Return:      $" << metrics.total_return << " ("
+    std::cout << "Returns (PRE-TAX):\n";
+    std::cout << "  Gross Return:      $" << metrics.total_return << " ("
               << metrics.total_return_percent << "%)\n";
     std::cout << "  Annualized Return: " << metrics.annualized_return << "%\n";
     std::cout << "  CAGR:              " << metrics.cagr << "%\n";
     std::cout << "\n";
 
-    std::cout << "Risk-Adjusted:\n";
-    std::cout << "  Sharpe Ratio:      " << metrics.sharpe_ratio << "\n";
+    std::cout << "TAX IMPACT (DAY TRADING):\n";
+    std::cout << "  Taxes Owed:        $" << metrics.total_tax_owed << "\n";
+    std::cout << "  Effective Tax Rate:" << (metrics.effective_tax_rate * 100.0) << "%\n";
+    std::cout << "  Tax Efficiency:    " << (metrics.tax_efficiency * 100.0) << "%\n";
+    if (metrics.wash_sales_disallowed > 0) {
+        std::cout << "  Wash Sales:        " << metrics.wash_sales_disallowed
+                  << " ($" << metrics.wash_sale_loss_disallowed << " disallowed)\n";
+    }
+    std::cout << "\n";
+
+    std::cout << "Returns (AFTER-TAX - THE REAL PROFIT):\n";
+    std::cout << "  Net Return:        $" << metrics.after_tax_return << " ("
+              << metrics.after_tax_return_percent << "%)\n";
+    std::cout << "  After-Tax Sharpe:  " << metrics.after_tax_sharpe_ratio << "\n";
+    std::cout << "\n";
+
+    std::cout << "Risk Metrics:\n";
+    std::cout << "  Pre-Tax Sharpe:    " << metrics.sharpe_ratio << "\n";
     std::cout << "  Sortino Ratio:     " << metrics.sortino_ratio << "\n";
     std::cout << "  Max Drawdown:      " << metrics.max_drawdown_percent * 100.0 << "%\n";
     std::cout << "\n";
@@ -59,23 +75,25 @@ auto printResults(backtest::BacktestMetrics const& metrics) -> void {
     std::cout << "  Expectancy:        $" << metrics.expectancy << " per trade\n";
     std::cout << "\n";
 
-    // Success criteria check
-    std::cout << "Success Criteria (per PRD):\n";
-    std::cout << "  Win Rate > 60%:    " << (metrics.win_rate >= 0.60 ? "✓ PASS" : "✗ FAIL") << "\n";
-    std::cout << "  Sharpe > 2.0:      " << (metrics.sharpe_ratio >= 2.0 ? "✓ PASS" : "✗ FAIL") << "\n";
-    std::cout << "  Max DD < 15%:      " << (metrics.max_drawdown_percent <= 0.15 ? "✓ PASS" : "✗ FAIL") << "\n";
+    // Success criteria check (AFTER TAX)
+    std::cout << "Success Criteria (per PRD - AFTER TAX):\n";
+    std::cout << "  Win Rate > 60%:        " << (metrics.win_rate >= 0.60 ? "✓ PASS" : "✗ FAIL") << "\n";
+    std::cout << "  After-Tax Sharpe > 2:  " << (metrics.after_tax_sharpe_ratio >= 2.0 ? "✓ PASS" : "✗ FAIL") << "\n";
+    std::cout << "  Max DD < 15%:          " << (metrics.max_drawdown_percent <= 0.15 ? "✓ PASS" : "✗ FAIL") << "\n";
+    std::cout << "  Profitable After Tax:  " << (metrics.after_tax_return > 0.0 ? "✓ PASS" : "✗ FAIL") << "\n";
     std::cout << "\n";
 
-    if (metrics.passesThresholds()) {
-        std::cout << "╔════════════════════════════════════════════════════════════╗\n";
-        std::cout << "║  ✓ STRATEGY PASSES ALL SUCCESS CRITERIA                   ║\n";
-        std::cout << "╚════════════════════════════════════════════════════════════╝\n";
+    std::cout << "╔════════════════════════════════════════════════════════════╗\n";
+
+    if (metrics.passesThresholds() && metrics.isProfitableAfterTax()) {
+        std::cout << "║  ✓ PROFITABLE AFTER TAX - ALL CRITERIA MET                ║\n";
+    } else if (metrics.isProfitableAfterTax()) {
+        std::cout << "║  ⚠ PROFITABLE AFTER TAX - SOME CRITERIA NOT MET           ║\n";
     } else {
-        std::cout << "╔════════════════════════════════════════════════════════════╗\n";
-        std::cout << "║  ✗ STRATEGY DOES NOT MEET SUCCESS CRITERIA                ║\n";
-        std::cout << "╚════════════════════════════════════════════════════════════╝\n";
+        std::cout << "║  ✗ NOT PROFITABLE AFTER TAX - STRATEGY FAILS              ║\n";
     }
 
+    std::cout << "╚════════════════════════════════════════════════════════════╝\n";
     std::cout << "\n";
 }
 

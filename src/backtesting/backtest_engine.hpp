@@ -93,16 +93,26 @@ struct BacktestTrade {
 };
 
 /**
- * Backtest Performance Metrics
+ * Backtest Performance Metrics (WITH TAX CALCULATIONS)
  */
 struct BacktestMetrics {
-    // Returns
+    // Pre-tax returns
     double total_return;
     double total_return_percent;
     double annualized_return;
-    double cagr;  // Compound Annual Growth Rate
+    double cagr;
 
-    // Risk-adjusted returns
+    // TAX CALCULATIONS (CRITICAL FOR REAL PROFITABILITY)
+    double total_tax_owed{0.0};              // Total taxes on gains
+    double effective_tax_rate{0.0};          // Actual tax rate paid
+    double after_tax_return{0.0};            // Return after taxes
+    double after_tax_return_percent{0.0};    // % return after taxes
+    double after_tax_sharpe_ratio{0.0};      // Sharpe using after-tax returns
+    double tax_efficiency{0.0};              // Net/Gross (higher = better)
+    int wash_sales_disallowed{0};            // Wash sale rule violations
+    double wash_sale_loss_disallowed{0.0};   // Losses disallowed by wash sales
+
+    // Risk-adjusted returns (pre-tax)
     double sharpe_ratio;
     double sortino_ratio;
     double calmar_ratio;
@@ -129,10 +139,10 @@ struct BacktestMetrics {
     double largest_loss;
 
     // Risk metrics
-    double profit_factor;        // Gross profit / Gross loss
-    double expectancy;            // Average $ per trade
-    double kelly_criterion;       // Optimal position size
-    double var_95;                // Value at Risk (95%)
+    double profit_factor;
+    double expectancy;
+    double kelly_criterion;
+    double var_95;
 
     // Time metrics
     Duration total_time_in_market_us;
@@ -143,12 +153,22 @@ struct BacktestMetrics {
     std::map<std::string, double> pnl_by_strategy;
     std::map<std::string, double> win_rate_by_strategy;
 
+    /**
+     * Check if passes success criteria (AFTER TAX)
+     */
     [[nodiscard]] auto passesThresholds() const noexcept -> bool {
-        // Per PRD success criteria
-        return total_return > 0.0 &&
-               win_rate >= 0.60 &&         // 60% win rate
-               sharpe_ratio >= 2.0 &&      // Sharpe > 2.0
-               max_drawdown_percent <= 0.15;  // Max DD < 15%
+        // Per PRD success criteria - must be AFTER TAX
+        return after_tax_return > 0.0 &&      // Profitable after tax
+               win_rate >= 0.60 &&             // 60% win rate
+               after_tax_sharpe_ratio >= 2.0 && // Sharpe > 2.0 (after tax!)
+               max_drawdown_percent <= 0.15;   // Max DD < 15%
+    }
+
+    /**
+     * Check if truly profitable (after taxes)
+     */
+    [[nodiscard]] auto isProfitableAfterTax() const noexcept -> bool {
+        return after_tax_return > 0.0;
     }
 
     [[nodiscard]] auto meetsTargets() const noexcept -> bool {
