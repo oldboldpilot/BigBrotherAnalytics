@@ -99,7 +99,35 @@
 - **ALL files created/modified MUST include:** Author: Olumuyiwa Oluwasanmi
 - Include author in file headers for: .cpp, .cppm, .hpp, .py, .sh, .yaml, .md
 - See `docs/CODING_STANDARDS.md` Section 11 for templates
-- Git commits include: Co-Authored-By: Claude <noreply@anthropic.com>
+- **NO co-authoring** - Only Olumuyiwa Oluwasanmi as author
+
+**CRITICAL: Code Quality Enforcement**
+- **ALWAYS run validation before committing:** `./scripts/validate_code.sh`
+- **Automated checks include:**
+  1. clang-tidy (C++ Core Guidelines)
+  2. cppcheck (Static analysis)
+  3. Build verification with ninja
+  4. Trailing return syntax
+  5. Module structure
+  6. [[nodiscard]] attributes
+  7. Documentation completeness
+
+**Build and Test Workflow (MANDATORY):**
+```bash
+# 1. Make changes to code
+# 2. Run validation (catches most issues)
+./scripts/validate_code.sh
+
+# 3. Build
+cd build && ninja
+
+# 4. Run tests
+env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH \
+    ./run_tests.sh
+
+# 5. Commit (pre-commit hook runs automatically)
+git add -A && git commit -m "message"
+```
 
 When helping with this project:
 1. Always check database strategy first - use DuckDB for Tier 1, not PostgreSQL

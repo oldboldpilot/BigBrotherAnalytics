@@ -1,5 +1,27 @@
 # Build and Test Instructions
 
+**Author:** Olumuyiwa Oluwasanmi
+**Updated:** 2025-11-08
+
+## MANDATORY: Code Validation Before Build
+
+**ALWAYS run validation first:**
+```bash
+./scripts/validate_code.sh
+```
+
+This runs:
+1. ✅ clang-tidy (C++ Core Guidelines)
+2. ✅ cppcheck (Static analysis)
+3. ✅ Build verification
+4. ✅ Module structure checks
+
+**For specific files:**
+```bash
+./scripts/validate_code.sh src/utils/logger.cpp
+./scripts/validate_code.sh src/risk_management/
+```
+
 ## Build Fixes Applied
 
 Three critical build errors have been fixed:

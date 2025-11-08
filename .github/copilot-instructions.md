@@ -8,7 +8,21 @@ BigBrotherAnalytics is a high-performance AI-powered trading platform with **mic
 - **ALL files MUST include:** Author: Olumuyiwa Oluwasanmi
 - **Applies to:** Code, configs, docs, scripts, tests, CI/CD files
 - **Format:** See Section 11 in docs/CODING_STANDARDS.md
+- **NO co-authoring** - Only Olumuyiwa Oluwasanmi
 - **Enforcement:** Pre-commit hooks + CI/CD checks
+
+**CRITICAL BUILD STANDARDS:**
+- **ALWAYS validate before commit:** `./scripts/validate_code.sh`
+- **Local enforcement:** clang-tidy + cppcheck in pre-commit hooks
+- **Build verification:** ninja must succeed
+- **Test verification:** All tests must pass
+
+**Agent Build Workflow:**
+After any code modification, agents MUST:
+1. Run `./scripts/validate_code.sh`
+2. Build with `cd build && ninja`
+3. Run tests with `./run_tests.sh`
+4. Only commit if all checks pass
 
 **Current Status (Nov 2025):**
 - ✅ C++23 module migration complete - 17 modules with fluent APIs
