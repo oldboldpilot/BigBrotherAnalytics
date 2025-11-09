@@ -343,9 +343,22 @@ struct AccountPosition {
     Price current_price{0.0};
     double unrealized_pnl{0.0};
     double realized_pnl{0.0};
-    
+
+    // CRITICAL SAFETY FIELDS (TRADING_CONSTRAINTS.md)
+    bool is_bot_managed{false};        // TRUE if bot opened this position
+    std::string managed_by{"MANUAL"};  // "BOT" or "MANUAL"
+    std::string bot_strategy{};        // Strategy that opened this (if bot-managed)
+    std::string account_id;
+    Timestamp opened_at{0};
+    std::string opened_by{"MANUAL"};   // "BOT" or "MANUAL"
+    Timestamp updated_at{0};
+
     [[nodiscard]] auto getCurrentValue() const noexcept -> double {
         return static_cast<double>(quantity) * current_price;
+    }
+
+    [[nodiscard]] auto canBotTrade() const noexcept -> bool {
+        return is_bot_managed;
     }
 };
 
