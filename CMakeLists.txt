@@ -279,6 +279,7 @@ target_link_libraries(trading_decision
     options_pricing
     risk_management
     schwab_api
+    market_intelligence
     OpenMP::OpenMP_CXX
 )
 

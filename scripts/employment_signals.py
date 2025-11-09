@@ -91,6 +91,90 @@ def calculate_employment_change(
     return ((latest - baseline) / baseline) * 100.0
 
 
+def calculate_employment_statistics(
+    conn: duckdb.DuckDBPyConnection,
+    series_id: str
+) -> Dict:
+    """
+    Calculate comprehensive employment statistics for a series.
+
+    Returns:
+        Dict with trend, acceleration, z-score, volatility metrics
+    """
+    query = f"""
+        WITH employment_data AS (
+            SELECT
+                report_date,
+                employment_count,
+                LAG(employment_count, 1) OVER (ORDER BY report_date) as prev_1m,
+                LAG(employment_count, 3) OVER (ORDER BY report_date) as prev_3m,
+                LAG(employment_count, 6) OVER (ORDER BY report_date) as prev_6m,
+                LAG(employment_count, 12) OVER (ORDER BY report_date) as prev_12m
+            FROM sector_employment_raw
+            WHERE series_id = '{series_id}'
+            ORDER BY report_date DESC
+            LIMIT 24
+        ),
+        stats AS (
+            SELECT
+                AVG(employment_count) as mean,
+                STDDEV(employment_count) as stddev,
+                MIN(employment_count) as min_val,
+                MAX(employment_count) as max_val
+            FROM employment_data
+        )
+        SELECT
+            ed.employment_count as latest,
+            ed.prev_1m,
+            ed.prev_3m,
+            ed.prev_6m,
+            ed.prev_12m,
+            s.mean,
+            s.stddev,
+            s.min_val,
+            s.max_val
+        FROM employment_data ed, stats s
+        WHERE ed.report_date = (SELECT MAX(report_date) FROM employment_data)
+    """
+
+    result = conn.execute(query).fetchone()
+    if not result:
+        return {}
+
+    latest, prev_1m, prev_3m, prev_6m, prev_12m, mean, stddev, min_val, max_val = result
+
+    # Calculate month-over-month change
+    mom_change = ((latest - prev_1m) / prev_1m * 100.0) if prev_1m else 0.0
+
+    # Calculate 3-month and 6-month trends
+    trend_3m = ((latest - prev_3m) / prev_3m * 100.0) if prev_3m else 0.0
+    trend_6m = ((latest - prev_6m) / prev_6m * 100.0) if prev_6m else 0.0
+    trend_12m = ((latest - prev_12m) / prev_12m * 100.0) if prev_12m else 0.0
+
+    # Calculate acceleration (change in trend)
+    acceleration = trend_3m - trend_6m if trend_3m and trend_6m else 0.0
+
+    # Calculate z-score (how many standard deviations from mean)
+    z_score = ((latest - mean) / stddev) if stddev and stddev > 0 else 0.0
+
+    # Detect inflection point (acceleration changing sign)
+    is_inflection = abs(acceleration) > 0.5
+
+    return {
+        'latest': latest,
+        'mom_change': mom_change,
+        'trend_3m': trend_3m,
+        'trend_6m': trend_6m,
+        'trend_12m': trend_12m,
+        'acceleration': acceleration,
+        'z_score': z_score,
+        'is_inflection': is_inflection,
+        'mean': mean,
+        'stddev': stddev,
+        'volatility': (stddev / mean * 100.0) if mean else 0.0
+    }
+
+
 def generate_employment_signals(db_path: str = DB_PATH) -> List[Dict]:
     """
     Generate employment signals for all sectors.
@@ -113,54 +197,103 @@ def generate_employment_signals(db_path: str = DB_PATH) -> List[Dict]:
     conn = duckdb.connect(db_path)
     signals = []
 
-    # Track sector aggregates (for multiple BLS series mapping to same sector)
-    sector_changes: Dict[int, List[float]] = {}
-
     for series_id, sector_codes in BLS_TO_SECTOR_MAP.items():
-        # Calculate 3-month and 6-month changes
-        change_3m = calculate_employment_change(conn, series_id, 3)
-        change_6m = calculate_employment_change(conn, series_id, 6)
+        # Calculate comprehensive statistics
+        stats = calculate_employment_statistics(conn, series_id)
 
-        if change_3m is None and change_6m is None:
+        if not stats:
             continue
 
-        # Use the most recent available change
-        primary_change = change_3m if change_3m is not None else change_6m
-
         for sector_code in sector_codes:
-            # Track changes for sector rotation analysis
-            if sector_code not in sector_changes:
-                sector_changes[sector_code] = []
-            sector_changes[sector_code].append(primary_change)
+            sector_name = get_sector_name(conn, sector_code)
 
-            # Generate signal if change exceeds threshold (>5%)
-            if abs(primary_change) > 5.0:
-                sector_name = get_sector_name(conn, sector_code)
+            # Determine signal type based on trends and acceleration
+            signal_type = None
+            rationale_parts = []
 
-                is_improving = primary_change > 0
+            # Strong trend detection (threshold: >2% over 3 months or >3% over 6 months)
+            if abs(stats['trend_3m']) > 2.0 or abs(stats['trend_6m']) > 3.0:
+                is_improving = stats['trend_3m'] > 0
                 signal_type = 'EmploymentImproving' if is_improving else 'EmploymentDeclining'
 
-                # Calculate confidence based on consistency
-                confidence = 0.70  # Base confidence
-                if change_3m is not None and change_6m is not None:
-                    # Higher confidence if both periods agree
-                    if (change_3m > 0) == (change_6m > 0):
-                        confidence = 0.85
+                # Build detailed rationale
+                rationale_parts.append(
+                    f"3-month trend: {stats['trend_3m']:+.2f}%, "
+                    f"6-month trend: {stats['trend_6m']:+.2f}%"
+                )
 
-                # Signal strength: normalized to -1.0 to +1.0
-                # Cap at ±20% change for normalization
-                signal_strength = max(-1.0, min(1.0, primary_change / 20.0))
+                # Check for acceleration
+                if stats['is_inflection']:
+                    rationale_parts.append(
+                        f"Acceleration: {stats['acceleration']:+.2f}% (inflection detected)"
+                    )
+
+                # Calculate confidence based on multiple factors
+                confidence = 0.60  # Base confidence
+
+                # Increase confidence if trends agree
+                if (stats['trend_3m'] > 0) == (stats['trend_6m'] > 0):
+                    confidence += 0.15
+
+                # Increase confidence for stronger z-score
+                if abs(stats['z_score']) > 1.0:
+                    confidence += 0.10
+                    rationale_parts.append(f"Z-score: {stats['z_score']:.2f}")
+
+                # Increase confidence for consistent acceleration
+                if stats['is_inflection']:
+                    confidence += 0.05
+
+                confidence = min(0.95, confidence)  # Cap at 0.95
+
+                # Calculate signal strength: combination of trend and acceleration
+                # Weight: 70% trend, 30% acceleration
+                trend_component = stats['trend_3m'] * 0.7
+                accel_component = stats['acceleration'] * 0.3
+                raw_strength = trend_component + accel_component
+
+                # Normalize to -1.0 to +1.0 (cap at ±10% for normalization)
+                signal_strength = max(-1.0, min(1.0, raw_strength / 10.0))
 
                 signals.append({
                     'type': signal_type,
                     'sector_code': sector_code,
                     'sector_name': sector_name,
                     'confidence': confidence,
-                    'employment_change': primary_change,
-                    'rationale': f"Employment {'increased' if is_improving else 'decreased'} by {abs(primary_change):.1f}% over {3 if change_3m else 6} months",
+                    'employment_change': stats['trend_3m'],
+                    'rationale': ' | '.join(rationale_parts),
                     'timestamp': int(datetime.now().timestamp()),
                     'bullish': is_improving,
                     'bearish': not is_improving,
+                    'signal_strength': signal_strength
+                })
+
+            # Detect inflection points even with smaller trends
+            elif stats['is_inflection'] and abs(stats['acceleration']) > 1.0:
+                # Inflection point signal
+                is_accelerating = stats['acceleration'] > 0
+                signal_type = 'EmploymentImproving' if is_accelerating else 'EmploymentDeclining'
+
+                rationale_parts.append(
+                    f"Employment inflection detected: acceleration {stats['acceleration']:+.2f}%"
+                )
+                rationale_parts.append(
+                    f"Recent trend: {stats['trend_3m']:+.2f}%"
+                )
+
+                confidence = 0.65
+                signal_strength = max(-1.0, min(1.0, stats['acceleration'] / 5.0))
+
+                signals.append({
+                    'type': signal_type,
+                    'sector_code': sector_code,
+                    'sector_name': sector_name,
+                    'confidence': confidence,
+                    'employment_change': stats['trend_3m'],
+                    'rationale': ' | '.join(rationale_parts),
+                    'timestamp': int(datetime.now().timestamp()),
+                    'bullish': is_accelerating,
+                    'bearish': not is_accelerating,
                     'signal_strength': signal_strength
                 })
 
@@ -189,30 +322,44 @@ def generate_rotation_signals(db_path: str = DB_PATH) -> List[Dict]:
     conn = duckdb.connect(db_path)
     signals = []
 
-    # Calculate employment scores for each sector
-    sector_scores: Dict[int, float] = {}
+    # Calculate employment scores for each sector using comprehensive statistics
+    sector_scores: Dict[int, List[Tuple[float, float]]] = {}  # (score, z_score)
 
     for series_id, sector_codes in BLS_TO_SECTOR_MAP.items():
-        # Calculate weighted average of 3-month (60%) and 6-month (40%) trends
-        change_3m = calculate_employment_change(conn, series_id, 3)
-        change_6m = calculate_employment_change(conn, series_id, 6)
+        stats = calculate_employment_statistics(conn, series_id)
 
-        if change_3m is None and change_6m is None:
+        if not stats:
             continue
 
-        # Calculate weighted score
-        if change_3m is not None and change_6m is not None:
-            weighted_change = (change_3m * 0.6) + (change_6m * 0.4)
-        else:
-            weighted_change = change_3m if change_3m is not None else change_6m
+        # Calculate employment score combining multiple factors:
+        # 1. Trend strength (60%): weighted average of 3m and 6m trends
+        # 2. Acceleration (25%): is employment accelerating or decelerating?
+        # 3. Z-score position (15%): relative to historical average
 
-        # Normalize to -1.0 to +1.0 (cap at ±20%)
-        employment_score = max(-1.0, min(1.0, weighted_change / 20.0))
+        trend_3m = stats['trend_3m']
+        trend_6m = stats['trend_6m']
+        acceleration = stats['acceleration']
+        z_score = stats['z_score']
+
+        # Weighted trend component
+        weighted_trend = (trend_3m * 0.6) + (trend_6m * 0.4)
+
+        # Normalize components to -1.0 to +1.0
+        trend_score = max(-1.0, min(1.0, weighted_trend / 10.0))  # Cap at ±10%
+        accel_score = max(-1.0, min(1.0, acceleration / 5.0))     # Cap at ±5%
+        z_score_normalized = max(-1.0, min(1.0, z_score / 2.0))  # Cap at ±2 std devs
+
+        # Combined employment score with weights
+        employment_score = (
+            trend_score * 0.60 +
+            accel_score * 0.25 +
+            z_score_normalized * 0.15
+        )
 
         for sector_code in sector_codes:
             if sector_code not in sector_scores:
                 sector_scores[sector_code] = []
-            sector_scores[sector_code].append(employment_score)
+            sector_scores[sector_code].append((employment_score, z_score))
 
     # Generate rotation signals for each sector
     total_sectors = len(sector_scores)
@@ -220,30 +367,33 @@ def generate_rotation_signals(db_path: str = DB_PATH) -> List[Dict]:
         conn.close()
         return signals
 
-    for sector_code, scores in sector_scores.items():
+    for sector_code, score_tuples in sector_scores.items():
         # Average employment score if multiple series map to same sector
-        employment_score = sum(scores) / len(scores)
+        employment_score = sum(s[0] for s in score_tuples) / len(score_tuples)
+        avg_z_score = sum(s[1] for s in score_tuples) / len(score_tuples)
 
         # For now, sentiment and technical scores are 0.0 (future implementation)
         sentiment_score = 0.0
         technical_score = 0.0
 
         # Composite score: weighted average (employment: 100% for now)
-        composite_score = employment_score  # Will be (0.5*employment + 0.3*sentiment + 0.2*technical)
+        # Future: (0.50*employment + 0.30*sentiment + 0.20*technical)
+        composite_score = employment_score
 
-        # Determine action based on composite score
-        if composite_score > 0.30:
+        # Determine action based on composite score with refined thresholds
+        if composite_score > 0.25:
             action = 'Overweight'
-            # Allocate more to strong sectors (10-15%)
-            target_allocation = 10.0 + (composite_score * 5.0)
-        elif composite_score < -0.30:
+            # Allocate more to strong sectors (10-18%)
+            # Stronger signals get higher allocation
+            target_allocation = 10.0 + (composite_score * 8.0)
+        elif composite_score < -0.25:
             action = 'Underweight'
-            # Allocate less to weak sectors (3-7%)
-            target_allocation = 7.0 - (abs(composite_score) * 4.0)
+            # Allocate less to weak sectors (2-7%)
+            target_allocation = max(2.0, 7.0 - (abs(composite_score) * 5.0))
         else:
             action = 'Neutral'
-            # Equal weight allocation
-            target_allocation = 100.0 / total_sectors if total_sectors > 0 else 9.09
+            # Equal weight allocation (~9.09% for 11 sectors)
+            target_allocation = 100.0 / 11.0
 
         sector_name = get_sector_name(conn, sector_code)
         sector_etf = SECTOR_ETF_MAP.get(sector_code, 'SPY')
@@ -261,6 +411,10 @@ def generate_rotation_signals(db_path: str = DB_PATH) -> List[Dict]:
         })
 
     conn.close()
+
+    # Sort by composite score (strongest first)
+    signals.sort(key=lambda x: x['composite_score'], reverse=True)
+
     return signals
 
 

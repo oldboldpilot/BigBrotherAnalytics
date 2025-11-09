@@ -1,0 +1,362 @@
+[1m[95m
+================================================================================
+BigBrotherAnalytics: Employment Data Pipeline - End-to-End Test
+================================================================================
+[0m
+Test Date: 2025-11-09 10:07:13
+Database: data/bigbrother.duckdb
+
+
+[1m[96mTEST 1: Module Loading and Initialization[0m
+[96m--------------------------------------------------------------------------------[0m
+  Module version: 1.0.0
+[92m✓[0m Module version available
+  DuckDB version: 1.1.3
+[92m✓[0m DuckDB version available
+
+[1m[96mTEST 2: Database Connection[0m
+[96m--------------------------------------------------------------------------------[0m
+  Connected to: data/bigbrother.duckdb (5.14ms)
+[92m✓[0m Database connection established
+
+[1m[96mTEST 3: Table Structure and Row Counts[0m
+[96m--------------------------------------------------------------------------------[0m
+  Found 7 tables:
+    ✓ sector_employment_raw: 2,128 rows
+[92m✓[0m Table 'sector_employment_raw' exists
+    ✓ sectors: 11 rows
+[92m✓[0m Table 'sectors' exists
+    - company_sectors: 24 rows
+    - economic_data: 10,918 rows
+    - options_data: 0 rows
+    - sector_performance: 0 rows
+    - stock_prices: 28,888 rows
+
+[1m[96mTEST 4: Employment Data Query[0m
+[96m--------------------------------------------------------------------------------[0m
+  Total records: 2,128.0
+  Unique series: 19.0
+  Date range: 2021-01-01 to 2025-08-01
+  Employment range: 539k to 159,540k
+  Average employment: 25,300k
+  Std deviation: 41,268k
+  Query time: 5.35ms
+[92m✓[0m Employment data query executed
+
+[1m[96mTEST 5: Sector Coverage and Mapping[0m
+[96m--------------------------------------------------------------------------------[0m
+  Series in database: 19
+  Series in mapping: 10
+[92m✓[0m All mapped series present in database
+  Extra series in DB (not mapped): {'CES3200000001', 'CES8000000001', 'CES6000000001', 'CES4000000001', 'CES3100000001', 'CES0000000001', 'CES9000000001', 'CES4142000001', 'CES0500000001'}
+
+  Series coverage:
+    ✓ CES1000000001: 112.0 records → Energy, Materials
+[92m✓[0m Series CES1000000001 validated
+    ✓ CES2000000001: 112.0 records → Industrials, Real Estate
+[92m✓[0m Series CES2000000001 validated
+    ✓ CES3000000001: 112.0 records → Materials, Industrials
+[92m✓[0m Series CES3000000001 validated
+    ✓ CES4200000001: 112.0 records → Consumer Discretionary, Consumer Staples
+[92m✓[0m Series CES4200000001 validated
+    ✓ CES4300000001: 112.0 records → Industrials
+[92m✓[0m Series CES4300000001 validated
+    ✓ CES4422000001: 112.0 records → Utilities
+[92m✓[0m Series CES4422000001 validated
+    ✓ CES5000000001: 112.0 records → Information Technology, Communication Services
+[92m✓[0m Series CES5000000001 validated
+    ✓ CES5500000001: 112.0 records → Financials
+[92m✓[0m Series CES5500000001 validated
+    ✓ CES6500000001: 112.0 records → Health Care
+[92m✓[0m Series CES6500000001 validated
+    ✓ CES7000000001: 112.0 records → Consumer Discretionary
+[92m✓[0m Series CES7000000001 validated
+
+[1m[96mTEST 6: Time-Series Trend Analysis (MoM, YoY)[0m
+[96m--------------------------------------------------------------------------------[0m
+
+  CES1000000001 (last 3 months):
+    2025-08-01: 609.0k  (MoM: -0.98%, YoY: -2.56%)
+    2025-08-01: 609.0k  (MoM: +0.00%, YoY: -2.56%)
+    2025-07-01: 615.0k  (MoM: -0.81%, YoY: -0.97%)
+[92m✓[0m Trend analysis for CES1000000001
+
+  CES2000000001 (last 3 months):
+    2025-08-01: 8,295.0k  (MoM: -0.08%, YoY: -0.04%)
+    2025-08-01: 8,295.0k  (MoM: +0.00%, YoY: -0.04%)
+    2025-07-01: 8,302.0k  (MoM: -0.01%, YoY: +0.19%)
+[92m✓[0m Trend analysis for CES2000000001
+
+  CES3000000001 (last 3 months):
+    2025-08-01: 12,722.0k  (MoM: -0.09%, YoY: -0.32%)
+    2025-08-01: 12,722.0k  (MoM: +0.00%, YoY: -0.32%)
+    2025-07-01: 12,734.0k  (MoM: -0.02%, YoY: -0.16%)
+[92m✓[0m Trend analysis for CES3000000001
+
+[1m[96mTEST 7: Data Quality Checks[0m
+[96m--------------------------------------------------------------------------------[0m
+  Total records: 2,128.0
+  NULL dates: 0
+  NULL employment counts: 0
+  NULL series IDs: 0
+[93m⚠[0m Found 0 null dates, 0 null counts, 0 null series
+
+  Date range validation:
+    ✓ CES3200000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES0500000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES7000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES0000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES3000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES4422000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES6500000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES9000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES1000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES3100000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES4142000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES4300000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES5000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES5500000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES6000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES2000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES4000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES8000000001: 112.0 records (2021-01-01 to 2025-08-01)
+    ✓ CES4200000001: 112.0 records (2021-01-01 to 2025-08-01)
+[92m✓[0m Date range validation completed
+
+[1m[96mTEST 8: Employment Statistics by Sector[0m
+[96m--------------------------------------------------------------------------------[0m
+
+  Latest employment figures by sector:
+
+    CES1000000001 → Energy, Materials
+      Latest: 609k
+      Range: 539k - 642k
+      Mean: 609k ± 30k
+
+    CES2000000001 → Industrials, Real Estate
+      Latest: 8,295k
+      Range: 7,293k - 8,305k
+      Mean: 7,918k ± 318k
+
+    CES3000000001 → Materials, Industrials
+      Latest: 12,722k
+      Range: 12,145k - 12,900k
+      Mean: 12,701k ± 223k
+
+    CES4200000001 → Consumer Discretionary, Consumer Staples
+      Latest: 15,588k
+      Range: 15,163k - 15,600k
+      Mean: 15,475k ± 123k
+
+    CES4300000001 → Industrials
+      Latest: 6,747k
+      Range: 5,903k - 6,762k
+      Mean: 6,532k ± 227k
+
+    CES4422000001 → Utilities
+      Latest: 598k
+      Range: 542k - 599k
+      Mean: 572k ± 20k
+
+    CES5000000001 → Information Technology, Communication Services
+      Latest: 2,926k
+      Range: 2,750k - 3,105k
+      Mean: 2,963k ± 84k
+
+    CES5500000001 → Financials
+      Latest: 9,250k
+      Range: 8,727k - 9,253k
+      Mean: 9,079k ± 160k
+
+    CES6500000001 → Health Care
+      Latest: 27,452k
+      Range: 23,354k - 27,452k
+      Mean: 25,290k ± 1,306k
+
+    CES7000000001 → Consumer Discretionary
+      Latest: 17,050k
+      Range: 12,804k - 17,050k
+      Mean: 16,005k ± 1,125k
+[92m✓[0m Employment statistics calculated
+
+  Sector rankings by latest employment:
+    1. Health Care: 27,452k
+    2. Consumer Discretionary: 17,050k
+    3. Consumer Staples: 15,588k
+    4. Materials: 12,722k
+    5. Financials: 9,250k
+
+[1m[96mTEST 9: Recent Trends (Last 3 & 12 Months)[0m
+[96m--------------------------------------------------------------------------------[0m
+
+  Employment growth by sector:
+  Sector                         3-Month      12-Month     Trend
+  ------------------------------ ------------ ------------ ----------
+  Energy, Materials              -0.98%       -2.56%       📉 Declining
+  Industrials, Real Estate       -0.08%       -0.04%       📉 Declining
+  Materials, Industrials         -0.09%       -0.32%       📉 Declining
+  Consumer Discretionary, Cons   +0.07%       +0.12%       📈 Growing
+  Industrials                    +0.04%       -0.22%       🔄 Accelerating
+  Utilities                      -0.17%       +0.50%       🔄 Decelerating
+  Information Technology, Comm   -0.17%       -0.48%       📉 Declining
+  Financials                     -0.03%       +0.16%       🔄 Decelerating
+  Health Care                    +0.17%       +1.46%       📈 Growing
+  Consumer Discretionary         +0.16%       +0.70%       📈 Growing
+[92m✓[0m Recent trends analysis completed
+
+[1m[96mTEST 10: Performance Benchmarks[0m
+[96m--------------------------------------------------------------------------------[0m
+  Simple query: 0.30ms
+  Aggregation query: 1.44ms
+  Window function query: 4.95ms
+[92m✓[0m Simple query performance acceptable
+[92m✓[0m Aggregation query performance acceptable
+[92m✓[0m Window function query performance acceptable
+
+[1m[96mTEST 11: Error Handling[0m
+[96m--------------------------------------------------------------------------------[0m
+  ✓ Invalid query error: Query execution failed: Query failed: Catalog Error: Table w...
+[92m✓[0m Invalid query error handling
+  ✓ Invalid SQL error: Query execution failed: Query failed: Parser Error: syntax e...
+[92m✓[0m Invalid SQL error handling
+
+================================================================================
+[1mTEST SUMMARY[0m
+================================================================================
+[92mPassed:[0m 28
+[91mFailed:[0m 0
+[93mWarnings:[0m 1
+
+[93mWarnings:[0m
+  - Found 0 null dates, 0 null counts, 0 null series
+
+[1mPERFORMANCE METRICS[0m
+================================================================================
+  aggregate_query_ms: 5.35ms
+  aggregation_query_ms: 1.44ms
+  connection_time_ms: 5.14ms
+  simple_query_ms: 0.30ms
+  window_function_query_ms: 4.95ms
+
+[1m[95m================================================================================[0m
+[1m[95mUSAGE EXAMPLES FOR DEVELOPERS[0m
+[1m[95m================================================================================[0m
+
+
+# Example 1: Connect to database
+import bigbrother_duckdb as db
+conn = db.connect('data/bigbrother.duckdb')
+
+# Example 2: Query latest employment data
+result = conn.execute('''
+    SELECT series_id, report_date, employment_count
+    FROM sector_employment_raw
+    ORDER BY report_date DESC
+    LIMIT 10
+''')
+data = result.to_pandas_dict()
+
+# Example 3: Calculate month-over-month growth
+result = conn.execute('''
+    SELECT
+        series_id,
+        report_date,
+        employment_count,
+        LAG(employment_count) OVER (
+            PARTITION BY series_id
+            ORDER BY report_date
+        ) as prev_month,
+        ((employment_count - LAG(employment_count) OVER (
+            PARTITION BY series_id ORDER BY report_date
+        )) * 100.0 / LAG(employment_count) OVER (
+            PARTITION BY series_id ORDER BY report_date
+        )) as mom_pct_change
+    FROM sector_employment_raw
+    WHERE series_id = 'CES1000000001'
+    ORDER BY report_date DESC
+    LIMIT 12
+''')
+
+# Example 4: Get sector employment statistics
+result = conn.execute('''
+    SELECT
+        series_id,
+        COUNT(*) as records,
+        MIN(employment_count) as min_emp,
+        MAX(employment_count) as max_emp,
+        AVG(employment_count) as avg_emp,
+        STDDEV(employment_count) as std_emp
+    FROM sector_employment_raw
+    GROUP BY series_id
+''')
+
+# Example 5: Find sectors with strongest growth
+result = conn.execute('''
+    WITH recent_changes AS (
+        SELECT
+            series_id,
+            (employment_count - LAG(employment_count, 12) OVER (
+                PARTITION BY series_id ORDER BY report_date
+            )) * 100.0 / LAG(employment_count, 12) OVER (
+                PARTITION BY series_id ORDER BY report_date
+            ) as yoy_change
+        FROM sector_employment_raw
+    )
+    SELECT series_id, MAX(yoy_change) as max_yoy_growth
+    FROM recent_changes
+    WHERE yoy_change IS NOT NULL
+    GROUP BY series_id
+    ORDER BY max_yoy_growth DESC
+''')
+
+# Example 6: Detect trend inflection points
+result = conn.execute('''
+    WITH trends AS (
+        SELECT
+            series_id,
+            report_date,
+            employment_count,
+            LAG(employment_count, 1) OVER w as prev_1,
+            LAG(employment_count, 2) OVER w as prev_2,
+            LAG(employment_count, 3) OVER w as prev_3
+        FROM sector_employment_raw
+        WINDOW w AS (PARTITION BY series_id ORDER BY report_date)
+    )
+    SELECT *
+    FROM trends
+    WHERE prev_3 IS NOT NULL
+      AND ((prev_3 > prev_2 AND prev_2 > prev_1 AND prev_1 < employment_count) OR
+           (prev_3 < prev_2 AND prev_2 < prev_1 AND prev_1 > employment_count))
+''')
+
+
+[1m[95m================================================================================[0m
+[1m[95mRECOMMENDATIONS[0m
+[1m[95m================================================================================[0m
+
+  1. Data Freshness: Update employment data monthly after BLS releases (first Friday)
+  2. Signal Generation: Run employment_signals.py after each data update
+  3. Performance: DuckDB queries are fast (<100ms) - use complex analytics freely
+  4. GIL-Free: Python bindings release GIL - safe for multi-threaded apps
+  5. Sector Mapping: Use BLS_TO_SECTOR_MAP for consistent series→sector mapping
+  6. Trend Detection: 3-month trends catch recent changes, 12-month for long-term
+  7. Data Quality: Validate for gaps monthly - BLS sometimes revises historical data
+  8. Integration: Use to_pandas_dict() for zero-copy transfer to pandas/numpy
+  9. Error Handling: All database errors raise RuntimeError - wrap in try/except
+  10. Scale: Current schema handles 2,128 records efficiently - can scale to millions
+
+[1m[95m================================================================================[0m
+[1m[95mPIPELINE STATUS[0m
+[1m[95m================================================================================[0m
+
+[92m[1m✓ ALL TESTS PASSED[0m
+
+The employment data pipeline is [92mFULLY OPERATIONAL[0m
+
+Capabilities:
+  ✓ DuckDB native C++ bindings working
+  ✓ 2,128 employment records spanning multiple years
+  ✓ 11 GICS sector mappings from BLS series
+  ✓ Time-series analysis (MoM, YoY trends)
+  ✓ GIL-free query execution
+  ✓ High-performance analytics (<100ms queries)

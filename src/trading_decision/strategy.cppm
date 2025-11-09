@@ -38,12 +38,14 @@ import bigbrother.utils.types;
 import bigbrother.options.pricing;
 import bigbrother.risk_management;
 import bigbrother.schwab_api; // Changed from bigbrother.schwab
+import bigbrother.employment.signals;
 
 export namespace bigbrother::strategy {
 
 using namespace bigbrother::types;
 using namespace bigbrother::options;
 using namespace bigbrother::schwab;
+using namespace bigbrother::employment;
 
 // ============================================================================
 // Core Strategy Types
@@ -96,14 +98,142 @@ struct TradingSignal {
 
 /**
  * Strategy Context
+ *
+ * Contains all market data and signals needed for strategy decision-making.
+ * Provides employment signals alongside price data for fundamental analysis.
+ *
+ * Employment Signals Usage:
+ * - employment_signals: Individual sector employment signals with strength indicators
+ * - rotation_signals: Sector rotation recommendations (Overweight/Underweight)
+ * - jobless_claims_alert: Optional recession warning from jobless claims spike
+ *
+ * Example:
+ *   // Check employment signals for a specific sector
+ *   for (auto const& signal : context.employment_signals) {
+ *       if (signal.sector_name == "Information Technology" && signal.isActionable()) {
+ *           // Use signal.signal_strength (-1.0 to +1.0) in strategy logic
+ *       }
+ *   }
+ *
+ *   // Use rotation signals for sector ETF trading
+ *   for (auto const& rotation : context.rotation_signals) {
+ *       if (rotation.isStrongSignal() &&
+ *           rotation.action == SectorRotationSignal::Action::Overweight) {
+ *           // Generate buy signal for rotation.sector_etf
+ *       }
+ *   }
  */
 struct StrategyContext {
+    // Price Data & Positions
     std::unordered_map<std::string, Quote> current_quotes;
     std::unordered_map<std::string, OptionsChainData> options_chains;
     std::vector<Position> current_positions;
     double account_value{0.0};
     double available_capital{0.0};
     Timestamp current_time{0};
+
+    // Employment Signals (from BLS data)
+    // Individual sector employment signals with detailed metrics
+    std::vector<EmploymentSignal> employment_signals;
+
+    // Sector rotation recommendations based on employment trends
+    std::vector<SectorRotationSignal> rotation_signals;
+
+    // Optional recession warning from jobless claims spike
+    std::optional<EmploymentSignal> jobless_claims_alert;
+
+    /**
+     * Get employment signals for a specific sector
+     *
+     * @param sector_name Sector name (e.g., "Information Technology")
+     * @return Vector of employment signals for that sector
+     */
+    [[nodiscard]] auto getEmploymentSignalsForSector(std::string const& sector_name) const
+        -> std::vector<EmploymentSignal> {
+        std::vector<EmploymentSignal> results;
+        for (auto const& signal : employment_signals) {
+            if (signal.sector_name == sector_name) {
+                results.push_back(signal);
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Get rotation signal for a specific sector
+     *
+     * @param sector_name Sector name (e.g., "Financials")
+     * @return Optional rotation signal if available
+     */
+    [[nodiscard]] auto getRotationSignalForSector(std::string const& sector_name) const
+        -> std::optional<SectorRotationSignal> {
+        for (auto const& rotation : rotation_signals) {
+            if (rotation.sector_name == sector_name) {
+                return rotation;
+            }
+        }
+        return std::nullopt;
+    }
+
+    /**
+     * Check if there's a recession warning active
+     *
+     * @return True if jobless claims spike detected
+     */
+    [[nodiscard]] auto hasRecessionWarning() const noexcept -> bool {
+        return jobless_claims_alert.has_value();
+    }
+
+    /**
+     * Get aggregate employment health score
+     *
+     * Calculates overall employment trend across all sectors.
+     * Positive = improving employment, Negative = deteriorating
+     *
+     * @return Score from -1.0 (very negative) to +1.0 (very positive)
+     */
+    [[nodiscard]] auto getAggregateEmploymentScore() const noexcept -> double {
+        if (employment_signals.empty()) {
+            return 0.0;
+        }
+
+        double total = 0.0;
+        for (auto const& signal : employment_signals) {
+            total += signal.signal_strength;
+        }
+
+        return total / static_cast<double>(employment_signals.size());
+    }
+
+    /**
+     * Get strongest employment signals (actionable only)
+     *
+     * @param limit Maximum number of signals to return
+     * @return Vector of top N actionable employment signals
+     */
+    [[nodiscard]] auto getStrongestEmploymentSignals(int limit = 5) const
+        -> std::vector<EmploymentSignal> {
+        std::vector<EmploymentSignal> actionable;
+
+        // Filter actionable signals
+        for (auto const& signal : employment_signals) {
+            if (signal.isActionable()) {
+                actionable.push_back(signal);
+            }
+        }
+
+        // Sort by absolute signal strength (strongest first)
+        std::ranges::sort(actionable, [](auto const& a, auto const& b) -> bool {
+            return std::abs(a.signal_strength) > std::abs(b.signal_strength);
+        });
+
+        // Return top N
+        if (actionable.size() > static_cast<size_t>(limit)) {
+            actionable.resize(limit);
+        }
+
+        return actionable;
+    }
 };
 
 /**
