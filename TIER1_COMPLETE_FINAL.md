@@ -522,8 +522,10 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
 ```
 
 **F. Configuration & Testing:**
-- Add BLS_API_KEY to environment variables
-- Test BLS API integration
+- ✅ BLS API key already configured in api_keys.yaml
+- ✅ News API key already configured in api_keys.yaml
+- Test BLS API integration with real data
+- Test News API for sentiment analysis
 - Validate sector classification
 - Backtest sector rotation strategy
 - Verify employment signal accuracy

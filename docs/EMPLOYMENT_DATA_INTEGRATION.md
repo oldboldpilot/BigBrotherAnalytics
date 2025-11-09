@@ -42,7 +42,7 @@ Employment data serves as a critical leading and coincident indicator for:
 duckdb data/bigbrother.duckdb < scripts/database_schema_employment.sql
 ```
 
-**Note:** BLS API key configuration is already set up in `api_keys.yaml`
+**Note:** BLS API key and News API key are already configured in `api_keys.yaml` ✅
 
 ### 2. BLS API Integration
 
@@ -376,7 +376,9 @@ duckdb data/bigbrother.duckdb "SELECT COUNT(*) FROM sector_employment_raw;"
    duckdb data/bigbrother.duckdb < scripts/database_schema_employment.sql
    ```
 
-2. **BLS API key** - Already configured in api_keys.yaml ✅
+2. **API Keys** - Already configured in api_keys.yaml ✅
+   - BLS API key (employment data) ✅
+   - News API key (sentiment analysis) ✅
 
 3. **Execute initial data collection** (5 years of history)
    ```bash
