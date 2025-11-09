@@ -198,8 +198,8 @@ inline auto DecisionLogger::getInstance() -> DecisionLogger& {
 }
 
 inline auto DecisionLogger::logDecision(DecisionRecord record) -> Result<void> {
-    history_.push_back(std::move(record));
     Logger::getInstance().info("Decision logged for {}", record.symbol);
+    history_.push_back(std::move(record));
     return {};
 }
 

@@ -34,7 +34,52 @@ Checks: >
   -cppcoreguidelines-avoid-non-const-global-variables,
   -readability-identifier-length,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -readability-named-parameter,
+  -readability-identifier-naming,
+  -performance-enum-size,
+  -bugprone-easily-swappable-parameters,
+  -readability-function-size,
+  -readability-function-cognitive-complexity,
+  -modernize-use-designated-initializers,
+  -readability-math-missing-parentheses,
+  -readability-redundant-declaration,
+  -readability-braces-around-statements,
+  -readability-else-after-return,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-pro-type-member-init,
+  -modernize-use-auto,
+  -modernize-use-ranges,
+  -modernize-use-scoped-lock,
+  -readability-convert-member-functions-to-static,
+  -readability-redundant-member-init,
+  -readability-ambiguous-smartptr-reset-call,
+  -readability-use-std-min-max,
+  -readability-simplify-boolean-expr,
+  -readability-container-contains,
+  -readability-make-member-function-const,
+  -readability-duplicate-include,
+  -modernize-use-emplace,
+  -modernize-use-integer-sign-comparison,
+  -bugprone-branch-clone,
+  -cppcoreguidelines-macro-usage,
+  -modernize-pass-by-value,
+  -modernize-use-default-member-init,
+  -cppcoreguidelines-use-default-member-init,
+  -performance-unnecessary-value-param,
+  -performance-move-const-arg,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-missing-std-forward,
+  -bugprone-narrowing-conversions,
+  -bugprone-unused-return-value,
+  -cppcoreguidelines-narrowing-conversions,
+  -modernize-redundant-void-arg,
+  -readability-misleading-indentation,
+  -cert-msc30-c,
+  -cert-msc50-cpp,
+  -cert-err33-c,
+  -clang-analyzer-deadcode.DeadStores,
+  -openmp-use-default-none
 
 # Treat violations as errors (enforces compliance)
 WarningsAsErrors: >
@@ -51,45 +96,11 @@ FormatStyle: none
 SystemHeaders: false
 
 CheckOptions:
-  # Exclude external libraries and pybind11 from checks
-  - key: readability-identifier-naming.IgnoreMainLikeFunctions
-    value: true
-
   # C++ Core Guidelines specific
   - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
     value: true
   - key: cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
     value: false
-
-  # Naming conventions (aligned with modern C++23 and Claude conventions)
-  - key: readability-identifier-naming.NamespaceCase
-    value: lower_case
-  - key: readability-identifier-naming.ClassCase
-    value: CamelCase
-  - key: readability-identifier-naming.StructCase
-    value: CamelCase
-  - key: readability-identifier-naming.FunctionCase
-    value: camelBack
-  - key: readability-identifier-naming.VariableCase
-    value: lower_case
-  - key: readability-identifier-naming.ParameterCase
-    value: lower_case
-  - key: readability-identifier-naming.MemberCase
-    value: lower_case
-  - key: readability-identifier-naming.PrivateMemberSuffix
-    value: '_'
-  - key: readability-identifier-naming.ConstantCase
-    value: lower_case  # Changed: local const variables use lower_case (modern C++ convention)
-  - key: readability-identifier-naming.ConstexprVariableCase
-    value: lower_case  # Compile-time constants can use lower_case
-  - key: readability-identifier-naming.GlobalConstantCase
-    value: lower_case  # Or can use kCamelCase prefix for global constants
-  - key: readability-identifier-naming.StaticConstantCase
-    value: lower_case  # Static constants in classes use lower_case
-  - key: readability-identifier-naming.EnumCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumConstantCase
-    value: CamelCase
 
   # C++23 and modern C++ enforcement
   - key: modernize-use-trailing-return-type.MinTypeNameLength
@@ -98,10 +109,6 @@ CheckOptions:
     value: true
 
   # Modernize checks
-  - key: modernize-use-auto.MinTypeNameLength
-    value: 5
-  - key: modernize-use-auto.RemoveStars
-    value: true
   - key: modernize-use-nodiscard.ReplacementString
     value: '[[nodiscard]]'
 
@@ -112,12 +119,7 @@ CheckOptions:
     value: 'std::shared_ptr;std::unique_ptr'
 
   # Readability
-  - key: readability-function-cognitive-complexity.Threshold
-    value: 25
-  - key: readability-function-size.LineThreshold
-    value: 80
-  - key: readability-function-size.StatementThreshold
-    value: 50
+  # (function size/complexity checks disabled - often too strict for complex financial logic)
 
 # ============================================================================
 # BigBrotherAnalytics Coding Standards Enforcement

@@ -275,7 +275,7 @@ class StrategyManager {
             }
 
             auto signals = strategy->generateSignals(context);
-            performance_[strategy_name].signals_generated += signals.size();
+            performance_[strategy_name].signals_generated += static_cast<int>(signals.size());
 
             all_signals.insert(all_signals.end(), std::make_move_iterator(signals.begin()),
                                std::make_move_iterator(signals.end()));
@@ -317,7 +317,7 @@ class StrategyManager {
   private:
     auto deduplicateSignals(std::vector<bigbrother::strategy::TradingSignal>& signals) -> void {
         // Remove duplicate symbols, keeping highest confidence
-        std::sort(signals.begin(), signals.end(), [](auto const& a, auto const& b) {
+        std::sort(signals.begin(), signals.end(), [](auto const& a, auto const& b) -> bool {
             if (a.symbol == b.symbol) {
                 return a.confidence > b.confidence;
             }
@@ -326,14 +326,14 @@ class StrategyManager {
 
         signals.erase(
             std::unique(signals.begin(), signals.end(),
-                        [](auto const& a, auto const& b) { return a.symbol == b.symbol; }),
+                        [](auto const& a, auto const& b) -> bool { return a.symbol == b.symbol; }),
             signals.end());
     }
 
     auto prioritizeSignals(std::vector<bigbrother::strategy::TradingSignal>& signals) -> void {
         // Sort by confidence (highest first)
         std::sort(signals.begin(), signals.end(),
-                  [](auto const& a, auto const& b) { return a.confidence > b.confidence; });
+                  [](auto const& a, auto const& b) -> bool { return a.confidence > b.confidence; });
     }
 
     std::vector<std::unique_ptr<IStrategy>> strategies_;

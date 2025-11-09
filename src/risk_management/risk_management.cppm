@@ -409,7 +409,7 @@ class MonteCarloSimulator {
         result.expected_value = sum / static_cast<double>(num_simulations);
 
         auto const variance = std::accumulate(final_pnls.begin(), final_pnls.end(), 0.0,
-                                              [ev = result.expected_value](double acc, double val) {
+                                              [ev = result.expected_value](double acc, double val) -> double {
                                                   return acc + (val - ev) * (val - ev);
                                               }) /
                               static_cast<double>(num_simulations);
@@ -417,7 +417,7 @@ class MonteCarloSimulator {
 
         result.probability_of_profit =
             static_cast<double>(std::count_if(final_pnls.begin(), final_pnls.end(),
-                                              [](double pnl) { return pnl > 0.0; })) /
+                                              [](double pnl) -> bool { return pnl > 0.0; })) /
             static_cast<double>(num_simulations);
 
         result.var_95 = final_pnls[static_cast<size_t>(num_simulations * 0.05)];

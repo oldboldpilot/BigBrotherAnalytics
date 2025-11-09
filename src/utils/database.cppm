@@ -116,7 +116,8 @@ public:
     
     ~Transaction() {
         if (!committed_) {
-            rollback();
+            auto result = rollback();  // Ignore result in destructor (no exception throwing allowed)
+            (void)result;  // Suppress unused variable warning
         }
     }
 

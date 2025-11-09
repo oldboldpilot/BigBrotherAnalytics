@@ -19,6 +19,7 @@ module;
 #include <cmath>
 #include <memory>
 #include <numeric> // Added for std::accumulate
+#include <random>
 #include <string>
 #include <vector>
 
@@ -165,7 +166,7 @@ class BacktestEngine {
         results.equity_curve.push_back(capital_);
 
         // Simulate trading days
-        auto const days = (config_.end_date - config_.start_date) / (24 * 3600 * 1000000);
+        auto const days = (config_.end_date - config_.start_date) / (24LL * 3600LL * 1000000LL);
 
         for (int day = 0; day < days; ++day) {
             // Generate signals
@@ -192,7 +193,7 @@ class BacktestEngine {
         // Calculate final metrics
         results.final_capital = capital_;
         results.total_return = (capital_ - config_.initial_capital) / config_.initial_capital;
-        results.annualized_return = results.total_return * (365.0 / days);
+        results.annualized_return = results.total_return * (365.0 / static_cast<double>(days));
         results.sharpe_ratio = results.calculateSharpeRatio();
         results.max_drawdown = results.calculateMaxDrawdown();
         results.win_rate = results.total_trades > 0 ? static_cast<double>(results.winning_trades) /
@@ -212,8 +213,8 @@ class BacktestEngine {
         auto const position_size = capital_ * 0.02; // 2% per trade
         auto const commission = config_.commission_per_trade;
 
-        // Simulate random outcome for demo
-        auto const random_return = (static_cast<double>(rand()) / RAND_MAX - 0.5) * 0.10;
+        // Simulate random outcome for demo (thread-safe)
+        auto const random_return = dist_(rng_);
         auto const pnl = position_size * random_return - commission;
 
         capital_ += pnl;
@@ -238,6 +239,8 @@ class BacktestEngine {
     double capital_;
     std::shared_ptr<IStrategy> strategy_;
     std::string data_source_;
+    mutable std::mt19937 rng_{std::random_device{}()};  // Thread-safe random number generator
+    mutable std::uniform_real_distribution<double> dist_{-0.05, 0.05};
 };
 
 // ============================================================================
