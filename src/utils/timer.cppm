@@ -448,8 +448,8 @@ namespace bigbrother::utils {
 
 // Macro-like helpers (not exported)
 namespace {
-    constexpr auto LOG_INFO = [](auto&&...) {};  // Stub for now
-    constexpr auto LOG_ERROR = [](auto&&...) {};  // Stub for now
+    constexpr auto LOG_INFO = [](auto&&...) -> void {};  // Stub for now
+    constexpr auto LOG_ERROR = [](auto&&...) -> void {};  // Stub for now
 }
 
 // ScopedTimer implementation

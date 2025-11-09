@@ -143,7 +143,7 @@ template<std::ranges::range R1, std::ranges::range R2>
     auto const sum = std::ranges::fold_left(
         std::views::zip(std::forward<R1>(range1), std::forward<R2>(range2)) |
         std::views::take(n) |
-        std::views::transform([mean1, mean2](auto const& pair) {
+        std::views::transform([mean1, mean2](auto const& pair) -> double {
             auto const [v1, v2] = pair;
             return (static_cast<double>(v1) - mean1) *
                    (static_cast<double>(v2) - mean2);
@@ -397,7 +397,7 @@ template<std::ranges::range R>
     }
 
     return std::forward<R>(range) |
-           std::views::transform([min_val, range_val](auto val) {
+           std::views::transform([min_val, range_val](auto val) -> double {
                return (static_cast<double>(val) - min_val) / range_val;
            }) |
            std::ranges::to<std::vector>();
@@ -423,7 +423,7 @@ template<std::ranges::range R>
     }
 
     return std::forward<R>(range) |
-           std::views::transform([mu, sigma](auto val) {
+           std::views::transform([mu, sigma](auto val) -> double {
                return (static_cast<double>(val) - mu) / sigma;
            }) |
            std::ranges::to<std::vector>();
@@ -484,7 +484,7 @@ template<std::ranges::range R1, std::ranges::range R2>
 [[nodiscard]] constexpr auto dot_product(R1&& range1, R2&& range2) noexcept -> double {
     return std::ranges::fold_left(
         std::views::zip_transform(
-            [](auto a, auto b) {
+            [](auto a, auto b) -> double {
                 return static_cast<double>(a) * static_cast<double>(b);
             },
             std::forward<R1>(range1),
