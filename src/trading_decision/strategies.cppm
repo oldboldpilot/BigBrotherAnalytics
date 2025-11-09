@@ -208,6 +208,197 @@ class VolatilityArbStrategy final : public IStrategy {
 };
 
 // ============================================================================
+// Sector Rotation Strategy
+// ============================================================================
+
+class SectorRotationStrategy final : public IStrategy {
+  public:
+    struct SectorScore {
+        std::string sector_name;
+        std::string etf_ticker;
+        double employment_score{0.0};
+        double composite_score{0.0};
+        bool is_improving{false};
+        bool is_declining{false};
+    };
+
+    SectorRotationStrategy() = default;
+
+    // C.21: Rule of Five
+    SectorRotationStrategy(SectorRotationStrategy const&) = delete;
+    auto operator=(SectorRotationStrategy const&) -> SectorRotationStrategy& = delete;
+    SectorRotationStrategy(SectorRotationStrategy&&) noexcept = default;
+    auto operator=(SectorRotationStrategy&&) noexcept -> SectorRotationStrategy& = default;
+    ~SectorRotationStrategy() override = default;
+
+    [[nodiscard]] auto getName() const noexcept -> std::string override {
+        return "Sector Rotation";
+    }
+
+    [[nodiscard]] auto isActive() const noexcept -> bool override { return active_; }
+
+    auto setActive(bool active) -> void override { active_ = active; }
+
+    [[nodiscard]] auto getParameters() const
+        -> std::unordered_map<std::string, std::string> override {
+        return {{"min_employment_score", "0.60"}, {"rotation_threshold", "0.70"}};
+    }
+
+    [[nodiscard]] auto generateSignals(StrategyContext const& context)
+        -> std::vector<bigbrother::strategy::TradingSignal> override {
+
+        std::vector<bigbrother::strategy::TradingSignal> signals;
+
+        // Define 11 GICS sectors with ETF mappings
+        std::vector<SectorScore> sectors = {
+            {"Energy", "XLE", 0.0, 0.0, false, false},
+            {"Materials", "XLB", 0.0, 0.0, false, false},
+            {"Industrials", "XLI", 0.0, 0.0, false, false},
+            {"Consumer Discretionary", "XLY", 0.0, 0.0, false, false},
+            {"Consumer Staples", "XLP", 0.0, 0.0, false, false},
+            {"Health Care", "XLV", 0.0, 0.0, false, false},
+            {"Financials", "XLF", 0.0, 0.0, false, false},
+            {"Information Technology", "XLK", 0.0, 0.0, false, false},
+            {"Communication Services", "XLC", 0.0, 0.0, false, false},
+            {"Utilities", "XLU", 0.0, 0.0, false, false},
+            {"Real Estate", "XLRE", 0.0, 0.0, false, false},
+        };
+
+        // Score each sector based on employment data
+        scoreSectors(sectors);
+
+        // Generate Buy signals for improving sectors
+        for (auto const& sector : sectors) {
+            if (sector.is_improving && sector.composite_score > 0.70) {
+                bigbrother::strategy::TradingSignal signal;
+                signal.symbol = sector.etf_ticker;
+                signal.strategy_name = getName();
+                signal.type = SignalType::Buy;
+                signal.confidence = sector.composite_score;
+                signal.expected_return = sector.composite_score * 100.0;
+                signal.max_risk = 50.0;
+                signal.win_probability = sector.composite_score;
+                signal.timestamp = context.current_time;
+                signal.rationale = "Sector rotation: " + sector.sector_name +
+                                   " showing strong employment growth (score: " +
+                                   std::to_string(sector.employment_score) + ")";
+                signals.push_back(signal);
+            }
+        }
+
+        // Generate Sell signals for declining sectors
+        for (auto const& sector : sectors) {
+            if (sector.is_declining && sector.composite_score < -0.70) {
+                bigbrother::strategy::TradingSignal signal;
+                signal.symbol = sector.etf_ticker;
+                signal.strategy_name = getName();
+                signal.type = SignalType::Sell;
+                signal.confidence = std::abs(sector.composite_score);
+                signal.expected_return = std::abs(sector.composite_score) * 80.0;
+                signal.max_risk = 60.0;
+                signal.win_probability = std::abs(sector.composite_score);
+                signal.timestamp = context.current_time;
+                signal.rationale = "Sector rotation: " + sector.sector_name +
+                                   " showing employment weakness (score: " +
+                                   std::to_string(sector.employment_score) + ")";
+                signals.push_back(signal);
+            }
+        }
+
+        Logger::getInstance().info("{}: Generated {} signals from sector analysis", getName(),
+                                   signals.size());
+        return signals;
+    }
+
+  private:
+    bool active_{true};
+
+    auto scoreSectors(std::vector<SectorScore>& sectors) -> void {
+        // Scoring logic based on employment trends
+        // This is a simplified scoring model - in production would query DuckDB
+        // for actual employment data from sector_employment table
+
+        for (auto& sector : sectors) {
+            // Simulate employment score calculation
+            // In production: Query BLS employment data, calculate trends, momentum
+            // For now: Generate realistic stub scores
+
+            // Cyclical sectors (Energy, Materials, Industrials, Financials)
+            if (sector.sector_name == "Energy") {
+                sector.employment_score = 0.45; // Moderate
+                sector.composite_score = 0.50;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            } else if (sector.sector_name == "Materials") {
+                sector.employment_score = 0.55;
+                sector.composite_score = 0.60;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            } else if (sector.sector_name == "Industrials") {
+                sector.employment_score = 0.75;
+                sector.composite_score = 0.78;
+                sector.is_improving = true;
+                sector.is_declining = false;
+            } else if (sector.sector_name == "Financials") {
+                sector.employment_score = 0.65;
+                sector.composite_score = 0.68;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            }
+            // Technology and Communication (high growth)
+            else if (sector.sector_name == "Information Technology") {
+                sector.employment_score = 0.80;
+                sector.composite_score = 0.85;
+                sector.is_improving = true;
+                sector.is_declining = false;
+            } else if (sector.sector_name == "Communication Services") {
+                sector.employment_score = 0.40;
+                sector.composite_score = 0.35;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            }
+            // Healthcare (stable growth)
+            else if (sector.sector_name == "Health Care") {
+                sector.employment_score = 0.82;
+                sector.composite_score = 0.88;
+                sector.is_improving = true;
+                sector.is_declining = false;
+            }
+            // Consumer sectors
+            else if (sector.sector_name == "Consumer Discretionary") {
+                sector.employment_score = 0.35;
+                sector.composite_score = -0.75;
+                sector.is_improving = false;
+                sector.is_declining = true;
+            } else if (sector.sector_name == "Consumer Staples") {
+                sector.employment_score = 0.50;
+                sector.composite_score = 0.55;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            }
+            // Defensive sectors
+            else if (sector.sector_name == "Utilities") {
+                sector.employment_score = 0.48;
+                sector.composite_score = 0.52;
+                sector.is_improving = false;
+                sector.is_declining = false;
+            } else if (sector.sector_name == "Real Estate") {
+                sector.employment_score = 0.30;
+                sector.composite_score = -0.78;
+                sector.is_improving = false;
+                sector.is_declining = true;
+            }
+
+            // TODO: Replace with actual database query
+            // Query: SELECT employment_count, unemployment_rate, job_openings
+            //        FROM sector_employment WHERE sector_id = ?
+            //        ORDER BY report_date DESC LIMIT 3
+            // Calculate: trend (3-month change), momentum, volatility
+        }
+    }
+};
+
+// ============================================================================
 // Strategy Manager (Fluent API)
 // ============================================================================
 
@@ -355,6 +546,10 @@ class StrategyManager {
 
 [[nodiscard]] inline auto createVolatilityArbStrategy() -> std::unique_ptr<IStrategy> {
     return std::make_unique<VolatilityArbStrategy>();
+}
+
+[[nodiscard]] inline auto createSectorRotationStrategy() -> std::unique_ptr<IStrategy> {
+    return std::make_unique<SectorRotationStrategy>();
 }
 
 } // namespace bigbrother::strategies
