@@ -25,9 +25,11 @@ module;
 #include <optional>
 #include <expected>
 #include <unordered_map>
+#include <unordered_set>
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <tuple>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 
@@ -1382,7 +1384,11 @@ private:
 class OrderManager {
 public:
     explicit OrderManager(std::shared_ptr<TokenManager> token_mgr)
-        : token_mgr_{std::move(token_mgr)}, order_counter_{0} {}
+        : token_mgr_{std::move(token_mgr)},
+          order_counter_{0},
+          dry_run_mode_{false},
+          max_position_size_{10000},
+          max_positions_{10} {}
 
     // C.21: Rule of Five - deleted due to mutex member
     OrderManager(OrderManager const&) = delete;
@@ -1391,18 +1397,85 @@ public:
     auto operator=(OrderManager&&) noexcept -> OrderManager& = delete;
     ~OrderManager() = default;
 
+    // Configuration
+    [[nodiscard]] auto setDryRunMode(bool enabled) -> OrderManager& {
+        dry_run_mode_ = enabled;
+        Logger::getInstance().info("Dry-run mode: {}", enabled ? "ENABLED" : "DISABLED");
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPositionSize(int max_size) -> OrderManager& {
+        max_position_size_ = max_size;
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPositions(int max_positions) -> OrderManager& {
+        max_positions_ = max_positions;
+        return *this;
+    }
+
+    [[nodiscard]] auto setAccountManager(AccountManager* account_mgr) -> OrderManager& {
+        account_mgr_ = account_mgr;
+        return *this;
+    }
+
     // Fluent API
     [[nodiscard]] auto placeOrder(Order order) -> Result<std::string> {
+        // 1. Validate authentication token
         auto token = token_mgr_->getAccessToken();
         if (!token) return std::unexpected(token.error());
 
+        // 2. Validate order parameters
+        auto validation_result = validateOrderParameters(order);
+        if (!validation_result) return std::unexpected(validation_result.error());
+
+        // 3. CRITICAL: Check if symbol is already held as MANUAL position
+        auto manual_check_result = validateOrderAgainstManualPositions(order);
+        if (!manual_check_result) return std::unexpected(manual_check_result.error());
+
+        // 4. Check buying power (if BUY order)
+        if (order.quantity > 0) {  // BUY order
+            auto buying_power_result = checkBuyingPower(order);
+            if (!buying_power_result) return std::unexpected(buying_power_result.error());
+        }
+
+        // 5. Check position limits
+        auto position_limit_result = checkPositionLimits();
+        if (!position_limit_result) return std::unexpected(position_limit_result.error());
+
+        // 6. Generate order ID
         order.order_id = "ORD" + std::to_string(++order_counter_);
+        order.created_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        // 7. Dry-run mode check
+        if (dry_run_mode_) {
+            Logger::getInstance().warn(
+                "[DRY-RUN] Would place order: {} {} shares of {} @ ${:.2f} (type: {}, duration: {})",
+                order.order_id, order.quantity, order.symbol, order.limit_price,
+                orderTypeToString(order.type), orderDurationToString(order.duration)
+            );
+
+            // In dry-run, mark as pending but don't actually place
+            order.status = OrderStatus::Pending;
+            std::lock_guard<std::mutex> lock(mutex_);
+            orders_[order.order_id] = order;
+            return order.order_id;
+        }
+
+        // 8. Place actual order (in production)
         order.status = OrderStatus::Working;
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
         orders_[order.order_id] = order;
-        
-        Logger::getInstance().info("Placed order: {}", order.order_id);
+
+        // 9. Compliance logging
+        logOrderCompliance(order, "PLACED");
+
+        Logger::getInstance().info(
+            "Placed order: {} {} shares of {} @ ${:.2f}",
+            order.order_id, order.quantity, order.symbol, order.limit_price
+        );
+
         return order.order_id;
     }
 
@@ -1416,7 +1489,16 @@ public:
             return makeError<void>(ErrorCode::InvalidParameter, "Order not found");
         }
 
+        // Dry-run check
+        if (dry_run_mode_) {
+            Logger::getInstance().warn("[DRY-RUN] Would cancel order: {}", order_id);
+            return {};
+        }
+
         it->second.status = OrderStatus::Canceled;
+        it->second.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        logOrderCompliance(it->second, "CANCELED");
         Logger::getInstance().info("Canceled order: {}", order_id);
         return {};
     }
@@ -1430,11 +1512,275 @@ public:
         return it->second.status;
     }
 
+    [[nodiscard]] auto getActiveOrders() const -> std::vector<Order> {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<Order> active_orders;
+        for (auto const& [id, order] : orders_) {
+            if (order.isActive()) {
+                active_orders.push_back(order);
+            }
+        }
+        return active_orders;
+    }
+
 private:
+    // ========================================================================
+    // Safety Check Methods
+    // ========================================================================
+
+    /**
+     * Validate basic order parameters
+     */
+    [[nodiscard]] auto validateOrderParameters(Order const& order) const -> Result<void> {
+        // Check symbol
+        if (order.symbol.empty()) {
+            return makeError<void>(ErrorCode::InvalidParameter, "Symbol cannot be empty");
+        }
+
+        // Check quantity
+        if (order.quantity == 0) {
+            return makeError<void>(ErrorCode::InvalidParameter, "Quantity cannot be zero");
+        }
+
+        // For limit orders, check price
+        if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
+            if (order.limit_price <= 0.0) {
+                return makeError<void>(
+                    ErrorCode::InvalidParameter,
+                    "Limit price must be positive for limit orders"
+                );
+            }
+        }
+
+        // For stop orders, check stop price
+        if (order.type == OrderType::Stop || order.type == OrderType::StopLimit) {
+            if (order.stop_price <= 0.0) {
+                return makeError<void>(
+                    ErrorCode::InvalidParameter,
+                    "Stop price must be positive for stop orders"
+                );
+            }
+        }
+
+        // Check position size limits
+        if (std::abs(order.quantity) > max_position_size_) {
+            return makeError<void>(
+                ErrorCode::InvalidParameter,
+                "Order quantity exceeds maximum position size limit"
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * CRITICAL: Check if symbol is already held as a MANUAL position
+     * This prevents the bot from trading securities managed by the human trader
+     */
+    [[nodiscard]] auto validateOrderAgainstManualPositions(Order const& order) const
+        -> Result<void> {
+
+        if (!account_mgr_) {
+            // If no account manager is set, we can't check - allow but warn
+            Logger::getInstance().warn(
+                "No AccountManager set - cannot verify manual positions for {}",
+                order.symbol
+            );
+            return {};
+        }
+
+        // Check if this symbol is manually held
+        if (isSymbolManuallyHeld(order.symbol)) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Cannot trade " + order.symbol + " - manual position exists. " +
+                "Bot only trades NEW securities or bot-managed positions. " +
+                "See TRADING_CONSTRAINTS.md for details."
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * Check if symbol is held as a manual (non-bot-managed) position
+     */
+    [[nodiscard]] auto isSymbolManuallyHeld(std::string const& symbol) const -> bool {
+        if (!account_mgr_) return false;
+
+        // Get all positions
+        auto positions_result = account_mgr_->getPositions();
+        if (!positions_result) {
+            Logger::getInstance().error("Failed to fetch positions: {}",
+                positions_result.error());
+            return false;  // Fail open - allow trade if we can't verify
+        }
+
+        // Check each position
+        for (auto const& pos : *positions_result) {
+            if (pos.symbol == symbol) {
+                // Found position - check if it's manual
+                // Note: AccountPosition doesn't have is_bot_managed flag in current impl
+                // For now, we assume all positions are manual unless we track them
+                Logger::getInstance().warn(
+                    "Position exists for {}: {} shares @ ${:.2f}",
+                    symbol, pos.quantity, pos.average_price
+                );
+                return true;  // Conservative: treat all existing positions as manual
+            }
+        }
+
+        return false;  // No position exists - safe to trade
+    }
+
+    /**
+     * Check if account has sufficient buying power for the order
+     */
+    [[nodiscard]] auto checkBuyingPower(Order const& order) const -> Result<void> {
+        if (!account_mgr_) {
+            Logger::getInstance().warn(
+                "No AccountManager set - cannot verify buying power for order"
+            );
+            return {};  // Allow if we can't verify
+        }
+
+        // Get account balance
+        auto balance_result = account_mgr_->getBalance();
+        if (!balance_result) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Failed to retrieve account balance: " + balance_result.error()
+            );
+        }
+
+        auto const& balance = *balance_result;
+
+        // Calculate estimated order cost
+        double estimated_cost = 0.0;
+        if (order.type == OrderType::Market) {
+            // For market orders, we need a price estimate
+            // Conservative approach: assume we need quantity * estimated_price
+            // This is a simplified check - real implementation would get current quote
+            estimated_cost = static_cast<double>(order.quantity) * 100.0;  // Placeholder
+            Logger::getInstance().warn(
+                "Market order - using conservative estimate for buying power check"
+            );
+        } else if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
+            estimated_cost = static_cast<double>(order.quantity) * order.limit_price;
+        }
+
+        // Check buying power
+        if (!balance.hasSufficientFunds(estimated_cost)) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Insufficient buying power: need $" +
+                std::to_string(estimated_cost) + ", available $" +
+                std::to_string(balance.buying_power)
+            );
+        }
+
+        Logger::getInstance().info(
+            "Buying power check passed: need ${:.2f}, have ${:.2f}",
+            estimated_cost, balance.buying_power
+        );
+
+        return {};
+    }
+
+    /**
+     * Check if we're within position count limits
+     */
+    [[nodiscard]] auto checkPositionLimits() const -> Result<void> {
+        if (!account_mgr_) {
+            return {};  // Can't check without account manager
+        }
+
+        auto positions_result = account_mgr_->getPositions();
+        if (!positions_result) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Failed to retrieve positions: " + positions_result.error()
+            );
+        }
+
+        auto const& positions = *positions_result;
+
+        if (static_cast<int>(positions.size()) >= max_positions_) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Maximum position limit reached: " + std::to_string(max_positions_)
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * Log order activity for compliance and audit trail
+     */
+    auto logOrderCompliance(Order const& order, std::string const& action) const -> void {
+        Logger::getInstance().info(
+            "[COMPLIANCE] {} - Order: {}, Symbol: {}, Qty: {}, Type: {}, Price: ${:.2f}, "
+            "Status: {}, Timestamp: {}",
+            action, order.order_id, order.symbol, order.quantity,
+            orderTypeToString(order.type), order.limit_price,
+            orderStatusToString(order.status), order.created_at
+        );
+    }
+
+    // ========================================================================
+    // Helper Methods
+    // ========================================================================
+
+    [[nodiscard]] auto orderTypeToString(OrderType type) const -> std::string {
+        switch (type) {
+            case OrderType::Market: return "MARKET";
+            case OrderType::Limit: return "LIMIT";
+            case OrderType::Stop: return "STOP";
+            case OrderType::StopLimit: return "STOP_LIMIT";
+            default: return "UNKNOWN";
+        }
+    }
+
+    [[nodiscard]] auto orderDurationToString(OrderDuration duration) const -> std::string {
+        switch (duration) {
+            case OrderDuration::Day: return "DAY";
+            case OrderDuration::GTC: return "GTC";
+            case OrderDuration::GTD: return "GTD";
+            case OrderDuration::FOK: return "FOK";
+            case OrderDuration::IOC: return "IOC";
+            default: return "UNKNOWN";
+        }
+    }
+
+    [[nodiscard]] auto orderStatusToString(OrderStatus status) const -> std::string {
+        switch (status) {
+            case OrderStatus::Pending: return "PENDING";
+            case OrderStatus::Working: return "WORKING";
+            case OrderStatus::Filled: return "FILLED";
+            case OrderStatus::PartiallyFilled: return "PARTIALLY_FILLED";
+            case OrderStatus::Canceled: return "CANCELED";
+            case OrderStatus::Rejected: return "REJECTED";
+            default: return "UNKNOWN";
+        }
+    }
+
+    // ========================================================================
+    // Member Variables
+    // ========================================================================
+
     std::shared_ptr<TokenManager> token_mgr_;
     std::unordered_map<std::string, Order> orders_;
     std::atomic<int> order_counter_;
     mutable std::mutex mutex_;
+
+    // Safety configuration
+    std::atomic<bool> dry_run_mode_;
+    int max_position_size_;
+    int max_positions_;
+
+    // Account manager for balance/position checks
+    AccountManager* account_mgr_{nullptr};
 };
 
 // ============================================================================
@@ -1443,38 +1789,461 @@ private:
 
 class AccountManager {
 public:
-    explicit AccountManager(std::shared_ptr<TokenManager> token_mgr)
-        : token_mgr_{std::move(token_mgr)} {}
+    explicit AccountManager(std::shared_ptr<TokenManager> token_mgr,
+                          std::string account_id = "")
+        : token_mgr_{std::move(token_mgr)},
+          account_id_{std::move(account_id)},
+          db_initialized_{false} {}
 
-    // C.21: Rule of Five
+    // C.21: Rule of Five - non-copyable, non-movable due to mutex
     AccountManager(AccountManager const&) = delete;
     auto operator=(AccountManager const&) -> AccountManager& = delete;
-    AccountManager(AccountManager&&) noexcept = default;
-    auto operator=(AccountManager&&) noexcept -> AccountManager& = default;
+    AccountManager(AccountManager&&) noexcept = delete;
+    auto operator=(AccountManager&&) noexcept -> AccountManager& = delete;
     ~AccountManager() = default;
+
+    // ========================================================================
+    // Initialization & Configuration
+    // ========================================================================
+
+    /**
+     * Initialize DuckDB connection for position persistence
+     *
+     * @param db_path Path to DuckDB database file
+     * @return Result indicating success or error
+     */
+    [[nodiscard]] auto initializeDatabase(std::string db_path) -> Result<void> {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        try {
+            db_path_ = std::move(db_path);
+
+            // Note: In production, initialize actual DuckDB connection here
+            // For now, we'll use the database API module when needed
+
+            createPositionTables();
+            db_initialized_ = true;
+
+            Logger::getInstance().info("AccountManager database initialized: {}", db_path_);
+            return {};
+
+        } catch (std::exception const& e) {
+            return makeError<void>(ErrorCode::DatabaseError,
+                "Failed to initialize database: " + std::string(e.what()));
+        }
+    }
+
+    /**
+     * Set the account ID to manage
+     */
+    auto setAccountId(std::string account_id) -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+        account_id_ = std::move(account_id);
+    }
+
+    /**
+     * Classify existing positions on startup
+     * Critical for TRADING_CONSTRAINTS.md compliance
+     *
+     * This method must be called on system startup to:
+     * 1. Fetch all positions from Schwab API
+     * 2. Compare with local DuckDB
+     * 3. Mark positions not in DB as MANUAL (pre-existing)
+     * 4. Preserve bot-managed positions
+     */
+    [[nodiscard]] auto classifyExistingPositions() -> Result<void> {
+        if (!db_initialized_) {
+            return makeError<void>(ErrorCode::InvalidOperation,
+                "Database not initialized. Call initializeDatabase() first");
+        }
+
+        Logger::getInstance().info("Classifying existing positions for account: {}", account_id_);
+
+        // Fetch current positions from Schwab API
+        auto positions_result = getPositions();
+        if (!positions_result) {
+            return std::unexpected(positions_result.error());
+        }
+
+        auto const& schwab_positions = *positions_result;
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        int manual_count = 0;
+        int bot_count = 0;
+
+        for (auto const& pos : schwab_positions) {
+            // Check if position exists in our database
+            auto local_pos = queryPositionFromDB(pos.symbol);
+
+            if (!local_pos) {
+                // Position exists in Schwab but NOT in our DB
+                // = Pre-existing manual position, DO NOT TOUCH
+                AccountPosition manual_pos = pos;
+
+                persistManualPosition(manual_pos);
+                manual_positions_[manual_pos.symbol] = manual_pos;
+
+                Logger::getInstance().info(
+                    "Classified {} as MANUAL position (pre-existing): {} shares @ ${:.2f}",
+                    manual_pos.symbol, manual_pos.quantity, manual_pos.average_price
+                );
+
+                manual_count++;
+            } else {
+                // Position exists in DB - check if bot-managed
+                if (isBotManagedInDB(pos.symbol)) {
+                    bot_managed_symbols_.insert(pos.symbol);
+                    bot_count++;
+
+                    Logger::getInstance().info(
+                        "Classified {} as BOT-MANAGED position: {} shares",
+                        pos.symbol, pos.quantity
+                    );
+                } else {
+                    manual_positions_[pos.symbol] = pos;
+                    manual_count++;
+                }
+            }
+        }
+
+        Logger::getInstance().info("Position Classification Summary:");
+        Logger::getInstance().info("  Manual positions: {} (DO NOT TOUCH)", manual_count);
+        Logger::getInstance().info("  Bot-managed positions: {} (can trade)", bot_count);
+
+        return {};
+    }
+
+    // ========================================================================
+    // Account Balance
+    // ========================================================================
 
     [[nodiscard]] auto getBalance() -> Result<AccountBalance> {
         auto token = token_mgr_->getAccessToken();
         if (!token) return std::unexpected(token.error());
 
         Logger::getInstance().info("Fetching account balance");
+
+        // Stub implementation - realistic data for $30K account
         AccountBalance balance;
         balance.total_value = 30'000.0;
         balance.cash = 28'000.0;
         balance.buying_power = 28'000.0;
+
         return balance;
     }
 
+    // ========================================================================
+    // Position Management
+    // ========================================================================
+
+    /**
+     * Get all positions from Schwab API
+     *
+     * In production: Makes HTTP GET /trader/v1/accounts/{accountHash}/positions
+     * For now: Returns realistic stub data
+     */
     [[nodiscard]] auto getPositions() -> Result<std::vector<AccountPosition>> {
         auto token = token_mgr_->getAccessToken();
         if (!token) return std::unexpected(token.error());
 
-        Logger::getInstance().info("Fetching positions");
-        return std::vector<AccountPosition>{};
+        Logger::getInstance().info("Fetching positions for account: {}", account_id_);
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // Stub implementation - return realistic sample data
+        // In production, this would make HTTP request:
+        // GET https://api.schwabapi.com/trader/v1/accounts/{accountHash}/positions
+
+        std::vector<AccountPosition> positions;
+
+        // Example: Manual position (pre-existing)
+        if (!manual_positions_.empty()) {
+            for (auto const& [symbol, pos] : manual_positions_) {
+                positions.push_back(pos);
+            }
+        }
+
+        // Example: Bot-managed positions
+        for (auto const& symbol : bot_managed_symbols_) {
+            if (manual_positions_.find(symbol) == manual_positions_.end()) {
+                AccountPosition bot_pos;
+                bot_pos.symbol = symbol;
+                bot_pos.quantity = 10;  // Stub data
+                bot_pos.average_price = 100.0;
+                bot_pos.current_price = 105.0;
+                bot_pos.unrealized_pnl = 50.0;
+                positions.push_back(bot_pos);
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Get position for specific symbol
+     */
+    [[nodiscard]] auto getPosition(std::string const& symbol)
+        -> Result<std::optional<AccountPosition>> {
+
+        auto positions = getPositions();
+        if (!positions) {
+            return std::unexpected(positions.error());
+        }
+
+        for (auto const& pos : *positions) {
+            if (pos.symbol == symbol) {
+                return pos;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    // ========================================================================
+    // Position Classification (TRADING_CONSTRAINTS.md)
+    // ========================================================================
+
+    /**
+     * Check if a symbol is bot-managed
+     * CRITICAL: Must check this before trading any symbol
+     *
+     * @param symbol Security symbol
+     * @return true if bot can trade this symbol
+     */
+    [[nodiscard]] auto isSymbolBotManaged(std::string const& symbol) const noexcept -> bool {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return bot_managed_symbols_.contains(symbol);
+    }
+
+    /**
+     * Check if a symbol has a manual position
+     * CRITICAL: Bot must NOT trade symbols with manual positions
+     *
+     * @param symbol Security symbol
+     * @return true if manual position exists
+     */
+    [[nodiscard]] auto hasManualPosition(std::string const& symbol) const noexcept -> bool {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return manual_positions_.contains(symbol);
+    }
+
+    /**
+     * Mark a position as bot-managed
+     * Call this when bot opens a NEW position
+     *
+     * @param symbol Security symbol
+     * @param strategy Strategy name that opened this position
+     */
+    auto markPositionAsBotManaged(std::string const& symbol,
+                                 std::string const& strategy = "BOT") -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        bot_managed_symbols_.insert(symbol);
+
+        // Remove from manual positions if it was there
+        manual_positions_.erase(symbol);
+
+        // Persist to database
+        if (db_initialized_) {
+            updatePositionManagementInDB(symbol, true, strategy);
+        }
+
+        Logger::getInstance().info(
+            "Marked {} as BOT-MANAGED position (strategy: {})",
+            symbol, strategy
+        );
+    }
+
+    /**
+     * Get all manual positions (pre-existing, DO NOT TOUCH)
+     */
+    [[nodiscard]] auto getManualPositions() -> Result<std::vector<AccountPosition>> {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        std::vector<AccountPosition> manual_list;
+        manual_list.reserve(manual_positions_.size());
+
+        for (auto const& [symbol, pos] : manual_positions_) {
+            manual_list.push_back(pos);
+        }
+
+        return manual_list;
+    }
+
+    /**
+     * Get all bot-managed positions (can trade)
+     */
+    [[nodiscard]] auto getBotManagedPositions() -> Result<std::vector<AccountPosition>> {
+        auto all_positions = getPositions();
+        if (!all_positions) {
+            return std::unexpected(all_positions.error());
+        }
+
+        std::vector<AccountPosition> bot_positions;
+
+        for (auto const& pos : *all_positions) {
+            if (isSymbolBotManaged(pos.symbol)) {
+                bot_positions.push_back(pos);
+            }
+        }
+
+        return bot_positions;
+    }
+
+    /**
+     * Validate if bot can trade a symbol
+     * Returns error if symbol has manual position
+     *
+     * @param symbol Security symbol
+     * @return Result with error if trading is prohibited
+     */
+    [[nodiscard]] auto validateCanTrade(std::string const& symbol) const
+        -> Result<void> {
+
+        if (hasManualPosition(symbol)) {
+            return makeError<void>(
+                ErrorCode::InvalidOperation,
+                "Cannot trade " + symbol + " - manual position exists. "
+                "Bot only trades NEW securities or bot-managed positions."
+            );
+        }
+
+        return {};
+    }
+
+    // ========================================================================
+    // Statistics
+    // ========================================================================
+
+    /**
+     * Get position counts
+     */
+    [[nodiscard]] auto getPositionStats() const noexcept
+        -> std::tuple<size_t, size_t, size_t> {
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        size_t total = manual_positions_.size() + bot_managed_symbols_.size();
+        size_t manual = manual_positions_.size();
+        size_t bot_managed = bot_managed_symbols_.size();
+
+        return {total, manual, bot_managed};
     }
 
 private:
+    // ========================================================================
+    // Database Operations
+    // ========================================================================
+
+    /**
+     * Create position tracking tables in DuckDB
+     */
+    auto createPositionTables() -> void {
+        // Note: In production, execute these CREATE TABLE statements via DuckDB API
+
+        // Main positions table (current state)
+        // CREATE TABLE IF NOT EXISTS positions (
+        //     id INTEGER PRIMARY KEY,
+        //     account_id VARCHAR(50) NOT NULL,
+        //     symbol VARCHAR(20) NOT NULL,
+        //     quantity INTEGER NOT NULL,
+        //     avg_cost DECIMAL(10,2) NOT NULL,
+        //     current_price DECIMAL(10,2),
+        //     market_value DECIMAL(10,2),
+        //     unrealized_pnl DECIMAL(10,2),
+        //
+        //     -- CRITICAL FLAGS (TRADING_CONSTRAINTS.md)
+        //     is_bot_managed BOOLEAN DEFAULT FALSE,
+        //     managed_by VARCHAR(20) DEFAULT 'MANUAL',
+        //     bot_strategy VARCHAR(50),
+        //
+        //     opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        //     opened_by VARCHAR(20) DEFAULT 'MANUAL',
+        //     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        //
+        //     UNIQUE(account_id, symbol)
+        // );
+
+        Logger::getInstance().info("Created position tracking tables (stub)");
+    }
+
+    /**
+     * Query position from database
+     */
+    [[nodiscard]] auto queryPositionFromDB(std::string const& symbol) const
+        -> std::optional<AccountPosition> {
+
+        // Stub: Check in-memory cache
+        auto it = manual_positions_.find(symbol);
+        if (it != manual_positions_.end()) {
+            return it->second;
+        }
+
+        if (bot_managed_symbols_.contains(symbol)) {
+            // Return a stub bot-managed position
+            AccountPosition pos;
+            pos.symbol = symbol;
+            pos.quantity = 0;  // Would load from DB
+            return pos;
+        }
+
+        return std::nullopt;
+    }
+
+    /**
+     * Check if position is bot-managed in database
+     */
+    [[nodiscard]] auto isBotManagedInDB(std::string const& symbol) const noexcept -> bool {
+        // Stub: Check in-memory set
+        return bot_managed_symbols_.contains(symbol);
+    }
+
+    /**
+     * Persist manual position to database
+     */
+    auto persistManualPosition(AccountPosition const& pos) -> void {
+        // Stub: In production, INSERT into DuckDB
+        // INSERT INTO positions (account_id, symbol, quantity, avg_cost,
+        //                       is_bot_managed, managed_by, opened_by)
+        // VALUES (?, ?, ?, ?, FALSE, 'MANUAL', 'MANUAL')
+
+        Logger::getInstance().debug("Persisted manual position: {}", pos.symbol);
+    }
+
+    /**
+     * Update position management flags in database
+     */
+    auto updatePositionManagementInDB(std::string const& symbol,
+                                     bool is_bot_managed,
+                                     std::string const& strategy) -> void {
+        // Stub: In production, UPDATE DuckDB
+        // UPDATE positions
+        // SET is_bot_managed = ?, managed_by = 'BOT', bot_strategy = ?
+        // WHERE account_id = ? AND symbol = ?
+
+        Logger::getInstance().debug(
+            "Updated position management in DB: {} -> bot_managed={}",
+            symbol, is_bot_managed
+        );
+    }
+
+    // ========================================================================
+    // Member Variables
+    // ========================================================================
+
     std::shared_ptr<TokenManager> token_mgr_;
+    std::string account_id_;
+    std::string db_path_;
+    bool db_initialized_;
+
+    // Thread safety
+    mutable std::mutex mutex_;
+
+    // Position tracking (in-memory cache)
+    // In production, these would be backed by DuckDB
+    std::unordered_map<std::string, AccountPosition> manual_positions_;  // Manual positions (DO NOT TOUCH)
+    std::unordered_set<std::string> bot_managed_symbols_;               // Bot-managed symbols (can trade)
 };
 
 // ============================================================================
