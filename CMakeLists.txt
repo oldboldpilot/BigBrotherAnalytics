@@ -163,6 +163,7 @@ target_sources(market_intelligence
     PUBLIC
         FILE_SET CXX_MODULES FILES
             src/market_intelligence/market_intelligence.cppm
+            src/market_intelligence/employment_signals.cppm
 )
 target_compile_options(market_intelligence PRIVATE -fmodule-output)
 
