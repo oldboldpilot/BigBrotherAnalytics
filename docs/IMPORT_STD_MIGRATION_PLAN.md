@@ -58,7 +58,7 @@ ls -lh /opt/libc++_modules/lib/libc++.so
 
 **Step 1.2: Precompile std module**
 ```bash
-/home/linuxbrew/.linuxbrew/bin/clang++ \
+/usr/local/bin/clang++ \
   -std=c++23 \
   -stdlib=libc++ \
   -nostdinc++ \

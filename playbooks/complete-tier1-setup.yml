@@ -294,7 +294,7 @@
         CXX=g++ \
         cmake -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DLLVM_ENABLE_PROJECTS="clang;openmp" \
+          -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;libcxx;libcxxabi" \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DCMAKE_LINKER=/usr/bin/ld \
           -DLLVM_ENABLE_LTO=OFF \
@@ -327,6 +327,19 @@
         - { src: 'clang', dest: 'cc' }
         - { src: 'clang++', dest: 'c++' }
 
+    - name: Verify Clang/LLVM toolchain installation
+      shell: |
+        /usr/local/bin/clang++ --version
+        /usr/local/bin/clang-tidy --version
+        /usr/local/bin/clang-format --version
+        ls -la /usr/local/lib/libc++.so*
+      register: clang_verification
+      changed_when: false
+
+    - name: Display Clang verification results
+      debug:
+        msg: "{{ clang_verification.stdout_lines }}"
+
     # Install additional build tools via Homebrew
     - name: Install build tools via Homebrew
       homebrew:
@@ -338,7 +351,6 @@
           - automake
           - libtool
           - pkg-config
-          - clang-tidy                 # C++ static analyzer (comprehensive)
           - rustup                     # Rust toolchain manager
           - rust                       # Rust compiler (installed via rustup)
           - maven                      # Maven (includes OpenJDK)

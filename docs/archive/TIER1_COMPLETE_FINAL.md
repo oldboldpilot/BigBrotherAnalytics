@@ -257,8 +257,8 @@ bool isValid() const noexcept;
 ### Configuration
 ```cmake
 # Clang 21.1.5 with C++23 modules
-env CC=/home/linuxbrew/.linuxbrew/bin/clang \
-    CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
+env CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++ \
     cmake -G Ninja ..
 ```
 

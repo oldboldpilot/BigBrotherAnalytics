@@ -724,15 +724,15 @@ std::unordered_map<std::pair<string, string>, double, PairHash> data;
 ```bash
 # Configure
 cd /home/muyiwa/Development/BigBrotherAnalytics/build
-env CC=/home/linuxbrew/.linuxbrew/bin/clang \
-    CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
+env CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++ \
     cmake -G Ninja ..
 
 # Build
 ninja
 
 # Run tests
-env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH \
+env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
     ninja test
 ```
 

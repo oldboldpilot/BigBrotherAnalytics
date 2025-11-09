@@ -21,7 +21,7 @@ echo "======================================================================="
 echo
 
 # Configuration
-CLANG_CXX="/home/linuxbrew/.linuxbrew/bin/clang++"
+CLANG_CXX="/usr/local/bin/clang++"
 PYTHON_INCLUDE="/home/muyiwa/.local/share/uv/python/cpython-3.13.8-linux-x86_64-gnu/include/python3.13"
 PYBIND11_INCLUDE="/usr/include/pybind11"
 DUCKDB_INCLUDE="/usr/local/include"

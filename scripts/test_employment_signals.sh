@@ -18,7 +18,7 @@ fi
 cd build
 
 echo "Configuring with CMake..."
-SKIP_CLANG_TIDY=1 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+SKIP_CLANG_TIDY=1 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++
 
 echo ""
 echo "Building market_intelligence library..."
@@ -26,13 +26,13 @@ cmake --build . --target market_intelligence -j$(nproc)
 
 echo ""
 echo "Building test executable..."
-clang++ -std=c++23 -stdlib=libc++ \
+/usr/local/bin/clang++ -std=c++23 -stdlib=libc++ \
     -fprebuilt-module-path=modules \
     -I../src \
     -c ../tests/test_employment_signals.cpp \
     -o test_employment_signals.o
 
-clang++ -std=c++23 -stdlib=libc++ \
+/usr/local/bin/clang++ -std=c++23 -stdlib=libc++ \
     test_employment_signals.o \
     -L./lib -lmarket_intelligence -lutils \
     -lcurl -lpthread -lomp \

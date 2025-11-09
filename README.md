@@ -129,13 +129,13 @@ This project prioritizes thorough planning and iterative refinement. We will:
 ```bash
 # 1. Build project (2 min)
 cd build
-env CC=/home/linuxbrew/.linuxbrew/bin/clang \
-    CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
+env CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++ \
     cmake -G Ninja ..
 ninja
 
 # 2. Run tests (< 1 sec)
-env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH \
+env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
     ninja test
 
 # 3. Download data (already done - 60K+ bars available)
@@ -144,7 +144,7 @@ uv run python scripts/data_collection/download_historical.py
 
 # 4. Run backtest with TAX calculations
 cd build
-env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH \
+env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
     ./bin/backtest --strategy straddle --start 2020-01-01 --end 2024-01-01
 
 # Result: +$4,463 after tax (+14.88%) ✅ PROFITABLE!

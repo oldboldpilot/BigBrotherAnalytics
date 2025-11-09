@@ -291,13 +291,13 @@ df.corr()
 
 **Required for execution:**
 ```bash
-export LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ```
 
 **Or in Python:**
 ```python
 import os
-os.environ['LD_LIBRARY_PATH'] = '/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:' + os.environ.get('LD_LIBRARY_PATH', '')
+os.environ['LD_LIBRARY_PATH'] = '/usr/local/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
 ```
 
 ---

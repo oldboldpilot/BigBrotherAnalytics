@@ -8,7 +8,7 @@ echo "=== BigBrotherAnalytics Test Runner ==="
 echo ""
 
 # Set library path
-export LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Navigate to build directory
 cd /home/muyiwa/Development/BigBrotherAnalytics/build

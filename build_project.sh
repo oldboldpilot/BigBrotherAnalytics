@@ -12,9 +12,9 @@ echo "Working directory: $(pwd)"
 cd /home/muyiwa/Development/BigBrotherAnalytics/build
 
 # Set environment variables
-export CC=/home/linuxbrew/.linuxbrew/bin/clang
-export CXX=/home/linuxbrew/.linuxbrew/bin/clang++
-export LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH
+export CC=/usr/local/bin/clang
+export CXX=/usr/local/bin/clang++
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Build with ninja
 echo "=== Running ninja build ==="

@@ -2625,11 +2625,11 @@ Type=simple
 User=bigbrother
 Group=bigbrother
 WorkingDirectory=/opt/bigbrother
-Environment="PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/cuda-12.3/bin:/usr/bin"
-Environment="LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:/home/linuxbrew/.linuxbrew/lib"
+Environment="PATH=/usr/local/bin:/usr/local/cuda-12.3/bin:/usr/bin"
+Environment="LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:/usr/local/lib"
 
 # Run with MPI (4 ranks on 64 cores)
-ExecStart=/home/linuxbrew/.linuxbrew/bin/mpirun \
+ExecStart=/usr/local/bin/mpirun \
     -np 4 \
     --bind-to socket \
     --map-by socket \

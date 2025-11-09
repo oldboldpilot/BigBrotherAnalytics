@@ -36,6 +36,49 @@ if(GTest_FOUND)
 
     add_test(NAME CorrelationTests COMMAND test_correlation)
 
+    # Schwab API Integration Tests
+    add_executable(test_order_manager_integration
+        test_order_manager_integration.cpp
+    )
+
+    target_link_libraries(test_order_manager_integration
+        PRIVATE
+        schwab_api
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test(NAME OrderManagerIntegrationTests COMMAND test_order_manager_integration)
+
+    # Schwab Account Manager Integration Tests
+    add_executable(test_account_manager_integration
+        test_account_manager_integration.cpp
+    )
+
+    target_link_libraries(test_account_manager_integration
+        PRIVATE
+        schwab_api
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test(NAME AccountManagerIntegrationTests COMMAND test_account_manager_integration)
+
+    # Schwab End-to-End Workflow Tests
+    add_executable(test_schwab_e2e_workflow
+        test_schwab_e2e_workflow.cpp
+    )
+
+    target_link_libraries(test_schwab_e2e_workflow
+        PRIVATE
+        schwab_api
+        risk_management
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test(NAME SchwabE2EWorkflowTests COMMAND test_schwab_e2e_workflow)
+
 else()
     message(STATUS "Google Test not found - C++ tests disabled")
     message(STATUS "Install with: sudo apt-get install libgtest-dev")

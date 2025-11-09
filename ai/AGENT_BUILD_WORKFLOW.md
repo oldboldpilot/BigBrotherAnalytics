@@ -40,8 +40,8 @@ When an AI agent makes ANY code modification, it MUST follow this exact workflow
 cd /home/muyiwa/Development/BigBrotherAnalytics/build
 
 # Configure (if needed)
-env CC=/home/linuxbrew/.linuxbrew/bin/clang \
-    CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
+env CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++ \
     cmake -G Ninja ..
 
 # Build (clang-tidy runs AUTOMATICALLY before compilation)
@@ -71,7 +71,7 @@ ninja
 cd /home/muyiwa/Development/BigBrotherAnalytics
 
 # Set library paths
-export LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Run all tests
 ./run_tests.sh

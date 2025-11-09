@@ -4467,7 +4467,7 @@ ansible --version
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
       become_user: "{{ ansible_user_id }}"
       args:
-        creates: /home/linuxbrew/.linuxbrew/bin/brew
+        creates: /usr/local/bin/brew
 
     - name: Install GCC, binutils, CMake via Homebrew
       homebrew:

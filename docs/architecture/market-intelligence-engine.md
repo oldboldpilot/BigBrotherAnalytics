@@ -2338,7 +2338,7 @@ def preprocess_market_data_parallel(file_paths: list[str]) -> pl.DataFrame:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add to PATH
-echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.bashrc
 source ~/.bashrc
 
 # Install complete C++23 toolchain
@@ -2521,7 +2521,7 @@ ansible --version
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
       become_user: "{{ ansible_user_id }}"
       args:
-        creates: /home/linuxbrew/.linuxbrew/bin/brew
+        creates: /usr/local/bin/brew
 
     - name: Install toolchain via Homebrew
       homebrew:

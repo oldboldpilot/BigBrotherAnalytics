@@ -179,7 +179,7 @@ cd build && ninja
 # Build is BLOCKED if clang-tidy finds errors
 
 # 4. Run tests
-env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH \
+env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
     ./run_tests.sh
 
 # 5. Commit (pre-commit hook runs clang-tidy AUTOMATICALLY)

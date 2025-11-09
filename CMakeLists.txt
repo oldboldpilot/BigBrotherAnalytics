@@ -2,6 +2,18 @@ cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
 project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # ============================================================================
+# Compiler Configuration
+# ============================================================================
+# Use Clang 21 from /usr/local/bin
+set(CMAKE_C_COMPILER "/usr/local/bin/clang")
+set(CMAKE_CXX_COMPILER "/usr/local/bin/clang++")
+
+# Use libc++ (LLVM's C++ standard library)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+
+# ============================================================================
 # Pre-Build Quality Check: Run clang-tidy
 # ============================================================================
 # Run clang-tidy before every build to enforce code quality

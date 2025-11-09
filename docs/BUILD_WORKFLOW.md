@@ -26,8 +26,8 @@ BigBrotherAnalytics enforces code quality through **mandatory clang-tidy checks*
 cd /home/muyiwa/Development/BigBrotherAnalytics/build
 
 # 2. Configure (if first time or CMakeLists.txt changed)
-env CC=/home/linuxbrew/.linuxbrew/bin/clang \
-    CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
+env CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++ \
     cmake -G Ninja ..
 
 # 3. Build (clang-tidy runs automatically BEFORE compilation)
@@ -218,7 +218,7 @@ vim src/utils/new_feature.cpp
 cd build && ninja
 
 # 5. Run tests
-env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH \
+env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
     ./run_tests.sh
 
 # 6. Commit (pre-commit hook runs clang-tidy again)

@@ -34,7 +34,7 @@ Compilation: ✅ SUCCESS (no errors)
 
 **Command Used:**
 ```bash
-/home/linuxbrew/.linuxbrew/bin/clang++ \
+/usr/local/bin/clang++ \
   -std=c++23 \
   -stdlib=libc++ \
   -nostdinc++ \

@@ -5358,8 +5358,8 @@ Type=simple
 User=bigbrother
 Group=bigbrother
 WorkingDirectory=/opt/bigbrother
-Environment="PATH=/home/linuxbrew/.linuxbrew/bin:/opt/bigbrother/.venv/bin:/usr/bin"
-Environment="LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:/home/linuxbrew/.linuxbrew/lib"
+Environment="PATH=/usr/local/bin:/opt/bigbrother/.venv/bin:/usr/bin"
+Environment="LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:/usr/local/lib"
 Environment="CUDA_VISIBLE_DEVICES=0"
 
 # Run Python API server (connects to C++ execution engine via IPC)
