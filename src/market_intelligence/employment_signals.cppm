@@ -11,16 +11,16 @@
 // Global module fragment
 module;
 
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <optional>
-#include <cstdlib>
-#include <cstdio>
 #include <array>
-#include <memory>
-#include <sstream>
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 // Module declaration
 export module bigbrother.employment.signals;
@@ -36,33 +36,33 @@ using namespace bigbrother::types;
  * Employment Signal Types
  */
 enum class EmploymentSignalType {
-    JoblessClaimsSpike,      // Weekly claims >10% increase
-    SectorLayoffs,           // Major layoffs in sector
-    SectorHiring,            // Expansion in sector
-    EmploymentImproving,     // Sector employment trending up
-    EmploymentDeclining,     // Sector employment trending down
-    RecessionWarning         // Multiple negative indicators
+    JoblessClaimsSpike,  // Weekly claims >10% increase
+    SectorLayoffs,       // Major layoffs in sector
+    SectorHiring,        // Expansion in sector
+    EmploymentImproving, // Sector employment trending up
+    EmploymentDeclining, // Sector employment trending down
+    RecessionWarning     // Multiple negative indicators
 };
 
 /**
  * Employment Signal
- * 
+ *
  * Generated from BLS data and sector analysis
  */
 struct EmploymentSignal {
     EmploymentSignalType type;
-    int sector_code{0};             // GICS sector code
+    int sector_code{0}; // GICS sector code
     std::string sector_name;
-    double confidence{0.0};          // 0.0 to 1.0
-    double employment_change{0.0};   // % change
+    double confidence{0.0};        // 0.0 to 1.0
+    double employment_change{0.0}; // % change
     std::string rationale;
     Timestamp timestamp{0};
-    
+
     // Trading implications
-    bool bullish{false};             // Positive for sector
-    bool bearish{false};             // Negative for sector
-    double signal_strength{0.0};     // -1.0 (very bearish) to +1.0 (very bullish)
-    
+    bool bullish{false};         // Positive for sector
+    bool bearish{false};         // Negative for sector
+    double signal_strength{0.0}; // -1.0 (very bearish) to +1.0 (very bullish)
+
     [[nodiscard]] auto isActionable() const noexcept -> bool {
         return confidence > 0.60 && std::abs(signal_strength) > 0.50;
     }
@@ -77,18 +77,18 @@ struct SectorRotationSignal {
     int sector_code{0};
     std::string sector_name;
     std::string sector_etf;
-    
+
     // Signal components
-    double employment_score{0.0};    // From BLS data
-    double sentiment_score{0.0};      // From news (future)
-    double technical_score{0.0};      // From price action (future)
-    double composite_score{0.0};      // Weighted average
-    
+    double employment_score{0.0}; // From BLS data
+    double sentiment_score{0.0};  // From news (future)
+    double technical_score{0.0};  // From price action (future)
+    double composite_score{0.0};  // Weighted average
+
     // Recommendation
     enum class Action { Overweight, Neutral, Underweight };
     Action action{Action::Neutral};
-    double target_allocation{0.0};    // % of portfolio
-    
+    double target_allocation{0.0}; // % of portfolio
+
     [[nodiscard]] auto isStrongSignal() const noexcept -> bool {
         return std::abs(composite_score) > 0.70;
     }
@@ -100,9 +100,9 @@ struct SectorRotationSignal {
  * Analyzes BLS data and generates trading signals
  */
 class EmploymentSignalGenerator {
-public:
+  public:
     EmploymentSignalGenerator(const std::string& scripts_path = "scripts",
-                            const std::string& db_path = "data/bigbrother.duckdb")
+                              const std::string& db_path = "data/bigbrother.duckdb")
         : scripts_path_(scripts_path), db_path_(db_path) {}
 
     /**
@@ -116,7 +116,7 @@ public:
 
         // Execute Python signal generator
         const std::string cmd = "uv run python " + scripts_path_ +
-                              "/employment_signals.py generate_signals " + db_path_;
+                                "/employment_signals.py generate_signals " + db_path_;
         const auto json_output = executeCommand(cmd);
 
         if (json_output.empty()) {
@@ -140,7 +140,7 @@ public:
 
         // Execute Python rotation signal generator
         const std::string cmd = "uv run python " + scripts_path_ +
-                              "/employment_signals.py rotation_signals " + db_path_;
+                                "/employment_signals.py rotation_signals " + db_path_;
         const auto json_output = executeCommand(cmd);
 
         if (json_output.empty()) {
@@ -161,7 +161,7 @@ public:
     [[nodiscard]] auto checkJoblessClaimsSpike() -> std::optional<EmploymentSignal> {
         // Execute Python jobless claims checker
         const std::string cmd = "uv run python " + scripts_path_ +
-                              "/employment_signals.py check_jobless_claims " + db_path_;
+                                "/employment_signals.py check_jobless_claims " + db_path_;
         const auto json_output = executeCommand(cmd);
 
         if (json_output.empty() || json_output.find("no_spike") != std::string::npos) {
@@ -177,7 +177,7 @@ public:
         return std::nullopt;
     }
 
-private:
+  private:
     std::string scripts_path_;
     std::string db_path_;
 
@@ -206,14 +206,16 @@ private:
      *
      * Simple JSON parser - assumes well-formed JSON from Python script
      */
-    [[nodiscard]] auto parseEmploymentSignalsJSON(const std::string& json) -> std::vector<EmploymentSignal> {
+    [[nodiscard]] auto parseEmploymentSignalsJSON(const std::string& json)
+        -> std::vector<EmploymentSignal> {
         std::vector<EmploymentSignal> signals;
 
         // Simple JSON parsing - look for signal objects between braces
         size_t pos = 0;
         while ((pos = json.find("{", pos)) != std::string::npos) {
             size_t end_pos = json.find("}", pos);
-            if (end_pos == std::string::npos) break;
+            if (end_pos == std::string::npos)
+                break;
 
             std::string obj = json.substr(pos, end_pos - pos + 1);
 
@@ -239,14 +241,16 @@ private:
     /**
      * Parse JSON string to extract SectorRotationSignal values
      */
-    [[nodiscard]] auto parseRotationSignalsJSON(const std::string& json) -> std::vector<SectorRotationSignal> {
+    [[nodiscard]] auto parseRotationSignalsJSON(const std::string& json)
+        -> std::vector<SectorRotationSignal> {
         std::vector<SectorRotationSignal> signals;
 
         // Simple JSON parsing - look for signal objects between braces
         size_t pos = 0;
         while ((pos = json.find("{", pos)) != std::string::npos) {
             size_t end_pos = json.find("}", pos);
-            if (end_pos == std::string::npos) break;
+            if (end_pos == std::string::npos)
+                break;
 
             std::string obj = json.substr(pos, end_pos - pos + 1);
 
@@ -279,14 +283,17 @@ private:
 
     // JSON parsing helper functions
 
-    [[nodiscard]] auto extractString(const std::string& json, const std::string& key) -> std::string {
+    [[nodiscard]] auto extractString(const std::string& json, const std::string& key)
+        -> std::string {
         const std::string search = "\"" + key + "\": \"";
         const size_t start = json.find(search);
-        if (start == std::string::npos) return "";
+        if (start == std::string::npos)
+            return "";
 
         const size_t value_start = start + search.length();
         const size_t value_end = json.find("\"", value_start);
-        if (value_end == std::string::npos) return "";
+        if (value_end == std::string::npos)
+            return "";
 
         return json.substr(value_start, value_end - value_start);
     }
@@ -294,11 +301,13 @@ private:
     [[nodiscard]] auto extractInt(const std::string& json, const std::string& key) -> int {
         const std::string search = "\"" + key + "\": ";
         const size_t start = json.find(search);
-        if (start == std::string::npos) return 0;
+        if (start == std::string::npos)
+            return 0;
 
         const size_t value_start = start + search.length();
         const size_t value_end = json.find_first_of(",}", value_start);
-        if (value_end == std::string::npos) return 0;
+        if (value_end == std::string::npos)
+            return 0;
 
         const std::string value = json.substr(value_start, value_end - value_start);
         return std::atoi(value.c_str());
@@ -307,11 +316,13 @@ private:
     [[nodiscard]] auto extractDouble(const std::string& json, const std::string& key) -> double {
         const std::string search = "\"" + key + "\": ";
         const size_t start = json.find(search);
-        if (start == std::string::npos) return 0.0;
+        if (start == std::string::npos)
+            return 0.0;
 
         const size_t value_start = start + search.length();
         const size_t value_end = json.find_first_of(",}", value_start);
-        if (value_end == std::string::npos) return 0.0;
+        if (value_end == std::string::npos)
+            return 0.0;
 
         const std::string value = json.substr(value_start, value_end - value_start);
         return std::atof(value.c_str());
@@ -320,7 +331,8 @@ private:
     [[nodiscard]] auto extractBool(const std::string& json, const std::string& key) -> bool {
         const std::string search = "\"" + key + "\": ";
         const size_t start = json.find(search);
-        if (start == std::string::npos) return false;
+        if (start == std::string::npos)
+            return false;
 
         const size_t value_start = start + search.length();
         return json.substr(value_start, 4) == "true";
@@ -329,15 +341,21 @@ private:
     [[nodiscard]] auto extractSignalType(const std::string& json) -> EmploymentSignalType {
         const auto type_str = extractString(json, "type");
 
-        if (type_str == "JoblessClaimsSpike") return EmploymentSignalType::JoblessClaimsSpike;
-        if (type_str == "SectorLayoffs") return EmploymentSignalType::SectorLayoffs;
-        if (type_str == "SectorHiring") return EmploymentSignalType::SectorHiring;
-        if (type_str == "EmploymentImproving") return EmploymentSignalType::EmploymentImproving;
-        if (type_str == "EmploymentDeclining") return EmploymentSignalType::EmploymentDeclining;
-        if (type_str == "RecessionWarning") return EmploymentSignalType::RecessionWarning;
+        if (type_str == "JoblessClaimsSpike")
+            return EmploymentSignalType::JoblessClaimsSpike;
+        if (type_str == "SectorLayoffs")
+            return EmploymentSignalType::SectorLayoffs;
+        if (type_str == "SectorHiring")
+            return EmploymentSignalType::SectorHiring;
+        if (type_str == "EmploymentImproving")
+            return EmploymentSignalType::EmploymentImproving;
+        if (type_str == "EmploymentDeclining")
+            return EmploymentSignalType::EmploymentDeclining;
+        if (type_str == "RecessionWarning")
+            return EmploymentSignalType::RecessionWarning;
 
         return EmploymentSignalType::EmploymentImproving; // Default
     }
 };
 
-} // export namespace bigbrother::employment
+} // namespace bigbrother::employment

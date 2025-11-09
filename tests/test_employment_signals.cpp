@@ -7,8 +7,8 @@
  * Date: 2025-11-09
  */
 
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 
 import bigbrother.employment.signals;
 
@@ -34,19 +34,17 @@ void testEmploymentSignals() {
         std::cout << "No signals generated (employment changes below 5% threshold)\n";
         std::cout << "This is expected for stable employment periods.\n";
     } else {
-        std::cout << std::left << std::setw(20) << "Sector"
-                  << std::setw(20) << "Signal Type"
-                  << std::setw(12) << "Change %"
-                  << std::setw(12) << "Strength"
-                  << std::setw(12) << "Confidence"
+        std::cout << std::left << std::setw(20) << "Sector" << std::setw(20) << "Signal Type"
+                  << std::setw(12) << "Change %" << std::setw(12) << "Strength" << std::setw(12)
+                  << "Confidence"
                   << "\n";
         std::cout << std::string(80, '-') << "\n";
 
         for (const auto& signal : signals) {
-            std::cout << std::left << std::setw(20) << signal.sector_name
-                      << std::setw(20) << (signal.bullish ? "Improving" : "Declining")
-                      << std::setw(12) << std::fixed << std::setprecision(2) << signal.employment_change
-                      << std::setw(12) << std::fixed << std::setprecision(2) << signal.signal_strength
+            std::cout << std::left << std::setw(20) << signal.sector_name << std::setw(20)
+                      << (signal.bullish ? "Improving" : "Declining") << std::setw(12) << std::fixed
+                      << std::setprecision(2) << signal.employment_change << std::setw(12)
+                      << std::fixed << std::setprecision(2) << signal.signal_strength
                       << std::setw(12) << std::fixed << std::setprecision(2) << signal.confidence
                       << "\n";
             std::cout << "  Rationale: " << signal.rationale << "\n";
@@ -66,12 +64,9 @@ void testRotationSignals() {
     std::cout << "Found " << signals.size() << " rotation signals\n\n";
 
     if (!signals.empty()) {
-        std::cout << std::left << std::setw(25) << "Sector"
-                  << std::setw(8) << "ETF"
-                  << std::setw(12) << "Emp Score"
-                  << std::setw(12) << "Composite"
-                  << std::setw(12) << "Action"
-                  << std::setw(12) << "Target %"
+        std::cout << std::left << std::setw(25) << "Sector" << std::setw(8) << "ETF"
+                  << std::setw(12) << "Emp Score" << std::setw(12) << "Composite" << std::setw(12)
+                  << "Action" << std::setw(12) << "Target %"
                   << "\n";
         std::cout << std::string(80, '-') << "\n";
 
@@ -89,13 +84,12 @@ void testRotationSignals() {
                     break;
             }
 
-            std::cout << std::left << std::setw(25) << signal.sector_name
-                      << std::setw(8) << signal.sector_etf
-                      << std::setw(12) << std::fixed << std::setprecision(3) << signal.employment_score
-                      << std::setw(12) << std::fixed << std::setprecision(3) << signal.composite_score
-                      << std::setw(12) << action_str
-                      << std::setw(12) << std::fixed << std::setprecision(1) << signal.target_allocation
-                      << "\n";
+            std::cout << std::left << std::setw(25) << signal.sector_name << std::setw(8)
+                      << signal.sector_etf << std::setw(12) << std::fixed << std::setprecision(3)
+                      << signal.employment_score << std::setw(12) << std::fixed
+                      << std::setprecision(3) << signal.composite_score << std::setw(12)
+                      << action_str << std::setw(12) << std::fixed << std::setprecision(1)
+                      << signal.target_allocation << "\n";
         }
 
         std::cout << "\nStrong Signals (|composite| > 0.7):\n";
@@ -103,8 +97,9 @@ void testRotationSignals() {
         for (const auto& signal : signals) {
             if (signal.isStrongSignal()) {
                 has_strong = true;
-                std::cout << "  - " << signal.sector_name << " (" << signal.sector_etf << "): "
-                          << std::fixed << std::setprecision(3) << signal.composite_score << "\n";
+                std::cout << "  - " << signal.sector_name << " (" << signal.sector_etf
+                          << "): " << std::fixed << std::setprecision(3) << signal.composite_score
+                          << "\n";
             }
         }
         if (!has_strong) {
@@ -125,7 +120,8 @@ void testJoblessClaimsCheck() {
         std::cout << "\nWARNING: Jobless claims spike detected!\n";
         std::cout << "  Signal Type: RecessionWarning\n";
         std::cout << "  Rationale: " << signal->rationale << "\n";
-        std::cout << "  Confidence: " << std::fixed << std::setprecision(2) << signal->confidence << "\n";
+        std::cout << "  Confidence: " << std::fixed << std::setprecision(2) << signal->confidence
+                  << "\n";
     } else {
         std::cout << "\nNo jobless claims spike detected.\n";
         std::cout << "Note: Jobless claims data not yet implemented in database.\n";
