@@ -539,3 +539,11 @@ set_target_properties(bigbrother_options PROPERTIES
     OUTPUT_NAME "bigbrother_options"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
 )
+
+# Correlation Engine Python Bindings (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(bigbrother_correlation src/python_bindings/correlation_bindings.cpp)
+target_link_libraries(bigbrother_correlation PRIVATE correlation_engine utils)
+set_target_properties(bigbrother_correlation PROPERTIES
+    OUTPUT_NAME "bigbrother_correlation"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
