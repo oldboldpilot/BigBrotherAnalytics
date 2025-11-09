@@ -62,6 +62,38 @@ struct StrategyPerformance {
 };
 
 // ============================================================================
+// Straddle Strategy Builder
+// ============================================================================
+
+class StraddleStrategyBuilder {
+  public:
+    [[nodiscard]] auto withMinIVRank(double rank) noexcept -> StraddleStrategyBuilder& {
+        min_iv_rank_ = rank;
+        return *this;
+    }
+
+    [[nodiscard]] auto withMaxDistance(double distance) noexcept -> StraddleStrategyBuilder& {
+        max_distance_ = distance;
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
+        auto strategy = std::make_unique<StraddleStrategy>();
+        if (min_iv_rank_) {
+            strategy->setMinIVRank(*min_iv_rank_);
+        }
+        if (max_distance_) {
+            strategy->setMaxDistance(*max_distance_);
+        }
+        return strategy;
+    }
+
+  private:
+    std::optional<double> min_iv_rank_;
+    std::optional<double> max_distance_;
+};
+
+// ============================================================================
 // Straddle Strategy
 // ============================================================================
 
@@ -84,8 +116,19 @@ class StraddleStrategy final : public IStrategy {
 
     [[nodiscard]] auto getParameters() const
         -> std::unordered_map<std::string, std::string> override {
-        return {{"min_iv_rank", "0.70"}};
+        return {{"min_iv_rank", std::to_string(min_iv_rank_)},
+                {"max_distance", std::to_string(max_distance_)}};
     }
+
+    /**
+     * Create fluent builder for StraddleStrategy
+     */
+    [[nodiscard]] static auto builder() -> StraddleStrategyBuilder {
+        return StraddleStrategyBuilder{};
+    }
+
+    auto setMinIVRank(double rank) noexcept -> void { min_iv_rank_ = rank; }
+    auto setMaxDistance(double distance) noexcept -> void { max_distance_ = distance; }
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<bigbrother::strategy::TradingSignal> override {
@@ -109,6 +152,40 @@ class StraddleStrategy final : public IStrategy {
 
   private:
     bool active_{true};
+    double min_iv_rank_{0.70};
+    double max_distance_{0.10};
+};
+
+// ============================================================================
+// Strangle Strategy Builder
+// ============================================================================
+
+class StrangleStrategyBuilder {
+  public:
+    [[nodiscard]] auto withMinIVRank(double rank) noexcept -> StrangleStrategyBuilder& {
+        min_iv_rank_ = rank;
+        return *this;
+    }
+
+    [[nodiscard]] auto withWingWidth(double width) noexcept -> StrangleStrategyBuilder& {
+        wing_width_ = width;
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
+        auto strategy = std::make_unique<StrangleStrategy>();
+        if (min_iv_rank_) {
+            strategy->setMinIVRank(*min_iv_rank_);
+        }
+        if (wing_width_) {
+            strategy->setWingWidth(*wing_width_);
+        }
+        return strategy;
+    }
+
+  private:
+    std::optional<double> min_iv_rank_;
+    std::optional<double> wing_width_;
 };
 
 // ============================================================================
@@ -134,8 +211,19 @@ class StrangleStrategy final : public IStrategy {
 
     [[nodiscard]] auto getParameters() const
         -> std::unordered_map<std::string, std::string> override {
-        return {{"min_iv_rank", "0.65"}};
+        return {{"min_iv_rank", std::to_string(min_iv_rank_)},
+                {"wing_width", std::to_string(wing_width_)}};
     }
+
+    /**
+     * Create fluent builder for StrangleStrategy
+     */
+    [[nodiscard]] static auto builder() -> StrangleStrategyBuilder {
+        return StrangleStrategyBuilder{};
+    }
+
+    auto setMinIVRank(double rank) noexcept -> void { min_iv_rank_ = rank; }
+    auto setWingWidth(double width) noexcept -> void { wing_width_ = width; }
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<bigbrother::strategy::TradingSignal> override {
@@ -159,6 +247,41 @@ class StrangleStrategy final : public IStrategy {
 
   private:
     bool active_{true};
+    double min_iv_rank_{0.65};
+    double wing_width_{0.20};
+};
+
+// ============================================================================
+// Volatility Arbitrage Strategy Builder
+// ============================================================================
+
+class VolatilityArbStrategyBuilder {
+  public:
+    [[nodiscard]] auto withMinIVHVSpread(double spread) noexcept
+        -> VolatilityArbStrategyBuilder& {
+        min_iv_hv_spread_ = spread;
+        return *this;
+    }
+
+    [[nodiscard]] auto withLookbackPeriod(int days) noexcept -> VolatilityArbStrategyBuilder& {
+        lookback_days_ = days;
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
+        auto strategy = std::make_unique<VolatilityArbStrategy>();
+        if (min_iv_hv_spread_) {
+            strategy->setMinIVHVSpread(*min_iv_hv_spread_);
+        }
+        if (lookback_days_) {
+            strategy->setLookbackPeriod(*lookback_days_);
+        }
+        return strategy;
+    }
+
+  private:
+    std::optional<double> min_iv_hv_spread_;
+    std::optional<int> lookback_days_;
 };
 
 // ============================================================================
@@ -186,8 +309,19 @@ class VolatilityArbStrategy final : public IStrategy {
 
     [[nodiscard]] auto getParameters() const
         -> std::unordered_map<std::string, std::string> override {
-        return {{"min_iv_hv_spread", "0.10"}};
+        return {{"min_iv_hv_spread", std::to_string(min_iv_hv_spread_)},
+                {"lookback_days", std::to_string(lookback_days_)}};
     }
+
+    /**
+     * Create fluent builder for VolatilityArbStrategy
+     */
+    [[nodiscard]] static auto builder() -> VolatilityArbStrategyBuilder {
+        return VolatilityArbStrategyBuilder{};
+    }
+
+    auto setMinIVHVSpread(double spread) noexcept -> void { min_iv_hv_spread_ = spread; }
+    auto setLookbackPeriod(int days) noexcept -> void { lookback_days_ = days; }
 
     [[nodiscard]] auto generateSignals(StrategyContext const& context)
         -> std::vector<bigbrother::strategy::TradingSignal> override {
@@ -211,11 +345,110 @@ class VolatilityArbStrategy final : public IStrategy {
 
   private:
     bool active_{true};
+    double min_iv_hv_spread_{0.10};
+    int lookback_days_{30};
 };
 
 // ============================================================================
 // Sector Rotation Strategy
 // ============================================================================
+
+// ============================================================================
+// Sector Rotation Strategy Builder
+// ============================================================================
+
+/**
+ * SectorRotationStrategyBuilder - Fluent API for configuring SectorRotationStrategy
+ *
+ * Example Usage:
+ *   auto strategy = SectorRotationStrategy::builder()
+ *       .withEmploymentWeight(0.60)
+ *       .withSentimentWeight(0.30)
+ *       .withMomentumWeight(0.10)
+ *       .topNOverweight(3)
+ *       .bottomNUnderweight(2)
+ *       .rotationThreshold(0.70)
+ *       .minCompositeScore(0.60)
+ *       .maxSectorAllocation(0.25)
+ *       .minSectorAllocation(0.05)
+ *       .build();
+ */
+class SectorRotationStrategyBuilder {
+  public:
+    [[nodiscard]] auto withEmploymentWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.employment_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto withSentimentWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.sentiment_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto withMomentumWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.momentum_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto topNOverweight(int n) noexcept -> SectorRotationStrategyBuilder& {
+        config_.top_n_overweight = n;
+        return *this;
+    }
+
+    [[nodiscard]] auto bottomNUnderweight(int n) noexcept -> SectorRotationStrategyBuilder& {
+        config_.bottom_n_underweight = n;
+        return *this;
+    }
+
+    [[nodiscard]] auto minCompositeScore(double score) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.min_composite_score = score;
+        return *this;
+    }
+
+    [[nodiscard]] auto rotationThreshold(double threshold) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.rotation_threshold = threshold;
+        return *this;
+    }
+
+    [[nodiscard]] auto maxSectorAllocation(double max_alloc) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.max_sector_allocation = max_alloc;
+        return *this;
+    }
+
+    [[nodiscard]] auto minSectorAllocation(double min_alloc) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.min_sector_allocation = min_alloc;
+        return *this;
+    }
+
+    [[nodiscard]] auto rebalanceFrequency(int days) noexcept -> SectorRotationStrategyBuilder& {
+        config_.rebalance_frequency_days = days;
+        return *this;
+    }
+
+    [[nodiscard]] auto withDatabasePath(std::string const& path) -> SectorRotationStrategyBuilder& {
+        config_.db_path = path;
+        return *this;
+    }
+
+    [[nodiscard]] auto withScriptsPath(std::string const& path) -> SectorRotationStrategyBuilder& {
+        config_.scripts_path = path;
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
+        return std::make_unique<SectorRotationStrategy>(config_);
+    }
+
+  private:
+    SectorRotationStrategy::Config config_;
+};
 
 /**
  * SectorRotationStrategy - Multi-Signal Sector Allocation Strategy
@@ -249,7 +482,17 @@ class VolatilityArbStrategy final : public IStrategy {
  * - Validates against portfolio heat limits
  * - Checks correlation exposure constraints
  *
- * Usage Example:
+ * Fluent Builder Usage:
+ *   auto strategy = SectorRotationStrategy::builder()
+ *       .withEmploymentWeight(0.65)
+ *       .withSentimentWeight(0.25)
+ *       .withMomentumWeight(0.10)
+ *       .topNOverweight(4)
+ *       .bottomNUnderweight(3)
+ *       .rotationThreshold(0.75)
+ *       .build();
+ *
+ * Traditional Usage:
  *   auto strategy = createSectorRotationStrategy();
  *   strategy->setParameter("top_n_overweight", "4");
  *   strategy->setParameter("employment_weight", "0.70");
@@ -331,6 +574,13 @@ class SectorRotationStrategy final : public IStrategy {
     SectorRotationStrategy(SectorRotationStrategy&&) noexcept = default;
     auto operator=(SectorRotationStrategy&&) noexcept -> SectorRotationStrategy& = default;
     ~SectorRotationStrategy() override = default;
+
+    /**
+     * Create fluent builder for SectorRotationStrategy
+     */
+    [[nodiscard]] static auto builder() -> SectorRotationStrategyBuilder {
+        return SectorRotationStrategyBuilder{};
+    }
 
     [[nodiscard]] auto getName() const noexcept -> std::string override {
         return "Sector Rotation (Multi-Signal)";

@@ -428,7 +428,269 @@ class MonteCarloSimulator {
 };
 
 // ============================================================================
-// Risk Manager (Fluent API)
+// Kelly Criterion Calculator (Fluent API)
+// ============================================================================
+
+class KellyCalculator {
+  public:
+    explicit KellyCalculator(RiskManager const& risk_mgr) : risk_mgr_{risk_mgr} {}
+
+    [[nodiscard]] auto withWinRate(double rate) -> KellyCalculator& {
+        win_rate_ = rate;
+        return *this;
+    }
+
+    [[nodiscard]] auto withWinLossRatio(double ratio) -> KellyCalculator& {
+        win_loss_ratio_ = ratio;
+        return *this;
+    }
+
+    [[nodiscard]] auto withDrawdownLimit(double limit) -> KellyCalculator& {
+        drawdown_limit_ = limit;
+        return *this;
+    }
+
+    [[nodiscard]] auto calculate() const noexcept -> Result<double> {
+        if (win_rate_ < 0.0 || win_rate_ > 1.0) {
+            return makeError<double>(ErrorCode::InvalidParameter, "Win rate must be in [0, 1]");
+        }
+        if (win_loss_ratio_ <= 0.0) {
+            return makeError<double>(ErrorCode::InvalidParameter,
+                                     "Win/loss ratio must be positive");
+        }
+
+        double const loss_rate = 1.0 - win_rate_;
+        double const kelly = (win_rate_ * win_loss_ratio_ - loss_rate) / win_loss_ratio_;
+
+        if (kelly < 0.0) {
+            return 0.0; // No edge
+        }
+
+        // Apply drawdown limit if specified
+        if (drawdown_limit_ > 0.0) {
+            double const limited_kelly = kelly * drawdown_limit_;
+            return std::min(kelly, limited_kelly);
+        }
+
+        return std::min(kelly, 0.25); // Never exceed 25% fractional Kelly
+    }
+
+  private:
+    RiskManager const& risk_mgr_;
+    double win_rate_{0.0};
+    double win_loss_ratio_{1.0};
+    double drawdown_limit_{0.0};
+};
+
+// ============================================================================
+// Monte Carlo Simulator (Fluent Builder API)
+// ============================================================================
+
+class MonteCarloSimulatorBuilder {
+  public:
+    explicit MonteCarloSimulatorBuilder(RiskManager const& risk_mgr) : risk_mgr_{risk_mgr} {}
+
+    [[nodiscard]] auto forOption(PricingParams params) -> MonteCarloSimulatorBuilder& {
+        params_ = params;
+        return *this;
+    }
+
+    [[nodiscard]] auto withSimulations(int count) -> MonteCarloSimulatorBuilder& {
+        num_simulations_ = count;
+        return *this;
+    }
+
+    [[nodiscard]] auto withSteps(int count) -> MonteCarloSimulatorBuilder& {
+        num_steps_ = count;
+        return *this;
+    }
+
+    [[nodiscard]] auto withPositionSize(double size) -> MonteCarloSimulatorBuilder& {
+        position_size_ = size;
+        return *this;
+    }
+
+    [[nodiscard]] auto run() const noexcept -> Result<SimulationResult> {
+        return MonteCarloSimulator::simulateOptionTrade(params_, position_size_, num_simulations_,
+                                                        num_steps_);
+    }
+
+  private:
+    RiskManager const& risk_mgr_;
+    PricingParams params_{};
+    double position_size_{1.0};
+    int num_simulations_{10'000};
+    int num_steps_{100};
+};
+
+// ============================================================================
+// Trade Risk Builder (Fluent API)
+// ============================================================================
+
+class TradeRiskBuilder {
+  public:
+    explicit TradeRiskBuilder(RiskManager& risk_mgr) : risk_mgr_{risk_mgr} {}
+
+    [[nodiscard]] auto forSymbol(std::string symbol) -> TradeRiskBuilder& {
+        symbol_ = std::move(symbol);
+        return *this;
+    }
+
+    [[nodiscard]] auto withQuantity(int qty) -> TradeRiskBuilder& {
+        quantity_ = qty;
+        return *this;
+    }
+
+    [[nodiscard]] auto atPrice(double price) -> TradeRiskBuilder& {
+        entry_price_ = price;
+        return *this;
+    }
+
+    [[nodiscard]] auto withStop(double stop) -> TradeRiskBuilder& {
+        stop_price_ = stop;
+        return *this;
+    }
+
+    [[nodiscard]] auto withTarget(double target) -> TradeRiskBuilder& {
+        target_price_ = target;
+        return *this;
+    }
+
+    [[nodiscard]] auto withProbability(double prob) -> TradeRiskBuilder& {
+        win_probability_ = prob;
+        return *this;
+    }
+
+    [[nodiscard]] auto assess() noexcept -> Result<TradeRisk> {
+        return risk_mgr_.assessTrade(symbol_, static_cast<double>(quantity_) * entry_price_,
+                                     entry_price_, stop_price_, target_price_, win_probability_);
+    }
+
+  private:
+    RiskManager& risk_mgr_;
+    std::string symbol_;
+    int quantity_{0};
+    double entry_price_{0.0};
+    double stop_price_{0.0};
+    double target_price_{0.0};
+    double win_probability_{0.0};
+};
+
+// ============================================================================
+// Portfolio Risk Builder (Fluent API)
+// ============================================================================
+
+struct PortfolioPositionDef {
+    std::string symbol;
+    double quantity{0.0};
+    double price{0.0};
+    double volatility{0.0};
+};
+
+class PortfolioRiskBuilder {
+  public:
+    explicit PortfolioRiskBuilder(RiskManager& risk_mgr) : risk_mgr_{risk_mgr} {}
+
+    [[nodiscard]] auto addPosition(std::string symbol, double quantity, double price,
+                                   double volatility = 0.0) -> PortfolioRiskBuilder& {
+        positions_.emplace_back(PortfolioPositionDef{.symbol = std::move(symbol),
+                                                     .quantity = quantity,
+                                                     .price = price,
+                                                     .volatility = volatility});
+        return *this;
+    }
+
+    [[nodiscard]] auto calculateHeat() -> PortfolioRiskBuilder& {
+        double total_exposure = 0.0;
+        for (auto const& pos : positions_) {
+            total_exposure += pos.quantity * pos.price;
+        }
+        portfolio_heat_ =
+            total_exposure / 30'000.0; // 30k account - can be parameterized
+        return *this;
+    }
+
+    [[nodiscard]] auto calculateVaR(double confidence) -> PortfolioRiskBuilder& {
+        var_confidence_ = confidence;
+        // VaR calculation would be more sophisticated in production
+        return *this;
+    }
+
+    [[nodiscard]] auto analyze() const noexcept -> Result<PortfolioRisk> {
+        PortfolioRisk portfolio{};
+
+        for (auto const& pos : positions_) {
+            portfolio.total_value += pos.quantity * pos.price;
+            portfolio.total_exposure += pos.quantity * pos.price;
+            portfolio.active_positions++;
+        }
+
+        portfolio.portfolio_heat = portfolio_heat_;
+        return portfolio;
+    }
+
+  private:
+    RiskManager& risk_mgr_;
+    std::vector<PortfolioPositionDef> positions_;
+    double portfolio_heat_{0.0};
+    double var_confidence_{0.95};
+};
+
+// ============================================================================
+// Position Sizer Builder (Fluent API)
+// ============================================================================
+
+class PositionSizerBuilder {
+  public:
+    explicit PositionSizerBuilder(RiskManager const& risk_mgr) : risk_mgr_{risk_mgr} {}
+
+    [[nodiscard]] auto withMethod(SizingMethod method) -> PositionSizerBuilder& {
+        method_ = method;
+        return *this;
+    }
+
+    [[nodiscard]] auto withAccountValue(double value) -> PositionSizerBuilder& {
+        account_value_ = value;
+        return *this;
+    }
+
+    [[nodiscard]] auto withWinProbability(double prob) -> PositionSizerBuilder& {
+        win_probability_ = prob;
+        return *this;
+    }
+
+    [[nodiscard]] auto withWinAmount(double amount) -> PositionSizerBuilder& {
+        win_amount_ = amount;
+        return *this;
+    }
+
+    [[nodiscard]] auto withLossAmount(double amount) -> PositionSizerBuilder& {
+        loss_amount_ = amount;
+        return *this;
+    }
+
+    [[nodiscard]] auto withVolatility(double vol) -> PositionSizerBuilder& {
+        volatility_ = vol;
+        return *this;
+    }
+
+    [[nodiscard]] auto calculate() const noexcept -> Result<double> {
+        return PositionSizer::calculate(method_, account_value_, win_probability_, win_amount_,
+                                        loss_amount_, volatility_);
+    }
+
+  private:
+    RiskManager const& risk_mgr_;
+    SizingMethod method_{SizingMethod::FixedPercent};
+    double account_value_{30'000.0};
+    double win_probability_{0.55};
+    double win_amount_{100.0};
+    double loss_amount_{100.0};
+    double volatility_{0.0};
+};
+
+// ============================================================================
+// Risk Manager (Fluent API - Enhanced)
 // ============================================================================
 
 class RiskManager {
@@ -446,12 +708,52 @@ class RiskManager {
     auto operator=(RiskManager&&) noexcept -> RiskManager& = delete;
     ~RiskManager() = default;
 
-    // Fluent API
+    // ========================================================================
+    // Fluent Configuration Methods
+    // ========================================================================
+
     [[nodiscard]] auto withLimits(RiskLimits limits) -> RiskManager& {
         limits_ = limits;
         daily_loss_remaining_ = limits.max_daily_loss;
         return *this;
     }
+
+    [[nodiscard]] auto setMaxDailyLoss(double amount) -> RiskManager& {
+        limits_.max_daily_loss = amount;
+        daily_loss_remaining_ = amount;
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPositionSize(double amount) -> RiskManager& {
+        limits_.max_position_size = amount;
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPortfolioHeat(double pct) -> RiskManager& {
+        limits_.max_portfolio_heat = pct;
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxConcurrentPositions(int count) -> RiskManager& {
+        limits_.max_concurrent_positions = count;
+        return *this;
+    }
+
+    [[nodiscard]] auto setAccountValue(double value) -> RiskManager& {
+        limits_.account_value = value;
+        return *this;
+    }
+
+    [[nodiscard]] auto requireStopLoss(bool required) -> RiskManager& {
+        limits_.require_stop_loss = required;
+        return *this;
+    }
+
+    // ========================================================================
+    // Fluent Trade Assessment (Terminal Operations)
+    // ========================================================================
+
+    [[nodiscard]] auto assessTrade() -> TradeRiskBuilder { return TradeRiskBuilder(*this); }
 
     [[nodiscard]] auto assessTrade(std::string symbol, double position_size, Price entry_price,
                                    Price stop_price, Price target_price,
@@ -465,6 +767,14 @@ class RiskManager {
         risk.expected_value =
             win_probability * risk.expected_return - (1.0 - win_probability) * risk.max_loss;
         risk.risk_reward_ratio = risk.max_loss > 0.0 ? risk.expected_return / risk.max_loss : 0.0;
+
+        // Calculate Kelly fraction
+        if (risk.max_loss > 0.0) {
+            risk.kelly_fraction = (win_probability * risk.expected_return -
+                                  (1.0 - win_probability) * risk.max_loss) / risk.max_loss;
+            risk.kelly_fraction = std::max(0.0, risk.kelly_fraction);
+        }
+
         risk.approved = true;
 
         std::lock_guard<std::mutex> lock(mutex_);
@@ -487,6 +797,12 @@ class RiskManager {
         return risk;
     }
 
+    // ========================================================================
+    // Fluent Portfolio Analysis
+    // ========================================================================
+
+    [[nodiscard]] auto portfolio() -> PortfolioRiskBuilder { return PortfolioRiskBuilder(*this); }
+
     [[nodiscard]] auto getPortfolioRisk() const noexcept -> Result<PortfolioRisk> {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -498,7 +814,49 @@ class RiskManager {
         return portfolio;
     }
 
+    // ========================================================================
+    // Specialized Calculator Accessors (Factory Methods)
+    // ========================================================================
+
+    [[nodiscard]] auto kelly() -> KellyCalculator { return KellyCalculator(*this); }
+
+    [[nodiscard]] auto monteCarlo() -> MonteCarloSimulatorBuilder {
+        return MonteCarloSimulatorBuilder(*this);
+    }
+
+    [[nodiscard]] auto positionSizer() -> PositionSizerBuilder { return PositionSizerBuilder(*this); }
+
+    // ========================================================================
+    // Stop Loss Management
+    // ========================================================================
+
     [[nodiscard]] auto stopLoss() -> StopLossManager& { return stop_loss_manager_; }
+
+    // ========================================================================
+    // Daily P&L Management
+    // ========================================================================
+
+    [[nodiscard]] auto updateDailyPnL(double pnl) -> RiskManager& {
+        daily_pnl_ += pnl;
+        daily_loss_remaining_ -= std::min(0.0, pnl); // Only count losses
+        return *this;
+    }
+
+    [[nodiscard]] auto resetDaily() -> RiskManager& {
+        daily_pnl_ = 0.0;
+        daily_loss_remaining_ = limits_.max_daily_loss;
+        return *this;
+    }
+
+    [[nodiscard]] auto getDailyPnL() const noexcept -> double { return daily_pnl_; }
+
+    [[nodiscard]] auto getDailyLossRemaining() const noexcept -> double {
+        return daily_loss_remaining_;
+    }
+
+    [[nodiscard]] auto isDailyLossLimitReached() const noexcept -> bool {
+        return daily_loss_remaining_ <= 0.0;
+    }
 
   private:
     RiskLimits limits_;

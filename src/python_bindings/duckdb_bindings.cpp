@@ -25,6 +25,7 @@
 #include <stdexcept>
 #include <memory>
 #include <unordered_map>
+#include "duckdb_fluent.hpp"
 
 namespace py = pybind11;
 
@@ -106,6 +107,146 @@ public:
         } catch (std::exception const& e) {
             throw std::runtime_error(std::string("Failed to connect to database: ") + e.what());
         }
+    }
+
+    // FLUENT CONFIGURATION METHODS - Enable method chaining
+    // Pattern: db.setReadOnly(true).setMaxMemory(1GB).connect();
+
+    /**
+     * Set read-only mode for the connection
+     *
+     * @param read_only If true, connection is read-only
+     * @return Reference to this connection for fluent chaining
+     *
+     * Example:
+     *     auto db = DuckDBConnection("data.duckdb")
+     *         .setReadOnly(true);
+     */
+    auto setReadOnly(bool read_only) -> DuckDBConnection& {
+        read_only_ = read_only;
+        return *this;
+    }
+
+    /**
+     * Set maximum memory allowed for queries
+     *
+     * @param bytes Maximum memory in bytes
+     * @return Reference to this connection for fluent chaining
+     *
+     * Example:
+     *     auto db = DuckDBConnection("data.duckdb")
+     *         .setMaxMemory(1024 * 1024 * 1024);  // 1GB
+     */
+    auto setMaxMemory(size_t bytes) -> DuckDBConnection& {
+        max_memory_ = bytes;
+        return *this;
+    }
+
+    /**
+     * Enable or disable automatic checkpoint
+     *
+     * @param enable If true, automatic checkpointing is enabled
+     * @return Reference to this connection for fluent chaining
+     *
+     * Example:
+     *     auto db = DuckDBConnection("data.duckdb")
+     *         .enableAutoCheckpoint(true);
+     */
+    auto enableAutoCheckpoint(bool enable) -> DuckDBConnection& {
+        auto_checkpoint_ = enable;
+        return *this;
+    }
+
+    /**
+     * Set thread pool size
+     *
+     * @param threads Number of threads (0 = auto-detect)
+     * @return Reference to this connection for fluent chaining
+     *
+     * Example:
+     *     auto db = DuckDBConnection("data.duckdb")
+     *         .setThreadPoolSize(8);
+     */
+    auto setThreadPoolSize(int threads) -> DuckDBConnection& {
+        thread_pool_size_ = threads;
+        return *this;
+    }
+
+    /**
+     * Enable or disable logging
+     *
+     * @param enable If true, logging is enabled
+     * @return Reference to this connection for fluent chaining
+     */
+    auto enableLogging(bool enable) -> DuckDBConnection& {
+        enable_logging_ = enable;
+        return *this;
+    }
+
+    /**
+     * Fluent configuration chain example
+     *
+     * Example:
+     *     auto db = DuckDBConnection("data.duckdb")
+     *         .setReadOnly(false)
+     *         .setMaxMemory(2 * 1024 * 1024 * 1024)  // 2GB
+     *         .enableAutoCheckpoint(true)
+     *         .setThreadPoolSize(4);
+     */
+
+    // FLUENT QUERY BUILDER - Enables SQL construction via method chaining
+    // Pattern: db.query().select(...).from(...).where(...).execute();
+
+    /**
+     * Create a new QueryBuilder for fluent SQL construction
+     *
+     * @return QueryBuilder instance for method chaining
+     *
+     * Example:
+     *     auto result = db.query()
+     *         .select({"symbol", "price", "volume"})
+     *         .from("quotes")
+     *         .where("price > 100")
+     *         .orderBy("volume", "DESC")
+     *         .limit(10)
+     *         .execute();
+     */
+    auto query() -> fluent::QueryBuilder {
+        return fluent::QueryBuilder(*this);
+    }
+
+    // FLUENT DATA ACCESSORS - Specialized accessors for specific data domains
+
+    /**
+     * Get fluent accessor for employment data
+     *
+     * @return EmploymentDataAccessor for method chaining
+     *
+     * Example:
+     *     auto data = db.employment()
+     *         .forSector("Technology")
+     *         .betweenDates("2024-01-01", "2025-01-01")
+     *         .limit(100)
+     *         .get();
+     */
+    auto employment() -> fluent::EmploymentDataAccessor {
+        return fluent::EmploymentDataAccessor(*this);
+    }
+
+    /**
+     * Get fluent accessor for sector data
+     *
+     * @return SectorDataAccessor for method chaining
+     *
+     * Example:
+     *     auto sectors = db.sectors()
+     *         .withEmploymentData()
+     *         .sortByGrowth("DESC")
+     *         .limit(10)
+     *         .get();
+     */
+    auto sectors() -> fluent::SectorDataAccessor {
+        return fluent::SectorDataAccessor(*this);
     }
 
     // Execute query and return QueryResult
@@ -288,9 +429,22 @@ public:
     }
 
 private:
+    // Connection properties
     std::string db_path_;
     std::unique_ptr<duckdb::DuckDB> db_;
     std::unique_ptr<duckdb::Connection> conn_;
+
+    // Fluent configuration options
+    bool read_only_ = false;
+    size_t max_memory_ = 0;  // 0 = unlimited
+    bool auto_checkpoint_ = true;
+    int thread_pool_size_ = 0;  // 0 = auto-detect
+    bool enable_logging_ = false;
+
+    // Friend declarations for fluent interfaces
+    friend class fluent::QueryBuilder;
+    friend class fluent::EmploymentDataAccessor;
+    friend class fluent::SectorDataAccessor;
 };
 
 } // namespace bigbrother::database
@@ -320,6 +474,7 @@ PYBIND11_MODULE(bigbrother_duckdb, m) {
     )pbdoc";
 
     using namespace bigbrother::database;
+    using namespace bigbrother::database::fluent;
 
     // QueryResult - Wraps query results with zero-copy NumPy conversion
     py::class_<QueryResult>(m, "QueryResult")
@@ -337,6 +492,228 @@ PYBIND11_MODULE(bigbrother_duckdb, m) {
                    std::to_string(r.columns.size()) + " columns)";
         })
         .def("__len__", [](QueryResult const& r) { return r.row_count; });
+
+    // QueryBuilder - Fluent SQL query construction
+    py::class_<QueryBuilder>(m, "QueryBuilder")
+        .def("select",
+             [](QueryBuilder& self, std::vector<std::string> const& columns) -> QueryBuilder& {
+                 return self.select(columns);
+             },
+             py::arg("columns"),
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Select specific columns (fluent)
+
+                 Args:
+                     columns: List of column names
+
+                 Returns:
+                     Self for method chaining
+
+                 Example:
+                     .select(["id", "name", "value"])
+             )pbdoc")
+
+        .def("select_all",
+             [](QueryBuilder& self) -> QueryBuilder& {
+                 return self.selectAll();
+             },
+             py::return_value_policy::reference_internal,
+             "Select all columns")
+
+        .def("from_table",
+             [](QueryBuilder& self, std::string const& table) -> QueryBuilder& {
+                 return self.from(table);
+             },
+             py::arg("table"),
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Specify table to query (fluent)
+
+                 Args:
+                     table: Table name
+
+                 Returns:
+                     Self for method chaining
+             )pbdoc")
+
+        .def("where",
+             [](QueryBuilder& self, std::string const& condition) -> QueryBuilder& {
+                 return self.where(condition);
+             },
+             py::arg("condition"),
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Add WHERE condition (fluent)
+
+                 Args:
+                     condition: SQL WHERE condition
+
+                 Returns:
+                     Self for method chaining
+
+                 Example:
+                     .where("price > 100")
+             )pbdoc")
+
+        .def("or_where",
+             [](QueryBuilder& self, std::string const& condition) -> QueryBuilder& {
+                 return self.orWhere(condition);
+             },
+             py::arg("condition"),
+             py::return_value_policy::reference_internal,
+             "Add OR condition to WHERE")
+
+        .def("order_by",
+             [](QueryBuilder& self, std::string const& column, std::string const& direction) -> QueryBuilder& {
+                 return self.orderBy(column, direction);
+             },
+             py::arg("column"),
+             py::arg("direction") = "ASC",
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Order results by column (fluent)
+
+                 Args:
+                     column: Column name
+                     direction: "ASC" or "DESC" (default: "ASC")
+
+                 Returns:
+                     Self for method chaining
+
+                 Example:
+                     .order_by("volume", "DESC")
+             )pbdoc")
+
+        .def("limit",
+             [](QueryBuilder& self, int count) -> QueryBuilder& {
+                 return self.limit(count);
+             },
+             py::arg("count"),
+             py::return_value_policy::reference_internal,
+             "Limit result set size")
+
+        .def("offset",
+             [](QueryBuilder& self, int count) -> QueryBuilder& {
+                 return self.offset(count);
+             },
+             py::arg("count"),
+             py::return_value_policy::reference_internal,
+             "Add OFFSET to skip rows")
+
+        .def("execute",
+             [](QueryBuilder& self) {
+                 return self.execute();
+             },
+             "Build and return SQL query string")
+
+        .def("build",
+             [](QueryBuilder const& self) {
+                 return self.build();
+             },
+             "Build query without executing")
+
+        .def("reset",
+             [](QueryBuilder& self) -> QueryBuilder& {
+                 return self.reset();
+             },
+             py::return_value_policy::reference_internal,
+             "Reset builder to initial state");
+
+    // EmploymentDataAccessor - Fluent employment data queries
+    py::class_<EmploymentDataAccessor>(m, "EmploymentDataAccessor")
+        .def("for_sector",
+             [](EmploymentDataAccessor& self, std::string const& sector) -> EmploymentDataAccessor& {
+                 return self.forSector(sector);
+             },
+             py::arg("sector"),
+             py::return_value_policy::reference_internal,
+             "Filter by sector (fluent)")
+
+        .def("between_dates",
+             [](EmploymentDataAccessor& self, std::string const& start_date, std::string const& end_date) -> EmploymentDataAccessor& {
+                 return self.betweenDates(start_date, end_date);
+             },
+             py::arg("start_date"),
+             py::arg("end_date"),
+             py::return_value_policy::reference_internal,
+             "Filter by date range (fluent)")
+
+        .def("from_date",
+             [](EmploymentDataAccessor& self, std::string const& start_date) -> EmploymentDataAccessor& {
+                 return self.fromDate(start_date);
+             },
+             py::arg("start_date"),
+             py::return_value_policy::reference_internal,
+             "Filter from date (fluent)")
+
+        .def("to_date",
+             [](EmploymentDataAccessor& self, std::string const& end_date) -> EmploymentDataAccessor& {
+                 return self.toDate(end_date);
+             },
+             py::arg("end_date"),
+             py::return_value_policy::reference_internal,
+             "Filter to date (fluent)")
+
+        .def("limit",
+             [](EmploymentDataAccessor& self, int count) -> EmploymentDataAccessor& {
+                 return self.limit(count);
+             },
+             py::arg("count"),
+             py::return_value_policy::reference_internal,
+             "Limit results (fluent)")
+
+        .def("get",
+             [](EmploymentDataAccessor& self) {
+                 return self.get();
+             },
+             "Execute and get employment data");
+
+    // SectorDataAccessor - Fluent sector data queries
+    py::class_<SectorDataAccessor>(m, "SectorDataAccessor")
+        .def("with_employment_data",
+             [](SectorDataAccessor& self) -> SectorDataAccessor& {
+                 return self.withEmploymentData();
+             },
+             py::return_value_policy::reference_internal,
+             "Include employment data (fluent)")
+
+        .def("with_rotation_data",
+             [](SectorDataAccessor& self) -> SectorDataAccessor& {
+                 return self.withRotationData();
+             },
+             py::return_value_policy::reference_internal,
+             "Include rotation data (fluent)")
+
+        .def("sort_by_growth",
+             [](SectorDataAccessor& self, std::string const& direction) -> SectorDataAccessor& {
+                 return self.sortByGrowth(direction);
+             },
+             py::arg("direction") = "DESC",
+             py::return_value_policy::reference_internal,
+             "Sort by growth (fluent)")
+
+        .def("sort_by_performance",
+             [](SectorDataAccessor& self, std::string const& direction) -> SectorDataAccessor& {
+                 return self.sortByPerformance(direction);
+             },
+             py::arg("direction") = "DESC",
+             py::return_value_policy::reference_internal,
+             "Sort by performance (fluent)")
+
+        .def("limit",
+             [](SectorDataAccessor& self, int count) -> SectorDataAccessor& {
+                 return self.limit(count);
+             },
+             py::arg("count"),
+             py::return_value_policy::reference_internal,
+             "Limit results (fluent)")
+
+        .def("get",
+             [](SectorDataAccessor& self) {
+                 return self.get();
+             },
+             "Execute and get sector data");
 
     // DuckDBConnection - Main database connection class (GIL-FREE)
     py::class_<DuckDBConnection>(m, "Connection")
@@ -484,8 +861,131 @@ PYBIND11_MODULE(bigbrother_duckdb, m) {
              py::arg("table_name"),
              "Get row count for a table")
 
+        // FLUENT CONFIGURATION METHODS - Enable method chaining in Python
+        .def("set_read_only",
+             [](DuckDBConnection& self, bool read_only) -> DuckDBConnection& {
+                 return self.setReadOnly(read_only);
+             },
+             py::arg("read_only"),
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Set read-only mode (fluent method chaining)
+
+                 Args:
+                     read_only: If True, connection is read-only
+
+                 Returns:
+                     Self for method chaining
+
+                 Example:
+                     db = Connection("data.duckdb") \
+                         .set_read_only(True) \
+                         .set_max_memory(1024 * 1024 * 1024)
+             )pbdoc")
+
+        .def("set_max_memory",
+             [](DuckDBConnection& self, size_t bytes) -> DuckDBConnection& {
+                 return self.setMaxMemory(bytes);
+             },
+             py::arg("bytes"),
+             py::return_value_policy::reference_internal,
+             R"pbdoc(
+                 Set maximum memory for queries (fluent method chaining)
+
+                 Args:
+                     bytes: Maximum memory in bytes
+
+                 Returns:
+                     Self for method chaining
+
+                 Example:
+                     db = Connection("data.duckdb") \
+                         .set_max_memory(2 * 1024 * 1024 * 1024)  # 2GB
+             )pbdoc")
+
+        .def("enable_auto_checkpoint",
+             [](DuckDBConnection& self, bool enable) -> DuckDBConnection& {
+                 return self.enableAutoCheckpoint(enable);
+             },
+             py::arg("enable"),
+             py::return_value_policy::reference_internal,
+             "Enable/disable automatic checkpoint")
+
+        .def("set_thread_pool_size",
+             [](DuckDBConnection& self, int threads) -> DuckDBConnection& {
+                 return self.setThreadPoolSize(threads);
+             },
+             py::arg("threads"),
+             py::return_value_policy::reference_internal,
+             "Set thread pool size (0 = auto-detect)")
+
+        .def("enable_logging",
+             [](DuckDBConnection& self, bool enable) -> DuckDBConnection& {
+                 return self.enableLogging(enable);
+             },
+             py::arg("enable"),
+             py::return_value_policy::reference_internal,
+             "Enable/disable query logging")
+
+        // FLUENT QUERY BUILDER
+        .def("query",
+             [](DuckDBConnection& self) {
+                 return self.query();
+             },
+             R"pbdoc(
+                 Create a fluent QueryBuilder for SQL construction
+
+                 Returns:
+                     QueryBuilder for method chaining
+
+                 Example:
+                     result = db.query() \
+                         .select(["symbol", "price"]) \
+                         .from_table("quotes") \
+                         .where("price > 100") \
+                         .limit(10) \
+                         .execute()
+             )pbdoc")
+
+        // FLUENT DATA ACCESSORS
+        .def("employment",
+             [](DuckDBConnection& self) {
+                 return self.employment();
+             },
+             R"pbdoc(
+                 Get fluent accessor for employment data
+
+                 Returns:
+                     EmploymentDataAccessor for method chaining
+
+                 Example:
+                     data = db.employment() \
+                         .for_sector("Technology") \
+                         .between_dates("2024-01-01", "2025-01-01") \
+                         .limit(100) \
+                         .get()
+             )pbdoc")
+
+        .def("sectors",
+             [](DuckDBConnection& self) {
+                 return self.sectors();
+             },
+             R"pbdoc(
+                 Get fluent accessor for sector data
+
+                 Returns:
+                     SectorDataAccessor for method chaining
+
+                 Example:
+                     sectors = db.sectors() \
+                         .with_employment_data() \
+                         .sort_by_growth("DESC") \
+                         .limit(10) \
+                         .get()
+             )pbdoc")
+
         .def("__repr__", [](DuckDBConnection const&) {
-            return "<DuckDBConnection (native C++ API)>";
+            return "<DuckDBConnection (native C++ API, fluent interface)>";
         });
 
     // Convenience function - module-level connect

@@ -57,6 +57,26 @@ using namespace bigbrother::employment;
 enum class SignalType { Buy, Sell, Hold, ClosePosition };
 
 /**
+ * Performance Metrics
+ *
+ * Aggregated performance statistics for a strategy.
+ */
+struct PerformanceMetrics {
+    std::string strategy_name;
+    int signals_generated{0};
+    int trades_executed{0};
+    int winning_trades{0};
+    int losing_trades{0};
+    double total_pnl{0.0};
+    double win_rate{0.0};  // 0.0 to 1.0
+    double sharpe_ratio{0.0};
+    double max_drawdown{0.0};
+    double profit_factor{0.0};
+    Timestamp period_start{0};
+    Timestamp period_end{0};
+};
+
+/**
  * Trading Signal
  * C.1: Struct for passive data
  * C.21: Explicitly defaulted special members for proper move semantics
@@ -97,6 +117,95 @@ struct TradingSignal {
 };
 
 /**
+ * Strategy Context Builder
+ *
+ * Fluent API for building strategy contexts with all required data.
+ * Provides type-safe configuration and validation.
+ *
+ * Example Usage:
+ *   auto context = StrategyContext::builder()
+ *       .withAccountValue(50000.0)
+ *       .withAvailableCapital(10000.0)
+ *       .withCurrentTime(getTimestamp())
+ *       .withQuotes(quotes_map)
+ *       .withOptions(options_chains_map)
+ *       .withEmploymentSignals(emp_signals)
+ *       .build();
+ */
+class ContextBuilder {
+  public:
+    [[nodiscard]] auto withAccountValue(double value) noexcept -> ContextBuilder& {
+        context_.account_value = value;
+        return *this;
+    }
+
+    [[nodiscard]] auto withAvailableCapital(double capital) noexcept -> ContextBuilder& {
+        context_.available_capital = capital;
+        return *this;
+    }
+
+    [[nodiscard]] auto withCurrentTime(Timestamp time) noexcept -> ContextBuilder& {
+        context_.current_time = time;
+        return *this;
+    }
+
+    [[nodiscard]] auto withQuotes(std::unordered_map<std::string, Quote> quotes)
+        -> ContextBuilder& {
+        context_.current_quotes = std::move(quotes);
+        return *this;
+    }
+
+    [[nodiscard]] auto withOptions(std::unordered_map<std::string, OptionsChainData> chains)
+        -> ContextBuilder& {
+        context_.options_chains = std::move(chains);
+        return *this;
+    }
+
+    [[nodiscard]] auto withPositions(std::vector<Position> positions) -> ContextBuilder& {
+        context_.current_positions = std::move(positions);
+        return *this;
+    }
+
+    [[nodiscard]] auto withEmploymentSignals(std::vector<EmploymentSignal> signals)
+        -> ContextBuilder& {
+        context_.employment_signals = std::move(signals);
+        return *this;
+    }
+
+    [[nodiscard]] auto withRotationSignals(std::vector<SectorRotationSignal> signals)
+        -> ContextBuilder& {
+        context_.rotation_signals = std::move(signals);
+        return *this;
+    }
+
+    [[nodiscard]] auto withJoblessClaims(std::optional<EmploymentSignal> alert)
+        -> ContextBuilder& {
+        context_.jobless_claims_alert = alert;
+        return *this;
+    }
+
+    [[nodiscard]] auto addQuote(std::string symbol, Quote quote) -> ContextBuilder& {
+        context_.current_quotes[std::move(symbol)] = std::move(quote);
+        return *this;
+    }
+
+    [[nodiscard]] auto addPosition(Position position) -> ContextBuilder& {
+        context_.current_positions.push_back(std::move(position));
+        return *this;
+    }
+
+    [[nodiscard]] auto addEmploymentSignal(EmploymentSignal signal) -> ContextBuilder& {
+        context_.employment_signals.push_back(std::move(signal));
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> StrategyContext { return std::move(context_); }
+
+  private:
+    StrategyContext context_;
+};
+
+/**
  * Strategy Context
  *
  * Contains all market data and signals needed for strategy decision-making.
@@ -122,6 +231,14 @@ struct TradingSignal {
  *           // Generate buy signal for rotation.sector_etf
  *       }
  *   }
+ *
+ *   // Fluent API example
+ *   auto context = StrategyContext::builder()
+ *       .withAccountValue(100000.0)
+ *       .withAvailableCapital(20000.0)
+ *       .withQuotes(quotes)
+ *       .withEmploymentSignals(signals)
+ *       .build();
  */
 struct StrategyContext {
     // Price Data & Positions
@@ -141,6 +258,11 @@ struct StrategyContext {
 
     // Optional recession warning from jobless claims spike
     std::optional<EmploymentSignal> jobless_claims_alert;
+
+    /**
+     * Create fluent builder for constructing context
+     */
+    [[nodiscard]] static auto builder() -> ContextBuilder { return ContextBuilder{}; }
 
     /**
      * Get employment signals for a specific sector
@@ -276,14 +398,205 @@ class BaseStrategy : public IStrategy {
     bool active_;
 };
 
+// Forward declarations
+class SignalBuilder;
+class PerformanceQueryBuilder;
+class ReportBuilder;
+
+// ============================================================================
+// Signal Builder - Fluent API for signal generation
+// ============================================================================
+
+/**
+ * SignalBuilder - Fluent API for generating and filtering signals
+ *
+ * Example Usage:
+ *   auto signals = mgr.signalBuilder()
+ *       .forContext(context)
+ *       .fromStrategies({"SectorRotation", "Straddle"})
+ *       .withMinConfidence(0.70)
+ *       .limitTo(5)
+ *       .generate();
+ */
+class SignalBuilder {
+  public:
+    explicit SignalBuilder(StrategyManager& manager) : manager_{manager} {}
+
+    [[nodiscard]] auto forContext(StrategyContext const& ctx) -> SignalBuilder& {
+        context_ = &ctx;
+        return *this;
+    }
+
+    [[nodiscard]] auto fromStrategies(std::vector<std::string> names) -> SignalBuilder& {
+        strategy_filter_ = std::move(names);
+        return *this;
+    }
+
+    [[nodiscard]] auto withMinConfidence(double conf) noexcept -> SignalBuilder& {
+        min_confidence_ = conf;
+        return *this;
+    }
+
+    [[nodiscard]] auto withMinRiskRewardRatio(double ratio) noexcept -> SignalBuilder& {
+        min_risk_reward_ = ratio;
+        return *this;
+    }
+
+    [[nodiscard]] auto limitTo(int count) noexcept -> SignalBuilder& {
+        max_signals_ = count;
+        return *this;
+    }
+
+    [[nodiscard]] auto onlyActionable(bool actionable = true) noexcept -> SignalBuilder& {
+        only_actionable_ = actionable;
+        return *this;
+    }
+
+    /**
+     * Terminal operation - generates signals
+     */
+    [[nodiscard]] auto generate() -> std::vector<TradingSignal>;
+
+  private:
+    StrategyManager& manager_;
+    StrategyContext const* context_{nullptr};
+    std::optional<std::vector<std::string>> strategy_filter_;
+    std::optional<double> min_confidence_;
+    std::optional<double> min_risk_reward_;
+    std::optional<int> max_signals_;
+    bool only_actionable_{false};
+};
+
+// ============================================================================
+// Performance Query Builder
+// ============================================================================
+
+/**
+ * PerformanceQueryBuilder - Fluent API for performance analysis
+ *
+ * Example Usage:
+ *   auto perf = mgr.performanceBuilder()
+ *       .forStrategy("SectorRotation")
+ *       .inPeriod(start_date, end_date)
+ *       .calculate();
+ */
+class PerformanceQueryBuilder {
+  public:
+    explicit PerformanceQueryBuilder(StrategyManager const& manager) : manager_{manager} {}
+
+    [[nodiscard]] auto forStrategy(std::string const& name) -> PerformanceQueryBuilder& {
+        strategy_name_ = name;
+        return *this;
+    }
+
+    [[nodiscard]] auto inPeriod(Timestamp start, Timestamp end) noexcept
+        -> PerformanceQueryBuilder& {
+        start_time_ = start;
+        end_time_ = end;
+        return *this;
+    }
+
+    [[nodiscard]] auto minTradeCount(int count) noexcept -> PerformanceQueryBuilder& {
+        min_trades_ = count;
+        return *this;
+    }
+
+    /**
+     * Terminal operation - calculates performance
+     */
+    [[nodiscard]] auto calculate() const -> std::optional<PerformanceMetrics>;
+
+  private:
+    StrategyManager const& manager_;
+    std::optional<std::string> strategy_name_;
+    std::optional<Timestamp> start_time_;
+    std::optional<Timestamp> end_time_;
+    std::optional<int> min_trades_;
+};
+
+// ============================================================================
+// Report Builder
+// ============================================================================
+
+/**
+ * ReportBuilder - Fluent API for strategy reports
+ *
+ * Example Usage:
+ *   auto report = mgr.reportBuilder()
+ *       .allStrategies()
+ *       .withMetrics({"sharpe", "win_rate", "max_drawdown"})
+ *       .sortBy("sharpe_ratio")
+ *       .generate();
+ */
+class ReportBuilder {
+  public:
+    explicit ReportBuilder(StrategyManager const& manager) : manager_{manager} {}
+
+    [[nodiscard]] auto allStrategies() -> ReportBuilder& {
+        include_all_ = true;
+        return *this;
+    }
+
+    [[nodiscard]] auto forStrategy(std::string const& name) -> ReportBuilder& {
+        strategy_filter_.push_back(name);
+        return *this;
+    }
+
+    [[nodiscard]] auto withMetrics(std::vector<std::string> metrics) -> ReportBuilder& {
+        metrics_ = std::move(metrics);
+        return *this;
+    }
+
+    [[nodiscard]] auto sortBy(std::string const& field) -> ReportBuilder& {
+        sort_field_ = field;
+        return *this;
+    }
+
+    [[nodiscard]] auto descending(bool desc = true) noexcept -> ReportBuilder& {
+        descending_ = desc;
+        return *this;
+    }
+
+    /**
+     * Terminal operation - generates report
+     */
+    [[nodiscard]] auto generate() const -> std::string;
+
+  private:
+    StrategyManager const& manager_;
+    bool include_all_{false};
+    std::vector<std::string> strategy_filter_;
+    std::vector<std::string> metrics_;
+    std::optional<std::string> sort_field_;
+    bool descending_{false};
+};
+
 // ============================================================================
 // Strategy Manager
 // ============================================================================
 
 /**
- * Strategy Manager
+ * Strategy Manager - Fluent API for strategy orchestration
  *
  * Orchestrates multiple trading strategies with thread safety.
+ * Provides fluent builders for signal generation, performance analysis, and reporting.
+ *
+ * Example Usage:
+ *   StrategyManager mgr;
+ *   mgr.addStrategy(std::make_unique<SectorRotationStrategy>())
+ *      .addStrategy(std::make_unique<StraddleStrategy>())
+ *      .addStrategy(std::make_unique<VolatilityArbStrategy>());
+ *
+ *   auto signals = mgr.signalBuilder()
+ *       .forContext(context)
+ *       .withMinConfidence(0.70)
+ *       .limitTo(10)
+ *       .generate();
+ *
+ *   auto report = mgr.reportBuilder()
+ *       .allStrategies()
+ *       .withMetrics({"sharpe", "win_rate"})
+ *       .generate();
  */
 class StrategyManager {
   public:
@@ -296,9 +609,60 @@ class StrategyManager {
     auto operator=(StrategyManager&& other) noexcept -> StrategyManager&;
 
     /**
-     * Add strategy
+     * Add strategy - fluent API
      */
-    auto addStrategy(std::unique_ptr<IStrategy> strategy) -> void;
+    [[nodiscard]] auto addStrategy(std::unique_ptr<IStrategy> strategy) -> StrategyManager& {
+        strategies_.push_back(std::move(strategy));
+        return *this;
+    }
+
+    /**
+     * Remove strategy - fluent API
+     */
+    [[nodiscard]] auto removeStrategy(std::string const& name) -> StrategyManager& {
+        std::lock_guard lock{mutex_};
+        strategies_.erase(
+            std::remove_if(strategies_.begin(), strategies_.end(),
+                          [&name](auto const& s) { return s->getName() == name; }),
+            strategies_.end());
+        return *this;
+    }
+
+    /**
+     * Set strategy active/inactive - fluent API
+     */
+    [[nodiscard]] auto setStrategyActive(std::string const& name, bool active) -> StrategyManager& {
+        std::lock_guard lock{mutex_};
+        for (auto const& strategy : strategies_) {
+            if (strategy->getName() == name) {
+                strategy->setActive(active);
+                break;
+            }
+        }
+        return *this;
+    }
+
+    /**
+     * Enable all strategies - fluent API
+     */
+    [[nodiscard]] auto enableAll() -> StrategyManager& {
+        std::lock_guard lock{mutex_};
+        for (auto const& strategy : strategies_) {
+            strategy->setActive(true);
+        }
+        return *this;
+    }
+
+    /**
+     * Disable all strategies - fluent API
+     */
+    [[nodiscard]] auto disableAll() -> StrategyManager& {
+        std::lock_guard lock{mutex_};
+        for (auto const& strategy : strategies_) {
+            strategy->setActive(false);
+        }
+        return *this;
+    }
 
     /**
      * Generate signals from all active strategies
@@ -307,11 +671,45 @@ class StrategyManager {
         -> std::vector<TradingSignal>;
 
     /**
+     * Get signal builder for fluent signal generation
+     */
+    [[nodiscard]] auto signalBuilder() -> SignalBuilder { return SignalBuilder{*this}; }
+
+    /**
+     * Get performance query builder
+     */
+    [[nodiscard]] auto performanceBuilder() const -> PerformanceQueryBuilder {
+        return PerformanceQueryBuilder{*this};
+    }
+
+    /**
+     * Get report builder
+     */
+    [[nodiscard]] auto reportBuilder() const -> ReportBuilder { return ReportBuilder{*this}; }
+
+    /**
      * Get all strategies
      */
     [[nodiscard]] auto getStrategies() const -> std::vector<IStrategy const*>;
 
+    /**
+     * Get strategy count
+     */
+    [[nodiscard]] auto getStrategyCount() const noexcept -> size_t {
+        std::lock_guard lock{mutex_};
+        return strategies_.size();
+    }
+
+    /**
+     * Get strategy by name
+     */
+    [[nodiscard]] auto getStrategy(std::string const& name) const -> IStrategy const*;
+
   private:
+    friend class SignalBuilder;
+    friend class PerformanceQueryBuilder;
+    friend class ReportBuilder;
+
     std::vector<std::unique_ptr<IStrategy>> strategies_;
     mutable std::mutex mutex_;
 };
@@ -407,11 +805,6 @@ auto StrategyManager::operator=(StrategyManager&& other) noexcept -> StrategyMan
     return *this;
 }
 
-auto StrategyManager::addStrategy(std::unique_ptr<IStrategy> strategy) -> void {
-    std::lock_guard lock{mutex_};
-    strategies_.push_back(std::move(strategy));
-}
-
 auto StrategyManager::generateSignals(StrategyContext const& context)
     -> std::vector<TradingSignal> {
 
@@ -447,6 +840,135 @@ auto StrategyManager::getStrategies() const -> std::vector<IStrategy const*> {
     }
 
     return result;
+}
+
+auto StrategyManager::getStrategy(std::string const& name) const -> IStrategy const* {
+    std::lock_guard lock{mutex_};
+
+    for (auto const& strategy : strategies_) {
+        if (strategy->getName() == name) {
+            return strategy.get();
+        }
+    }
+
+    return nullptr;
+}
+
+// SignalBuilder implementation
+auto SignalBuilder::generate() -> std::vector<TradingSignal> {
+    if (!context_) {
+        return {};
+    }
+
+    // Get all signals from manager
+    auto all_signals = manager_.generateSignals(*context_);
+
+    // Filter by strategy names if specified
+    if (strategy_filter_) {
+        std::vector<TradingSignal> filtered;
+        for (auto const& signal : all_signals) {
+            for (auto const& strategy_name : *strategy_filter_) {
+                if (signal.strategy_name == strategy_name) {
+                    filtered.push_back(signal);
+                    break;
+                }
+            }
+        }
+        all_signals = std::move(filtered);
+    }
+
+    // Filter by minimum confidence
+    if (min_confidence_) {
+        auto it = std::remove_if(all_signals.begin(), all_signals.end(),
+                                [conf = *min_confidence_](auto const& s) {
+                                    return s.confidence < conf;
+                                });
+        all_signals.erase(it, all_signals.end());
+    }
+
+    // Filter by minimum risk/reward ratio
+    if (min_risk_reward_) {
+        auto it = std::remove_if(
+            all_signals.begin(), all_signals.end(),
+            [ratio = *min_risk_reward_](auto const& s) { return s.riskRewardRatio() < ratio; });
+        all_signals.erase(it, all_signals.end());
+    }
+
+    // Filter by actionable signals
+    if (only_actionable_) {
+        auto it = std::remove_if(all_signals.begin(), all_signals.end(),
+                                [](auto const& s) { return !s.isActionable(); });
+        all_signals.erase(it, all_signals.end());
+    }
+
+    // Sort by confidence (highest first)
+    std::ranges::sort(all_signals,
+                     [](auto const& a, auto const& b) -> bool {
+                         return a.confidence > b.confidence;
+                     });
+
+    // Limit to max signals if specified
+    if (max_signals_ && all_signals.size() > static_cast<size_t>(*max_signals_)) {
+        all_signals.resize(*max_signals_);
+    }
+
+    return all_signals;
+}
+
+// PerformanceQueryBuilder implementation
+auto PerformanceQueryBuilder::calculate() const -> std::optional<PerformanceMetrics> {
+    // Stub implementation - would integrate with actual trade history
+    if (!strategy_name_) {
+        return std::nullopt;
+    }
+
+    PerformanceMetrics metrics;
+    metrics.strategy_name = *strategy_name_;
+    metrics.period_start = start_time_.value_or(0);
+    metrics.period_end = end_time_.value_or(0);
+    metrics.signals_generated = 0;
+    metrics.win_rate = 0.0;
+    metrics.sharpe_ratio = 0.0;
+
+    return metrics;
+}
+
+// ReportBuilder implementation
+auto ReportBuilder::generate() const -> std::string {
+    std::ostringstream oss;
+
+    oss << "=== Strategy Performance Report ===\n\n";
+
+    // Stub implementation - would gather actual performance data
+    oss << "Strategies: ";
+    if (include_all_) {
+        oss << "All\n";
+    } else {
+        for (auto const& name : strategy_filter_) {
+            oss << name << " ";
+        }
+        oss << "\n";
+    }
+
+    if (!metrics_.empty()) {
+        oss << "Metrics: ";
+        for (auto const& metric : metrics_) {
+            oss << metric << " ";
+        }
+        oss << "\n";
+    }
+
+    if (sort_field_) {
+        oss << "Sort by: " << *sort_field_;
+        if (descending_) {
+            oss << " (DESC)";
+        }
+        oss << "\n";
+    }
+
+    oss << "\n[Report data would be populated from strategy performance history]\n";
+
+    return oss.str();
 }
 
 // StrategyExecutor implementation
