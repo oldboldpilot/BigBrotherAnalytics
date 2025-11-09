@@ -14,20 +14,21 @@
 // Global module fragment
 module;
 
-#include <vector>
-#include <memory>
-#include <string>
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <memory>
+#include <numeric> // Added for std::accumulate
+#include <string>
+#include <vector>
 
-// Module declaration  
+// Module declaration
 export module bigbrother.backtest_engine;
 
 // Import dependencies
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
-import bigbrother.backtest;
+// import bigbrother.backtest;  // Removed - this module is bigbrother.backtest_engine
 import bigbrother.strategy;
 import bigbrother.risk_management;
 
@@ -35,8 +36,20 @@ export namespace bigbrother::backtest {
 
 using namespace bigbrother::types;
 using namespace bigbrother::utils;
-using namespace bigbrother::strategy;
+using bigbrother::strategy::IStrategy;       // Explicit
+using bigbrother::strategy::StrategyContext; // Explicit
+using bigbrother::strategy::TradingSignal;   // Explicit to avoid ambiguity
 using namespace bigbrother::risk;
+
+// BacktestConfig (moved from removed bigbrother.backtest)
+struct BacktestConfig {
+    Timestamp start_date{0};
+    Timestamp end_date{0};
+    double initial_capital{30'000.0};
+    double commission_per_trade{0.65};
+    double slippage_bps{2.0};
+    bool allow_short_selling{false};
+};
 
 // ============================================================================
 // Backtest Results
@@ -62,26 +75,31 @@ struct BacktestResults {
     std::vector<double> daily_returns;
     std::vector<double> equity_curve;
 
-    [[nodiscard]] auto calculateSharpeRatio(double risk_free_rate = 0.041) const noexcept -> double {
-        if (daily_returns.empty()) return 0.0;
+    [[nodiscard]] auto calculateSharpeRatio(double risk_free_rate = 0.041) const noexcept
+        -> double {
+        if (daily_returns.empty())
+            return 0.0;
 
-        auto const mean_return = std::accumulate(daily_returns.begin(), daily_returns.end(), 0.0) 
-                                / static_cast<double>(daily_returns.size());
-        
+        auto const mean_return = std::accumulate(daily_returns.begin(), daily_returns.end(), 0.0) /
+                                 static_cast<double>(daily_returns.size());
+
         auto const variance = std::accumulate(daily_returns.begin(), daily_returns.end(), 0.0,
-            [mean = mean_return](double acc, double ret) {
-                return acc + (ret - mean) * (ret - mean);
-            }) / static_cast<double>(daily_returns.size());
-        
+                                              [mean = mean_return](double acc, double ret) {
+                                                  return acc + (ret - mean) * (ret - mean);
+                                              }) /
+                              static_cast<double>(daily_returns.size());
+
         auto const std_dev = std::sqrt(variance);
-        
-        if (std_dev == 0.0) return 0.0;
-        
+
+        if (std_dev == 0.0)
+            return 0.0;
+
         return (mean_return - risk_free_rate / 252.0) / std_dev * std::sqrt(252.0);
     }
 
     [[nodiscard]] auto calculateMaxDrawdown() const noexcept -> double {
-        if (equity_curve.empty()) return 0.0;
+        if (equity_curve.empty())
+            return 0.0;
 
         double max_dd = 0.0;
         double peak = equity_curve[0];
@@ -106,7 +124,7 @@ struct BacktestResults {
 // ============================================================================
 
 class BacktestEngine {
-public:
+  public:
     explicit BacktestEngine(BacktestConfig config = {})
         : config_{config}, capital_{config.initial_capital} {}
 
@@ -136,12 +154,11 @@ public:
 
     [[nodiscard]] auto run() -> Result<BacktestResults> {
         if (!strategy_) {
-            return makeError<BacktestResults>(ErrorCode::InvalidParameter, 
-                                             "No strategy specified");
+            return makeError<BacktestResults>(ErrorCode::InvalidParameter, "No strategy specified");
         }
 
-        Logger::getInstance().info("Starting backtest: {} to {}", 
-                                  config_.start_date, config_.end_date);
+        Logger::getInstance().info("Starting backtest: {} to {}", config_.start_date,
+                                   config_.end_date);
 
         BacktestResults results;
         results.initial_capital = config_.initial_capital;
@@ -149,21 +166,21 @@ public:
 
         // Simulate trading days
         auto const days = (config_.end_date - config_.start_date) / (24 * 3600 * 1000000);
-        
+
         for (int day = 0; day < days; ++day) {
             // Generate signals
             StrategyContext context;
             auto signals_result = strategy_->generateSignals(context);
-            
-            if (signals_result) {
-                for (auto const& signal : signals_result.value()) {
+
+            if (!signals_result.empty()) {
+                for (auto const& signal : signals_result) {
                     processTrade(signal, results);
                 }
             }
 
             // Update equity curve
             results.equity_curve.push_back(capital_);
-            
+
             // Calculate daily return
             if (results.equity_curve.size() > 1) {
                 auto const prev = results.equity_curve[results.equity_curve.size() - 2];
@@ -178,24 +195,23 @@ public:
         results.annualized_return = results.total_return * (365.0 / days);
         results.sharpe_ratio = results.calculateSharpeRatio();
         results.max_drawdown = results.calculateMaxDrawdown();
-        results.win_rate = results.total_trades > 0 
-            ? static_cast<double>(results.winning_trades) / static_cast<double>(results.total_trades)
-            : 0.0;
-        results.profit_factor = results.avg_loss != 0.0
-            ? std::abs(results.avg_win / results.avg_loss)
-            : 0.0;
+        results.win_rate = results.total_trades > 0 ? static_cast<double>(results.winning_trades) /
+                                                          static_cast<double>(results.total_trades)
+                                                    : 0.0;
+        results.profit_factor =
+            results.avg_loss != 0.0 ? std::abs(results.avg_win / results.avg_loss) : 0.0;
 
         Logger::getInstance().info("Backtest complete: Final capital = ${:.2f}", capital_);
-        
+
         return results;
     }
 
-private:
+  private:
     auto processTrade(TradingSignal const& signal, BacktestResults& results) -> void {
         // Simplified trade processing
-        auto const position_size = capital_ * 0.02;  // 2% per trade
+        auto const position_size = capital_ * 0.02; // 2% per trade
         auto const commission = config_.commission_per_trade;
-        
+
         // Simulate random outcome for demo
         auto const random_return = (static_cast<double>(rand()) / RAND_MAX - 0.5) * 0.10;
         auto const pnl = position_size * random_return - commission;
@@ -229,10 +245,8 @@ private:
 // ============================================================================
 
 class BacktestRunner {
-public:
-    [[nodiscard]] static auto create() -> BacktestRunner {
-        return BacktestRunner{};
-    }
+  public:
+    [[nodiscard]] static auto create() -> BacktestRunner { return BacktestRunner{}; }
 
     [[nodiscard]] auto withInitialCapital(double capital) -> BacktestRunner& {
         config_.initial_capital = capital;
@@ -257,7 +271,7 @@ public:
 
     [[nodiscard]] auto execute() -> Result<BacktestResults> {
         BacktestEngine engine{config_};
-        
+
         if (strategy_) {
             engine.withStrategy(strategy_);
         }
@@ -265,11 +279,11 @@ public:
         return engine.run();
     }
 
-private:
+  private:
     BacktestRunner() = default;
 
     BacktestConfig config_;
     std::shared_ptr<IStrategy> strategy_;
 };
 
-} // export namespace bigbrother::backtest
+} // namespace bigbrother::backtest

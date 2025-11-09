@@ -14,12 +14,12 @@
 // Global module fragment
 module;
 
-#include <vector>
+#include <algorithm>
+#include <chrono>
 #include <map>
 #include <memory>
-#include <chrono>
 #include <string>
-#include <algorithm>
+#include <vector>
 
 // Module declaration
 export module bigbrother.backtest;
@@ -27,7 +27,7 @@ export module bigbrother.backtest;
 // Import dependencies
 import bigbrother.utils.types;
 import bigbrother.strategy;
-import bigbrother.risk;
+import bigbrother.risk_management; // Changed from bigbrother.risk
 
 export namespace bigbrother::backtest {
 
@@ -85,9 +85,7 @@ struct BacktestMetrics {
     double expectancy{0.0};
 
     [[nodiscard]] auto passesThresholds() const noexcept -> bool {
-        return total_return > 0.0 &&
-               win_rate >= 0.60 &&
-               sharpe_ratio >= 2.0 &&
+        return total_return > 0.0 && win_rate >= 0.60 && sharpe_ratio >= 2.0 &&
                max_drawdown_percent <= 0.15;
     }
 };
@@ -102,7 +100,7 @@ struct BacktestMetrics {
  * Main backtesting engine with pImpl pattern.
  */
 class BacktestEngine {
-public:
+  public:
     explicit BacktestEngine(BacktestConfig config);
     ~BacktestEngine();
 
@@ -111,10 +109,8 @@ public:
     BacktestEngine(BacktestEngine&&) noexcept;
     auto operator=(BacktestEngine&&) noexcept -> BacktestEngine&;
 
-    [[nodiscard]] auto loadHistoricalData(
-        std::vector<std::string> const& symbols,
-        std::string const& data_path
-    ) -> Result<void>;
+    [[nodiscard]] auto loadHistoricalData(std::vector<std::string> const& symbols,
+                                          std::string const& data_path) -> Result<void>;
 
     auto addStrategy(std::unique_ptr<strategy::IStrategy> strategy) -> void;
 
@@ -124,7 +120,7 @@ public:
 
     [[nodiscard]] auto exportMetrics(std::string const& filepath) const -> Result<void>;
 
-private:
+  private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;
 };
@@ -152,7 +148,7 @@ private:
  *   }
  */
 class BacktestRunner {
-public:
+  public:
     BacktestRunner();
 
     [[nodiscard]] auto from(std::string const& date) -> BacktestRunner&;
@@ -163,14 +159,12 @@ public:
     [[nodiscard]] auto forSymbols(std::vector<std::string> symbols) -> BacktestRunner&;
     [[nodiscard]] auto loadData(std::string const& path) -> BacktestRunner&;
 
-    template<typename StrategyT, typename... Args>
+    template <typename StrategyT, typename... Args>
     [[nodiscard]] auto addStrategy(Args&&... args) -> BacktestRunner& {
         if (!engine_) {
             engine_ = std::make_unique<BacktestEngine>(config_);
         }
-        engine_->addStrategy(
-            std::make_unique<StrategyT>(std::forward<Args>(args)...)
-        );
+        engine_->addStrategy(std::make_unique<StrategyT>(std::forward<Args>(args)...));
         return *this;
     }
 
@@ -178,11 +172,11 @@ public:
     [[nodiscard]] auto exportTrades(std::string const& path) -> BacktestRunner&;
     [[nodiscard]] auto exportMetrics(std::string const& path) -> BacktestRunner&;
 
-private:
+  private:
     BacktestConfig config_;
     std::vector<std::string> symbols_;
     std::string data_path_;
     std::unique_ptr<BacktestEngine> engine_;
 };
 
-} // export namespace bigbrother::backtest
+} // namespace bigbrother::backtest

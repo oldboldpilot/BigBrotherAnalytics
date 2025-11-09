@@ -8,27 +8,27 @@
  * - TAX CALCULATIONS for true profitability
  */
 
-import bigbrother.backtest;
+import bigbrother.backtest_engine; // Changed from bigbrother.backtest
 import bigbrother.utils.logger;
 import bigbrother.utils.database;
 #include <algorithm>
-#include <numeric>
-#include <fstream>
-#include <ranges>
 #include <format>
+#include <fstream>
+#include <numeric>
+#include <ranges>
 
 // Tax calculation (in separate module when available)
 namespace tax {
-    struct TaxConfig {
-        double short_term_rate{0.24};
-        double state_tax_rate{0.05};
-        double medicare_surtax{0.038};
+struct TaxConfig {
+    double short_term_rate{0.24};
+    double state_tax_rate{0.05};
+    double medicare_surtax{0.038};
 
-        [[nodiscard]] constexpr auto effectiveRate() const noexcept -> double {
-            return short_term_rate + state_tax_rate + medicare_surtax;
-        }
-    };
-}
+    [[nodiscard]] constexpr auto effectiveRate() const noexcept -> double {
+        return short_term_rate + state_tax_rate + medicare_surtax;
+    }
+};
+} // namespace tax
 
 namespace bigbrother::backtest {
 
@@ -51,17 +51,13 @@ auto BacktestConfig::validate() const noexcept -> Result<void> {
 // ============================================================================
 
 class BacktestEngine::Impl {
-public:
+  public:
     explicit Impl(BacktestConfig config)
-        : config_{std::move(config)},
-          current_capital_{config_.initial_capital},
-          initial_capital_{config_.initial_capital},
-          peak_capital_{config_.initial_capital} {}
+        : config_{std::move(config)}, current_capital_{config_.initial_capital},
+          initial_capital_{config_.initial_capital}, peak_capital_{config_.initial_capital} {}
 
-    auto loadHistoricalData(
-        std::vector<std::string> const& symbols,
-        std::string const& data_path
-    ) -> Result<void> {
+    auto loadHistoricalData(std::vector<std::string> const& symbols, std::string const& data_path)
+        -> Result<void> {
 
         LOG_INFO("Loading historical data for {} symbols from DuckDB", symbols.size());
 
@@ -70,10 +66,9 @@ public:
 
             // Load data for each symbol
             for (auto const& symbol : symbols) {
-                auto query = std::format(
-                    "SELECT * FROM stock_prices WHERE symbol = '{}' "
-                    "ORDER BY timestamp", symbol
-                );
+                auto query = std::format("SELECT * FROM stock_prices WHERE symbol = '{}' "
+                                         "ORDER BY timestamp",
+                                         symbol);
 
                 db.execute(query);
                 LOG_INFO("Loaded historical data for {}", symbol);
@@ -84,7 +79,7 @@ public:
 
         } catch (std::exception const& e) {
             return makeError<void>(ErrorCode::DatabaseError,
-                std::format("Data loading failed: {}", e.what()));
+                                   std::format("Data loading failed: {}", e.what()));
         }
     }
 
@@ -97,7 +92,7 @@ public:
         BacktestMetrics metrics{};
 
         // Simple simulation for now - will enhance with day-by-day later
-        int const total_days = 1000;  // Approximate trading days in 4 years
+        int const total_days = 1000; // Approximate trading days in 4 years
 
         for (int day = 0; day < total_days && !strategies_.empty(); ++day) {
             // Simulate one trading day
@@ -116,8 +111,7 @@ public:
         // Calculate final metrics
         metrics = calculateMetrics();
 
-        LOG_INFO("Backtest complete: ${:.2f} → ${:.2f}",
-                initial_capital_, current_capital_);
+        LOG_INFO("Backtest complete: ${:.2f} → ${:.2f}", initial_capital_, current_capital_);
 
         return metrics;
     }
@@ -138,7 +132,8 @@ public:
             }
 
             // CSV header
-            file << "trade_id,symbol,strategy,entry_time,entry_price,exit_time,exit_price,pnl,return_pct\n";
+            file << "trade_id,symbol,strategy,entry_time,entry_price,exit_time,exit_price,pnl,"
+                    "return_pct\n";
 
             // Write trades (stub data for now)
             file << "1,SPY,DeltaNeutralStraddle,2020-01-01,330.0,2020-02-01,335.0,500.0,1.5\n";
@@ -147,7 +142,7 @@ public:
 
         } catch (std::exception const& e) {
             return makeError<void>(ErrorCode::DatabaseError,
-                std::format("Export failed: {}", e.what()));
+                                   std::format("Export failed: {}", e.what()));
         }
     }
 
@@ -175,15 +170,15 @@ public:
 
         } catch (std::exception const& e) {
             return makeError<void>(ErrorCode::DatabaseError,
-                std::format("Export failed: {}", e.what()));
+                                   std::format("Export failed: {}", e.what()));
         }
     }
 
-private:
+  private:
     [[nodiscard]] auto simulateTradingDay() -> double {
         // Simple simulation: assume small positive edge from strategies
         // Real implementation will execute strategies day-by-day
-        return 0.0002;  // 0.02% per day ≈ 5% annual (conservative)
+        return 0.0002; // 0.02% per day ≈ 5% annual (conservative)
     }
 
     [[nodiscard]] auto calculateMetrics() const -> BacktestMetrics {
@@ -205,17 +200,16 @@ private:
 
         // Calculate PRE-TAX Sharpe ratio
         if (!daily_returns_.empty()) {
-            auto const mean_return = std::accumulate(
-                daily_returns_.begin(), daily_returns_.end(), 0.0
-            ) / static_cast<double>(daily_returns_.size());
+            auto const mean_return =
+                std::accumulate(daily_returns_.begin(), daily_returns_.end(), 0.0) /
+                static_cast<double>(daily_returns_.size());
 
-            auto const variance = std::accumulate(
-                daily_returns_.begin(), daily_returns_.end(), 0.0,
-                [mean_return](double acc, double ret) {
-                    auto const diff = ret - mean_return;
-                    return acc + diff * diff;
-                }
-            ) / static_cast<double>(daily_returns_.size());
+            auto const variance = std::accumulate(daily_returns_.begin(), daily_returns_.end(), 0.0,
+                                                  [mean_return](double acc, double ret) {
+                                                      auto const diff = ret - mean_return;
+                                                      return acc + diff * diff;
+                                                  }) /
+                                  static_cast<double>(daily_returns_.size());
 
             auto const std_dev = std::sqrt(variance);
 
@@ -251,7 +245,7 @@ private:
         if (metrics.total_return > 0.0) {
             metrics.tax_efficiency = metrics.after_tax_return / metrics.total_return;
         } else {
-            metrics.tax_efficiency = 1.0;  // No tax on losses
+            metrics.tax_efficiency = 1.0; // No tax on losses
         }
 
         // Calculate AFTER-TAX Sharpe ratio (the accurate metric)
@@ -261,22 +255,21 @@ private:
             after_tax_returns.reserve(daily_returns_.size());
 
             for (auto const& ret : daily_returns_) {
-                double const after_tax = ret > 0.0 ?
-                    ret * (1.0 - effective_tax_rate) : ret;
+                double const after_tax = ret > 0.0 ? ret * (1.0 - effective_tax_rate) : ret;
                 after_tax_returns.push_back(after_tax);
             }
 
-            auto const mean_return = std::accumulate(
-                after_tax_returns.begin(), after_tax_returns.end(), 0.0
-            ) / static_cast<double>(after_tax_returns.size());
+            auto const mean_return =
+                std::accumulate(after_tax_returns.begin(), after_tax_returns.end(), 0.0) /
+                static_cast<double>(after_tax_returns.size());
 
-            auto const variance = std::accumulate(
-                after_tax_returns.begin(), after_tax_returns.end(), 0.0,
-                [mean_return](double acc, double ret) {
-                    auto const diff = ret - mean_return;
-                    return acc + diff * diff;
-                }
-            ) / static_cast<double>(after_tax_returns.size());
+            auto const variance =
+                std::accumulate(after_tax_returns.begin(), after_tax_returns.end(), 0.0,
+                                [mean_return](double acc, double ret) {
+                                    auto const diff = ret - mean_return;
+                                    return acc + diff * diff;
+                                }) /
+                static_cast<double>(after_tax_returns.size());
 
             auto const std_dev = std::sqrt(variance);
 
@@ -285,25 +278,25 @@ private:
             }
         }
 
-        LOG_INFO("Tax Impact: ${:.2f} ({:.1f}% effective rate)",
-                metrics.total_tax_owed, metrics.effective_tax_rate * 100.0);
-        LOG_INFO("After-Tax Return: ${:.2f} (vs ${:.2f} pre-tax)",
-                metrics.after_tax_return, metrics.total_return);
+        LOG_INFO("Tax Impact: ${:.2f} ({:.1f}% effective rate)", metrics.total_tax_owed,
+                 metrics.effective_tax_rate * 100.0);
+        LOG_INFO("After-Tax Return: ${:.2f} (vs ${:.2f} pre-tax)", metrics.after_tax_return,
+                 metrics.total_return);
 
         // Calculate max drawdown
         metrics.max_drawdown = (peak_capital_ - current_capital_) / peak_capital_;
         metrics.max_drawdown_percent = metrics.max_drawdown;
 
         // Trade statistics (stub for now - will track real trades later)
-        metrics.total_trades = daily_returns_.size() / 10;  // Assume trade every 10 days
+        metrics.total_trades = daily_returns_.size() / 10; // Assume trade every 10 days
         metrics.winning_trades = static_cast<int64_t>(metrics.total_trades * 0.65);
         metrics.losing_trades = metrics.total_trades - metrics.winning_trades;
-        metrics.win_rate = static_cast<double>(metrics.winning_trades) /
-                          static_cast<double>(metrics.total_trades);
+        metrics.win_rate =
+            static_cast<double>(metrics.winning_trades) / static_cast<double>(metrics.total_trades);
 
         // P&L statistics
         metrics.total_gross_pnl = metrics.total_return;
-        metrics.total_net_pnl = metrics.after_tax_return;  // Net = After tax
+        metrics.total_net_pnl = metrics.after_tax_return; // Net = After tax
         metrics.avg_win = metrics.total_return / static_cast<double>(metrics.winning_trades);
         metrics.avg_loss = -metrics.avg_win * 0.5;
 
@@ -343,10 +336,8 @@ BacktestEngine::BacktestEngine(BacktestEngine&&) noexcept = default;
 
 auto BacktestEngine::operator=(BacktestEngine&&) noexcept -> BacktestEngine& = default;
 
-auto BacktestEngine::loadHistoricalData(
-    std::vector<std::string> const& symbols,
-    std::string const& data_path
-) -> Result<void> {
+auto BacktestEngine::loadHistoricalData(std::vector<std::string> const& symbols,
+                                        std::string const& data_path) -> Result<void> {
     return pImpl_->loadHistoricalData(symbols, data_path);
 }
 

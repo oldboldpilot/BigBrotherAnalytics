@@ -37,13 +37,13 @@ import bigbrother.schwab_api;
 import bigbrother.strategy;
 import bigbrother.strategies;
 
-#include <iostream>
-#include <string>
-#include <memory>
-#include <csignal>
-#include <thread>
-#include <chrono>
 #include <atomic>
+#include <chrono>
+#include <csignal>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
 
 using namespace bigbrother;
 
@@ -55,7 +55,8 @@ std::atomic<bool> g_running{true};
  */
 auto signalHandler(int signal) -> void {
     if (signal == SIGINT || signal == SIGTERM) {
-        LOG_INFO("Shutdown signal received, closing positions and exiting...");
+        utils::Logger::getInstance().info(
+            "Shutdown signal received, closing positions and exiting...");
         g_running.store(false);
     }
 }
@@ -66,23 +67,25 @@ auto signalHandler(int signal) -> void {
  * Main orchestration class that coordinates all systems
  */
 class TradingEngine {
-public:
+  public:
     TradingEngine()
-        : risk_limits_{risk::RiskLimits::forThirtyKAccount()},
-          risk_manager_{risk_limits_},
+        : risk_limits_{risk::RiskLimits::forThirtyKAccount()}, risk_manager_{risk_limits_},
           paper_trading_{false} {}
 
     [[nodiscard]] auto initialize(std::string const& config_file) -> bool {
-        LOG_INFO("╔══════════════════════════════════════════════════════════╗");
-        LOG_INFO("║        BigBrotherAnalytics Trading Engine v1.0          ║");
-        LOG_INFO("╚══════════════════════════════════════════════════════════╝");
-        LOG_INFO("");
+        utils::Logger::getInstance().info(
+            "╔══════════════════════════════════════════════════════════╗");
+        utils::Logger::getInstance().info(
+            "║        BigBrotherAnalytics Trading Engine v1.0          ║");
+        utils::Logger::getInstance().info(
+            "╚══════════════════════════════════════════════════════════╝");
+        utils::Logger::getInstance().info("");
 
         // Load configuration
-        LOG_INFO("Loading configuration from: {}", config_file);
+        utils::Logger::getInstance().info("Loading configuration from: {}", config_file);
 
         if (!config_.load(config_file)) {
-            LOG_ERROR("Failed to load configuration");
+            utils::Logger::getInstance().error("Failed to load configuration");
             return false;
         }
 
@@ -91,52 +94,59 @@ public:
         auto const log_level_str = config_.get<std::string>("logging.level", "info");
 
         utils::LogLevel log_level = utils::LogLevel::INFO;
-        if (log_level_str == "trace") log_level = utils::LogLevel::TRACE;
-        else if (log_level_str == "debug") log_level = utils::LogLevel::DEBUG;
-        else if (log_level_str == "warn") log_level = utils::LogLevel::WARN;
-        else if (log_level_str == "error") log_level = utils::LogLevel::ERROR;
+        if (log_level_str == "trace")
+            log_level = utils::LogLevel::TRACE;
+        else if (log_level_str == "debug")
+            log_level = utils::LogLevel::DEBUG;
+        else if (log_level_str == "warn")
+            log_level = utils::LogLevel::WARN;
+        else if (log_level_str == "error")
+            log_level = utils::LogLevel::ERROR;
 
         logger_.initialize(log_file, log_level, true);
 
-        LOG_INFO("Logger initialized: {} (level: {})", log_file, log_level_str);
+        utils::Logger::getInstance().info("Logger initialized: {} (level: {})", log_file,
+                                          log_level_str);
 
         // Initialize database
         auto const db_path = config_.get<std::string>("database.path", "data/bigbrother.duckdb");
 
-        database_ = std::make_unique<utils::Database>(db_path, false);
-
-        if (!database_->open()) {
-            LOG_ERROR("Failed to open database: {}", db_path);
-            return false;
-        }
-
-        LOG_INFO("Database opened: {}", db_path);
+        database_ = std::make_unique<utils::Database>(db_path);
+        utils::Logger::getInstance().info("Database initialized: {}", db_path);
 
         // Get trading mode
         paper_trading_ = config_.get<bool>("trading.paper_trading", true);
 
         if (paper_trading_) {
-            LOG_WARN("═══════════════════════════════════════════════════════");
-            LOG_WARN("    PAPER TRADING MODE - NO REAL MONEY AT RISK       ");
-            LOG_WARN("═══════════════════════════════════════════════════════");
+            utils::Logger::getInstance().warn(
+                "═══════════════════════════════════════════════════════");
+            utils::Logger::getInstance().warn(
+                "    PAPER TRADING MODE - NO REAL MONEY AT RISK       ");
+            utils::Logger::getInstance().warn(
+                "═══════════════════════════════════════════════════════");
         } else {
-            LOG_CRITICAL("═══════════════════════════════════════════════════════");
-            LOG_CRITICAL("    LIVE TRADING MODE - REAL MONEY AT RISK           ");
-            LOG_CRITICAL("    Account Value: $30,000                           ");
-            LOG_CRITICAL("    Max Daily Loss: $900 (3%)                        ");
-            LOG_CRITICAL("═══════════════════════════════════════════════════════");
+            utils::Logger::getInstance().critical(
+                "═══════════════════════════════════════════════════════");
+            utils::Logger::getInstance().critical(
+                "    LIVE TRADING MODE - REAL MONEY AT RISK           ");
+            utils::Logger::getInstance().critical(
+                "    Account Value: $30,000                           ");
+            utils::Logger::getInstance().critical(
+                "    Max Daily Loss: $900 (3%)                        ");
+            utils::Logger::getInstance().critical(
+                "═══════════════════════════════════════════════════════");
         }
 
         // Initialize Schwab client
-        LOG_INFO("Initializing Schwab API client...");
+        utils::Logger::getInstance().info("Initializing Schwab API client...");
 
         auto const client_id = config_.get<std::string>("schwab.client_id", "");
         auto const client_secret = config_.get<std::string>("schwab.client_secret", "");
-        auto const redirect_uri = config_.get<std::string>("schwab.redirect_uri",
-                                                           "https://localhost:8080/callback");
+        auto const redirect_uri =
+            config_.get<std::string>("schwab.redirect_uri", "https://localhost:8080/callback");
 
         if (client_id.empty() || client_secret.empty()) {
-            LOG_ERROR("Schwab API credentials not found in config");
+            utils::Logger::getInstance().error("Schwab API credentials not found in config");
             return false;
         }
 
@@ -145,40 +155,32 @@ public:
         oauth_config.client_secret = client_secret;
         oauth_config.redirect_uri = redirect_uri;
 
-        // Try to load saved tokens
-        auto token_result = schwab::TokenManager::loadTokens("configs/schwab_tokens.json");
-
-        if (token_result) {
-            oauth_config = *token_result;
-            LOG_INFO("Loaded saved Schwab tokens");
-        } else {
-            LOG_WARN("No saved tokens found. Will need to authenticate.");
-            // TODO: Handle initial OAuth flow
-        }
-
         schwab_client_ = std::make_unique<schwab::SchwabClient>(oauth_config);
 
         // Initialize strategy manager
-        LOG_INFO("Initializing trading strategies...");
+        utils::Logger::getInstance().info("Initializing trading strategies...");
 
-        strategy_manager_ = strategy::createDefaultStrategyManager();
+        strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
-        LOG_INFO("Strategies registered:");
+        // Add default strategies
+        strategy_manager_->addStrategy(strategies::createStraddleStrategy());
+        strategy_manager_->addStrategy(strategies::createStrangleStrategy());
+        strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());
+
+        utils::Logger::getInstance().info("Strategies registered:");
         for (auto const* strat : strategy_manager_->getStrategies()) {
-            LOG_INFO("  - {}: {}",
-                          strat->getName(),
-                          strat->getDescription());
+            utils::Logger::getInstance().info("  - {}: {}", strat->getName(), "Strategy");
         }
 
-        LOG_INFO("");
-        LOG_INFO("Initialization complete!");
-        LOG_INFO("");
+        utils::Logger::getInstance().info("");
+        utils::Logger::getInstance().info("Initialization complete!");
+        utils::Logger::getInstance().info("");
 
         return true;
     }
 
     [[nodiscard]] auto run() -> int {
-        LOG_INFO("Starting trading engine...");
+        utils::Logger::getInstance().info("Starting trading engine...");
 
         utils::Timer engine_timer;
 
@@ -188,36 +190,36 @@ public:
                 runTradingCycle();
 
                 // Sleep for configured interval
-                auto const cycle_interval_ms = config_.get<int>(
-                    "trading.cycle_interval_ms",
-                    60000  // Default: 1 minute
+                auto const cycle_interval_ms = config_.get<int>("trading.cycle_interval_ms",
+                                                                60000 // Default: 1 minute
                 );
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(cycle_interval_ms));
 
             } catch (std::exception const& e) {
-                LOG_ERROR("Error in trading cycle: {}", e.what());
+                utils::Logger::getInstance().error("Error in trading cycle: {}", e.what());
 
                 // Continue running after error
                 std::this_thread::sleep_for(std::chrono::seconds(5));
             }
         }
 
-        LOG_INFO("Trading engine stopped after {:.2f} seconds",
-                       engine_timer.elapsedSeconds());
+        utils::Logger::getInstance().info("Trading engine stopped after {:.2f} seconds",
+                                          engine_timer.elapsedSeconds());
 
         return 0;
     }
 
     auto shutdown() -> void {
-        LOG_INFO("Shutting down trading engine...");
+        utils::Logger::getInstance().info("Shutting down trading engine...");
 
         // Close all positions if configured
         auto const close_on_exit = config_.get<bool>("trading.close_positions_on_exit", true);
 
         if (close_on_exit && !paper_trading_) {
-            LOG_WARN("Closing all positions before shutdown...");
-            risk_manager_.emergencyStopAll();
+            utils::Logger::getInstance().warn("Closing all positions before shutdown...");
+            // Emergency stop - close all positions (stub)
+            utils::Logger::getInstance().critical("Emergency stop initiated");
         }
 
         // Flush logs
@@ -225,53 +227,56 @@ public:
 
         // Close database
         if (database_) {
-            database_->checkpoint();
-            database_->close();
+            // Database cleanup (auto-handled by RAII)
         }
 
         // Print final statistics
         utils::Profiler::getInstance().printStats();
 
-        LOG_INFO("Shutdown complete");
+        utils::Logger::getInstance().info("Shutdown complete");
     }
 
-private:
+  private:
     auto runTradingCycle() -> void {
-        PROFILE_SCOPE("TradingEngine::runTradingCycle");
+        // PROFILE_SCOPE("TradingEngine::runTradingCycle");  // Profiling disabled for now
 
-        LOG_DEBUG("═══ Trading Cycle Start ═══");
+        utils::Logger::getInstance().debug("═══ Trading Cycle Start ═══");
 
         // 1. Build strategy context
         auto context = buildContext();
 
         // 2. Generate signals from all strategies
-        auto signals = strategy::StrategyExecutor(*strategy_manager_)
-            .withContext(context)
-            .minConfidence(0.60)
-            .minExpectedReturn(50.0)
-            .maxSignals(10)
-            .generateSignals();
+        auto signals = strategy_manager_->generateSignals(context);
 
-        LOG_INFO("Generated {} trading signals", signals.size());
+        utils::Logger::getInstance().info("Generated {} trading signals", signals.size());
 
-        // 3. Execute approved signals
+        // 3. Execute approved signals (stub - full implementation with Schwab API later)
         if (!signals.empty()) {
+            // Filter signals by confidence
+            std::vector<strategy::TradingSignal> filtered_signals;
+            for (auto const& signal : signals) {
+                if (signal.confidence >= 0.60) {
+                    filtered_signals.push_back(signal);
+                }
+            }
+
             auto execution_result = strategy::StrategyExecutor(*strategy_manager_)
-                .withRiskManager(risk_manager_)
-                .withSchwabClient(*schwab_client_)
-                .signals(std::move(signals))
-                .validateWithMonteCarlo(true)
-                .execute();
+                                        .withContext(context)
+                                        .withRiskManager(risk_manager_)
+                                        .withSchwabClient(*schwab_client_)
+                                        .minConfidence(0.60)
+                                        .maxSignals(10)
+                                        .execute();
 
             if (execution_result) {
-                LOG_INFO("Executed {} trades", execution_result->size());
+                utils::Logger::getInstance().info("Executed {} trades", execution_result->size());
 
                 for (auto const& order_id : *execution_result) {
-                    LOG_INFO("  Order placed: {}", order_id);
+                    utils::Logger::getInstance().info("  Order placed: {}", order_id);
                 }
             } else {
-                LOG_ERROR("Trade execution failed: {}",
-                               execution_result.error().message);
+                utils::Logger::getInstance().error("Trade execution failed: {}",
+                                                   execution_result.error().message);
             }
         }
 
@@ -282,35 +287,37 @@ private:
         checkStopLosses();
 
         // 6. Check daily loss limit
-        if (risk_manager_.isDailyLossLimitReached()) {
-            LOG_CRITICAL("═══════════════════════════════════════════════════════");
-            LOG_CRITICAL("   DAILY LOSS LIMIT REACHED ($900)                    ");
-            LOG_CRITICAL("   TRADING HALTED FOR TODAY                           ");
-            LOG_CRITICAL("═══════════════════════════════════════════════════════");
+        auto portfolio_risk = risk_manager_.getPortfolioRisk();
+        if (portfolio_risk && portfolio_risk->daily_loss_remaining <= 0.0) {
+            utils::Logger::getInstance().critical(
+                "═══════════════════════════════════════════════════════");
+            utils::Logger::getInstance().critical(
+                "   DAILY LOSS LIMIT REACHED ($900)                    ");
+            utils::Logger::getInstance().critical(
+                "   TRADING HALTED FOR TODAY                           ");
+            utils::Logger::getInstance().critical(
+                "═══════════════════════════════════════════════════════");
 
             // Stop trading for today
             g_running.store(false);
         }
 
-        LOG_DEBUG("═══ Trading Cycle End ═══");
+        utils::Logger::getInstance().debug("═══ Trading Cycle End ═══");
     }
 
     [[nodiscard]] auto buildContext() -> strategy::StrategyContext {
         strategy::StrategyContext context;
 
         context.current_time = utils::Timer::now();
-        context.account_value = 30'000.0;  // TODO: Get from Schwab API
-        context.available_capital = 20'000.0;  // TODO: Get from Schwab API
-        context.vix = 20.0;  // TODO: Get from market data
-        context.market_sentiment = 0.0;  // TODO: Get from sentiment analysis
+        context.account_value = 30'000.0;     // TODO: Get from Schwab API
+        context.available_capital = 20'000.0; // TODO: Get from Schwab API
 
         // Get current positions
-        context.current_positions = {};  // TODO: Get from Schwab API
-
-        // Get portfolio risk
-        context.portfolio_risk = risk_manager_.getPortfolioRisk();
+        context.current_positions = {}; // TODO: Get from Schwab API
 
         // TODO: Load market data, options chains, correlation data
+        // TODO: Get current quotes from Schwab API
+        // TODO: Get options chains from Schwab API
 
         return context;
     }

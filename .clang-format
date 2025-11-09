@@ -10,7 +10,7 @@
 #   - Generated code
 
 Language: Cpp
-Standard: c++23
+Standard: c++20  # c++23 not yet supported by clang-format, using c++20
 
 # Base style
 BasedOnStyle: LLVM

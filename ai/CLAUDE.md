@@ -121,8 +121,50 @@
 - mpi-* (MPI message passing correctness)
 - modernize-* (Modern C++23 features)
 - bugprone-* (Bug detection)
+- readability-* (Code readability and naming)
 
 **Note:** cppcheck removed - clang-tidy is more comprehensive
+
+## Naming Conventions (CRITICAL FOR ALL AGENTS)
+
+**IMPORTANT:** Follow these naming conventions exactly to avoid clang-tidy warnings:
+
+| Entity | Convention | Example |
+|--------|------------|---------|
+| Namespaces | `lower_case` | `bigbrother::utils` |
+| Classes/Structs | `CamelCase` | `RiskManager`, `TradingSignal` |
+| Functions | `camelBack` | `calculatePrice()`, `getName()` |
+| Variables/Parameters | `lower_case` | `spot_price`, `volatility` |
+| Local constants | `lower_case` | `const auto sum = 0.0;` |
+| Constexpr constants | `lower_case` | `constexpr auto pi = 3.14;` |
+| Private members | `lower_case_` | `double price_;` (trailing _) |
+| Enums | `CamelCase` | `enum class SignalType` |
+| Enum values | `CamelCase` | `SignalType::Buy` |
+
+**Key Rules:**
+- **Local const variables:** Use `lower_case` (NOT UPPER_CASE) - Modern C++ convention
+- **Function names:** Start lowercase, use camelCase (`calculatePrice`, not `CalculatePrice`)
+- **Private members:** Always have trailing `_` (`price_`, not `price` or `m_price`)
+- **Compile-time constants:** Prefer `lower_case` (can use `kCamelCase` if desired)
+
+**Example:**
+```cpp
+auto calculateBlackScholes(
+    double spot_price,           // parameter: lower_case
+    double strike_price          // parameter: lower_case
+) -> double {
+    const auto time_value = 1.0;       // local const: lower_case
+    const auto drift = 0.05;           // local const: lower_case
+    auto result = spot_price * drift;  // variable: lower_case
+    return result;
+}
+
+class OptionPricer {
+private:
+    double strike_;    // private member: lower_case with trailing _
+    double spot_;      // private member: lower_case with trailing _
+};
+```
 
 **Build and Test Workflow (MANDATORY):**
 ```bash

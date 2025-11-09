@@ -141,7 +141,116 @@ if (result) {
 
 ---
 
-## 3. Fluent API Patterns
+## 3. Naming Conventions (ENFORCED BY CLANG-TIDY)
+
+**IMPORTANT:** These conventions are enforced by clang-tidy and must be followed by all AI agents and developers.
+
+### Summary Table
+
+| Entity | Convention | Example | Notes |
+|--------|------------|---------|-------|
+| **Namespaces** | `lower_case` | `bigbrother::utils` | Use nested namespaces |
+| **Classes** | `CamelCase` | `RiskManager` | Start with capital |
+| **Structs** | `CamelCase` | `TradingSignal` | Same as classes |
+| **Functions/Methods** | `camelBack` | `calculatePrice()` | Start lowercase |
+| **Local variables** | `lower_case` | `auto sum = 0.0;` | Snake case |
+| **Parameters** | `lower_case` | `auto func(double spot_price)` | Snake case |
+| **Member variables** | `lower_case` | `double price;` | Snake case |
+| **Private members** | `lower_case_` | `double price_;` | Trailing underscore |
+| **Local constants** | `lower_case` | `const auto elapsed = 100;` | **Modern C++ style** |
+| **Constexpr variables** | `lower_case` | `constexpr auto pi = 3.14;` | **Can also use kName** |
+| **Global constants** | `lower_case` or `kCamelCase` | `constexpr auto max_risk = 0.15;` | Prefer lower_case |
+| **Enums** | `CamelCase` | `enum class SignalType` | Capital case |
+| **Enum values** | `CamelCase` | `SignalType::Buy` | Capital case |
+
+### Key Principle: Local Constants Use lower_case
+
+**✅ Correct (Modern C++23):**
+```cpp
+auto calculateMean(std::vector<double> const& data) -> double {
+    const auto sum = std::accumulate(data.begin(), data.end(), 0.0);
+    const auto count = data.size();
+    const auto mean = sum / count;
+    return mean;
+}
+```
+
+**❌ Incorrect (Old C style):**
+```cpp
+auto calculateMean(std::vector<double> const& data) -> double {
+    const auto SUM = std::accumulate(data.begin(), data.end(), 0.0);  // Wrong!
+    const auto COUNT = data.size();  // Wrong!
+    const auto MEAN = SUM / COUNT;  // Wrong!
+    return MEAN;
+}
+```
+
+### Compile-Time Constants
+
+For compile-time constants (constexpr, static constexpr), use either:
+
+**Option 1: lower_case (Preferred)**
+```cpp
+constexpr auto pi = 3.14159265359;
+constexpr auto speed_of_light = 299'792'458.0;
+static constexpr auto max_iterations = 1000;
+```
+
+**Option 2: kCamelCase prefix (Also acceptable)**
+```cpp
+constexpr auto kPi = 3.14159265359;
+constexpr auto kSpeedOfLight = 299'792'458.0;
+static constexpr auto kMaxIterations = 1000;
+```
+
+### Complete Example
+
+```cpp
+export namespace bigbrother::pricing {  // namespace: lower_case
+
+// Class: CamelCase
+class OptionPricer {
+public:
+    // Function: camelBack
+    [[nodiscard]] auto calculatePrice(
+        double spot_price,        // parameter: lower_case
+        double strike_price,      // parameter: lower_case
+        double time_to_expiry     // parameter: lower_case
+    ) const -> double {
+
+        // Local constants: lower_case
+        const auto risk_free = 0.041;
+        const auto volatility = implied_vol_;
+
+        // Local variables: lower_case
+        auto d1 = calculateD1(spot_price, strike_price);
+        auto nd1 = normalCdf(d1);
+
+        return spot_price * nd1;
+    }
+
+private:
+    double implied_vol_;      // private member: lower_case with trailing _
+    double strike_;           // private member: lower_case with trailing _
+};
+
+// Struct: CamelCase
+struct Greeks {
+    double delta;    // member: lower_case
+    double gamma;    // member: lower_case
+    double theta;    // member: lower_case
+};
+
+// Enum: CamelCase, values: CamelCase
+enum class OptionType {
+    Call,
+    Put
+};
+
+} // namespace bigbrother::pricing
+```
+
+## 4. Fluent API Patterns
 
 All major components MUST provide fluent APIs for complex operations.
 

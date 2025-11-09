@@ -8,9 +8,9 @@
 // Global module fragment - for standard library includes
 module;
 
-#include <string>
 #include <memory>
 #include <source_location>
+#include <string>
 
 // Module declaration
 export module bigbrother.utils.logger;
@@ -20,14 +20,7 @@ export namespace bigbrother::utils {
 /**
  * Log Severity Levels
  */
-enum class LogLevel {
-    TRACE,
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    CRITICAL
-};
+enum class LogLevel { TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL };
 
 /**
  * Thread-Safe Logger (Singleton)
@@ -41,7 +34,7 @@ enum class LogLevel {
  * Performance: ~10-50μs per log call
  */
 class Logger {
-public:
+  public:
     [[nodiscard]] static auto getInstance() -> Logger&;
 
     // Non-copyable, non-movable (singleton)
@@ -53,11 +46,8 @@ public:
     /**
      * Initialize logger with configuration
      */
-    auto initialize(
-        std::string const& log_file_path = "logs/bigbrother.log",
-        LogLevel level = LogLevel::INFO,
-        bool console_output = true
-    ) -> void;
+    auto initialize(std::string const& log_file_path = "logs/bigbrother.log",
+                    LogLevel level = LogLevel::INFO, bool console_output = true) -> void;
 
     /**
      * Set/get log level
@@ -69,32 +59,32 @@ public:
      * Logging methods with variadic templates
      * Automatically captures source location
      */
-    template<typename... Args>
+    template <typename... Args>
     auto trace(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::TRACE, msg, std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     auto debug(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::DEBUG, msg, std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     auto info(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::INFO, msg, std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     auto warn(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::WARN, msg, std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     auto error(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::ERROR, msg, std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     auto critical(std::string const& msg, Args&&... args) -> void {
         logFormatted(LogLevel::CRITICAL, msg, std::forward<Args>(args)...);
     }
@@ -104,14 +94,14 @@ public:
      */
     auto flush() -> void;
 
-private:
+  private:
     Logger();
     ~Logger();
 
     // Internal implementation
     auto logMessage(LogLevel level, std::string const& msg) -> void;
 
-    template<typename... Args>
+    template <typename... Args>
     auto logFormatted(LogLevel level, std::string const& fmt, Args&&... args) -> void {
         if constexpr (sizeof...(Args) == 0) {
             logMessage(level, fmt);
@@ -125,4 +115,15 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
-} // export namespace bigbrother::utils
+} // namespace bigbrother::utils
+
+// Macros must be defined in global module fragment to be usable in importing modules
+module :private;
+
+// Convenience macros for logging (usable in files that import this module)
+#define LOG_TRACE(...) ::bigbrother::utils::Logger::getInstance().trace(__VA_ARGS__)
+#define LOG_DEBUG(...) ::bigbrother::utils::Logger::getInstance().debug(__VA_ARGS__)
+#define LOG_INFO(...) ::bigbrother::utils::Logger::getInstance().info(__VA_ARGS__)
+#define LOG_WARN(...) ::bigbrother::utils::Logger::getInstance().warn(__VA_ARGS__)
+#define LOG_ERROR(...) ::bigbrother::utils::Logger::getInstance().error(__VA_ARGS__)
+#define LOG_CRITICAL(...) ::bigbrother::utils::Logger::getInstance().critical(__VA_ARGS__)

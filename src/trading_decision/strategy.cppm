@@ -21,14 +21,14 @@
 // Global module fragment
 module;
 
-#include <vector>
+#include <algorithm>
 #include <memory>
-#include <string>
-#include <unordered_map>
 #include <mutex>
 #include <optional>
-#include <algorithm>
 #include <ranges>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 // Module declaration
 export module bigbrother.strategy;
@@ -37,7 +37,7 @@ export module bigbrother.strategy;
 import bigbrother.utils.types;
 import bigbrother.options.pricing;
 import bigbrother.risk_management;
-import bigbrother.schwab;
+import bigbrother.schwab_api; // Changed from bigbrother.schwab
 
 export namespace bigbrother::strategy {
 
@@ -52,12 +52,7 @@ using namespace bigbrother::schwab;
 /**
  * Signal Type Enum
  */
-enum class SignalType {
-    Buy,
-    Sell,
-    Hold,
-    ClosePosition
-};
+enum class SignalType { Buy, Sell, Hold, ClosePosition };
 
 /**
  * Trading Signal
@@ -68,10 +63,10 @@ struct TradingSignal {
     std::string strategy_name;
     std::string symbol;
     SignalType type;
-    double confidence{0.0};          // 0.0 to 1.0
-    double expected_return{0.0};     // Expected return in dollars
-    double max_risk{0.0};            // Maximum risk in dollars
-    double win_probability{0.0};     // Probability of profit
+    double confidence{0.0};      // 0.0 to 1.0
+    double expected_return{0.0}; // Expected return in dollars
+    double max_risk{0.0};        // Maximum risk in dollars
+    double win_probability{0.0}; // Probability of profit
     Timestamp timestamp{0};
     std::string rationale;
 
@@ -88,14 +83,13 @@ struct TradingSignal {
     ~TradingSignal() = default;
 
     [[nodiscard]] auto isActionable() const noexcept -> bool {
-        return type != SignalType::Hold &&
-               confidence > 0.6 &&
-               expected_return > 50.0 &&
+        return type != SignalType::Hold && confidence > 0.6 && expected_return > 50.0 &&
                win_probability > 0.60;
     }
 
     [[nodiscard]] auto riskRewardRatio() const noexcept -> double {
-        if (max_risk == 0.0) return 0.0;
+        if (max_risk == 0.0)
+            return 0.0;
         return expected_return / max_risk;
     }
 };
@@ -116,7 +110,7 @@ struct StrategyContext {
  * Base Strategy Interface
  */
 class IStrategy {
-public:
+  public:
     virtual ~IStrategy() = default;
 
     [[nodiscard]] virtual auto generateSignals(StrategyContext const& context)
@@ -136,25 +130,17 @@ public:
  * Base Strategy Implementation
  */
 class BaseStrategy : public IStrategy {
-public:
-    explicit BaseStrategy(std::string name, std::string description)
-        : name_{std::move(name)},
-          description_{std::move(description)},
-          active_{true} {}
+  public:
+    BaseStrategy(std::string name, std::string description)
+        : name_{std::move(name)}, description_{std::move(description)}, active_{true} {}
 
-    [[nodiscard]] auto getName() const noexcept -> std::string override {
-        return name_;
-    }
+    [[nodiscard]] auto getName() const noexcept -> std::string override { return name_; }
 
-    [[nodiscard]] auto isActive() const noexcept -> bool override {
-        return active_;
-    }
+    [[nodiscard]] auto isActive() const noexcept -> bool override { return active_; }
 
-    auto setActive(bool active) -> void override {
-        active_ = active;
-    }
+    auto setActive(bool active) -> void override { active_ = active; }
 
-protected:
+  protected:
     std::string name_;
     std::string description_;
     bool active_;
@@ -170,7 +156,7 @@ protected:
  * Orchestrates multiple trading strategies with thread safety.
  */
 class StrategyManager {
-public:
+  public:
     StrategyManager() = default;
     ~StrategyManager() = default;
 
@@ -195,7 +181,7 @@ public:
      */
     [[nodiscard]] auto getStrategies() const -> std::vector<IStrategy const*>;
 
-private:
+  private:
     std::vector<std::unique_ptr<IStrategy>> strategies_;
     mutable std::mutex mutex_;
 };
@@ -226,9 +212,8 @@ private:
  *       .execute();
  */
 class StrategyExecutor {
-public:
-    explicit StrategyExecutor(StrategyManager& manager)
-        : manager_{manager} {}
+  public:
+    StrategyExecutor(StrategyManager& manager) : manager_{manager} {}
 
     [[nodiscard]] auto withContext(StrategyContext context) -> StrategyExecutor& {
         context_ = std::move(context);
@@ -260,7 +245,7 @@ public:
      */
     [[nodiscard]] auto execute() -> Result<std::vector<std::string>>;
 
-private:
+  private:
     StrategyManager& manager_;
     std::optional<StrategyContext> context_;
     risk::RiskManager* risk_manager_{nullptr};
@@ -269,7 +254,7 @@ private:
     std::optional<int> max_signals_;
 };
 
-} // export namespace bigbrother::strategy
+} // namespace bigbrother::strategy
 
 // ============================================================================
 // Implementation Section

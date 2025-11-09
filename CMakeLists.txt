@@ -281,7 +281,7 @@ add_library(risk_management SHARED
 target_sources(risk_management
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            src/risk_management/risk.cppm
+            # src/risk_management/risk.cppm  # Removed - superseded by risk_management.cppm
             src/risk_management/risk_management.cppm
 )
 target_compile_options(risk_management PRIVATE -fmodule-output)
@@ -305,7 +305,7 @@ add_library(schwab_api SHARED
 target_sources(schwab_api
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            src/schwab_api/schwab.cppm
+            # src/schwab_api/schwab.cppm  # Removed - superseded by schwab_api.cppm
             src/schwab_api/schwab_api.cppm
 )
 target_compile_options(schwab_api PRIVATE -fmodule-output)
@@ -369,14 +369,14 @@ target_link_libraries(bigbrother
 
 add_executable(backtest
     src/backtest_main.cpp
-    src/backtesting/backtest_engine_impl.cpp
+    # src/backtesting/backtest_engine_impl.cpp  # Removed - consolidated into backtest_engine.cppm
 )
 
 # C++23 modules with fluent API and trailing return syntax
 target_sources(backtest
     PRIVATE
         FILE_SET CXX_MODULES FILES
-            src/backtesting/backtest.cppm
+            # src/backtesting/backtest.cppm  # Removed - superseded by backtest_engine.cppm
             src/backtesting/backtest_engine.cppm
 )
 

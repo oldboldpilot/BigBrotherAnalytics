@@ -222,6 +222,143 @@ All strategies must include:
 
 **File:** `.clang-tidy` (230+ lines with documentation)
 
+## Naming Conventions (CRITICAL FOR ALL AI AGENTS)
+
+**MANDATORY:** All code MUST follow these naming conventions to pass clang-tidy validation.
+
+### Quick Reference Table
+
+| Entity | Convention | Example | Why |
+|--------|------------|---------|-----|
+| **Namespaces** | `lower_case` | `bigbrother::utils` | C++ standard |
+| **Classes/Structs** | `CamelCase` | `RiskManager`, `TradingSignal` | Clear type names |
+| **Functions/Methods** | `camelBack` | `calculatePrice()`, `getName()` | Start lowercase |
+| **Local variables** | `lower_case` | `auto spot_price = 150.0;` | Readable |
+| **Parameters** | `lower_case` | `auto func(double strike_price)` | Consistent |
+| **Local constants** | `lower_case` | `const auto sum = 0.0;` | **Modern C++** |
+| **Constexpr constants** | `lower_case` | `constexpr auto pi = 3.14;` | **Modern C++** |
+| **Member variables** | `lower_case` | `double price;` (public) | Standard |
+| **Private members** | `lower_case_` | `double price_;` | Trailing _ |
+| **Enums** | `CamelCase` | `enum class SignalType` | Clear types |
+| **Enum values** | `CamelCase` | `SignalType::Buy`, `SignalType::Sell` | Clear values |
+
+### Critical: Local Constants Use lower_case
+
+**This is the MOST IMPORTANT rule** - it eliminates ~350 of the 416 clang-tidy warnings.
+
+**✅ CORRECT (Modern C++23 - Use This!):**
+```cpp
+auto calculateMean(std::vector<double> const& values) -> double {
+    const auto sum = std::accumulate(values.begin(), values.end(), 0.0);
+    const auto count = static_cast<double>(values.size());
+    const auto mean = sum / count;
+    const auto squared_diff_sum = std::accumulate(
+        values.begin(), values.end(), 0.0,
+        [mean](double acc, double val) {
+            const auto diff = val - mean;  // local const: lower_case
+            return acc + diff * diff;
+        });
+    return mean;
+}
+```
+
+**❌ WRONG (Old C Style - Causes Warnings!):**
+```cpp
+auto calculateMean(std::vector<double> const& values) -> double {
+    const auto SUM = std::accumulate(values.begin(), values.end(), 0.0);  // WRONG!
+    const auto COUNT = static_cast<double>(values.size());  // WRONG!
+    const auto MEAN = SUM / COUNT;  // WRONG!
+    return MEAN;
+}
+```
+
+### Complete Real-World Example
+
+```cpp
+export namespace bigbrother::pricing {  // namespace: lower_case
+
+// Enum: CamelCase, values: CamelCase
+enum class OptionType {
+    Call,
+    Put
+};
+
+// Struct: CamelCase
+struct Greeks {
+    double delta;    // public member: lower_case
+    double gamma;    // public member: lower_case
+    double theta;    // public member: lower_case
+};
+
+// Class: CamelCase
+class BlackScholesModel {
+public:
+    // Constructor
+    explicit BlackScholesModel(double risk_free_rate)  // param: lower_case
+        : risk_free_rate_{risk_free_rate} {}           // member init
+
+    // Function: camelBack
+    [[nodiscard]] auto calculatePrice(
+        double spot_price,        // parameter: lower_case
+        double strike_price,      // parameter: lower_case
+        double volatility,        // parameter: lower_case
+        double time_to_expiry,    // parameter: lower_case
+        OptionType option_type    // parameter: lower_case (enum type)
+    ) const -> double {
+
+        // Local constants: lower_case (IMPORTANT!)
+        const auto sqrt_t = std::sqrt(time_to_expiry);
+        const auto d1 = calculateD1(spot_price, strike_price, volatility, sqrt_t);
+        const auto d2 = d1 - volatility * sqrt_t;
+
+        // Local variables: lower_case
+        auto call_price = 0.0;
+        auto put_price = 0.0;
+
+        // Enum comparison
+        if (option_type == OptionType::Call) {
+            call_price = spot_price * normalCdf(d1);
+        }
+
+        return call_price;
+    }
+
+private:
+    // Private member: lower_case with trailing _
+    double risk_free_rate_;
+    double cache_value_;
+
+    // Private method: camelBack
+    [[nodiscard]] auto calculateD1(
+        double spot, double strike, double vol, double sqrt_t
+    ) const -> double {
+        const auto log_moneyness = std::log(spot / strike);  // local const: lower_case
+        const auto drift = (risk_free_rate_ + 0.5 * vol * vol) * sqrt_t;
+        return (log_moneyness + drift) / (vol * sqrt_t);
+    }
+
+    [[nodiscard]] auto normalCdf(double x) const -> double {
+        // Implementation
+        return 0.5 * std::erfc(-x / std::sqrt(2.0));
+    }
+};
+
+// Compile-time constants: lower_case or kCamelCase
+constexpr auto pi = 3.14159265359;              // ✅ preferred
+constexpr auto kGoldenRatio = 1.618033988749;   // ✅ also ok
+
+} // namespace bigbrother::pricing
+```
+
+### Why These Conventions?
+
+1. **lower_case for local consts** - Modern C++23 standard, matches STL patterns
+2. **CamelCase for types** - Clear distinction between types and values
+3. **camelBack for functions** - Standard in C++ (unlike Java/C# which use PascalCase)
+4. **Trailing _ for private** - Clear visual distinction, prevents name conflicts
+
+**This configuration is in `.clang-tidy` and enforced automatically.**
+
 ## Common Pitfalls
 
 1. **Don't use PostgreSQL** - DuckDB only for Tier 1

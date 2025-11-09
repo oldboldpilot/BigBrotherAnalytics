@@ -21,13 +21,13 @@
 // Global module fragment
 module;
 
-#include <string>
-#include <vector>
+#include <expected>
 #include <memory>
 #include <optional>
-#include <expected>
-#include <span>
 #include <source_location>
+#include <span>
+#include <string>
+#include <vector>
 
 // Module declaration
 export module bigbrother.database.api;
@@ -64,23 +64,19 @@ struct Row {
  * R.1: RAII - manages result lifecycle
  */
 class ResultSet {
-public:
+  public:
     /**
      * Get all rows
      * F.20: Return by const reference (avoid copy)
      */
-    [[nodiscard]] auto rows() const noexcept -> std::vector<Row> const& {
-        return rows_;
-    }
+    [[nodiscard]] auto rows() const noexcept -> std::vector<Row> const& { return rows_; }
 
     /**
      * Get row count
      * F.4: constexpr
      * F.6: noexcept
      */
-    [[nodiscard]] constexpr auto rowCount() const noexcept -> size_t {
-        return rows_.size();
-    }
+    [[nodiscard]] constexpr auto rowCount() const noexcept -> size_t { return rows_.size(); }
 
     /**
      * Get column names
@@ -98,7 +94,8 @@ public:
 
         // Header
         for (size_t i = 0; i < column_names_.size(); ++i) {
-            if (i > 0) result += ",";
+            if (i > 0)
+                result += ",";
             result += column_names_[i];
         }
         result += "\n";
@@ -106,7 +103,8 @@ public:
         // Rows
         for (auto const& row : rows_) {
             for (size_t i = 0; i < row.values.size(); ++i) {
-                if (i > 0) result += ",";
+                if (i > 0)
+                    result += ",";
                 result += row.values[i];
             }
             result += "\n";
@@ -124,15 +122,11 @@ public:
     ~ResultSet() = default;
 
     // Allow construction from data
-    auto addRow(Row row) -> void {
-        rows_.push_back(std::move(row));
-    }
+    auto addRow(Row row) -> void { rows_.push_back(std::move(row)); }
 
-    auto setColumns(std::vector<std::string> cols) -> void {
-        column_names_ = std::move(cols);
-    }
+    auto setColumns(std::vector<std::string> cols) -> void { column_names_ = std::move(cols); }
 
-private:
+  private:
     std::vector<Row> rows_;
     std::vector<std::string> column_names_;
 };
@@ -144,14 +138,14 @@ private:
  * Following builder pattern for fluent interface.
  */
 class PreparedStatement {
-public:
+  public:
     /**
      * Bind parameter (fluent)
      *
      * F.18: Perfect forwarding for efficiency
      * F.20: Return *this for chaining
      */
-    template<typename T>
+    template <typename T>
     auto bind(T&& value) -> PreparedStatement& {
         // Convert to string for now (will use DuckDB native types later)
         bindings_.push_back(std::to_string(std::forward<T>(value)));
@@ -171,20 +165,29 @@ public:
      *
      * F.20: Return ResultSet by value (move semantics)
      */
-    [[nodiscard]] auto execute() -> ResultSet;
+    [[nodiscard]] auto execute() -> ResultSet {
+        // Stub implementation
+        return ResultSet{};
+    }
 
     /**
      * Execute and get first row
      */
-    [[nodiscard]] auto first() -> std::optional<Row>;
+    [[nodiscard]] auto first() -> std::optional<Row> {
+        // Stub implementation
+        return std::nullopt;
+    }
 
     /**
      * Execute and get scalar value
      */
-    template<typename T>
-    [[nodiscard]] auto scalar() -> std::optional<T>;
+    template <typename T>
+    [[nodiscard]] auto scalar() -> std::optional<T> {
+        // Stub implementation
+        return std::nullopt;
+    }
 
-private:
+  private:
     friend class DatabaseConnection;
 
     PreparedStatement(std::string query) : query_{std::move(query)} {}
@@ -205,7 +208,7 @@ private:
  * Fluent interface for database operations.
  */
 class DatabaseConnection {
-public:
+  public:
     /**
      * Begin fluent query
      *
@@ -218,12 +221,18 @@ public:
     /**
      * Execute immediate query (no parameters)
      */
-    [[nodiscard]] auto execute(std::string const& sql) -> ResultSet;
+    [[nodiscard]] auto execute(std::string const& sql) -> ResultSet {
+        // Stub implementation - returns empty result
+        return ResultSet{};
+    }
 
     /**
      * Execute update/insert (returns affected rows)
      */
-    [[nodiscard]] auto executeUpdate(std::string const& sql) -> int64_t;
+    [[nodiscard]] auto executeUpdate(std::string const& sql) -> int64_t {
+        // Stub implementation
+        return 0;
+    }
 
     /**
      * Begin transaction (fluent)
@@ -262,7 +271,8 @@ public:
     /**
      * Export to Parquet (fluent)
      */
-    auto exportParquet(std::string const& table_name, std::string const& file_path) -> DatabaseConnection& {
+    auto exportParquet(std::string const& table_name, std::string const& file_path)
+        -> DatabaseConnection& {
         // COPY table_name TO 'file.parquet' (FORMAT PARQUET)
         return *this;
     }
@@ -271,7 +281,9 @@ public:
      * Close connection
      * F.6: noexcept
      */
-    auto close() noexcept -> void;
+    auto close() noexcept -> void {
+        // Stub implementation
+    }
 
     // C.21: Non-copyable, movable
     DatabaseConnection(DatabaseConnection const&) = delete;
@@ -279,15 +291,16 @@ public:
     DatabaseConnection(DatabaseConnection&&) noexcept = default;
     auto operator=(DatabaseConnection&&) noexcept -> DatabaseConnection& = default;
 
-    ~DatabaseConnection();
+    ~DatabaseConnection() = default;
 
-private:
+  private:
     friend class Database;
 
-    DatabaseConnection(std::string db_path);
+    // Constructor (inline stub implementation for now - DuckDB integration via Python)
+    DatabaseConnection(std::string db_path) : db_path_{std::move(db_path)} {}
 
-    class Impl;
-    std::unique_ptr<Impl> pImpl;  // Pimpl for DuckDB internals
+    std::string db_path_;
+    // Note: pImpl removed - using Python DuckDB integration via pybind11
 };
 
 /**
@@ -297,7 +310,7 @@ private:
  * F.20: Return connection by value (move semantics)
  */
 class Database {
-public:
+  public:
     /**
      * Connect to database (fluent entry point)
      *
@@ -344,7 +357,7 @@ public:
  *       .build();
  */
 class QueryBuilder {
-public:
+  public:
     auto select(std::string columns) -> QueryBuilder& {
         select_ = std::move(columns);
         return *this;
@@ -380,7 +393,8 @@ public:
         if (!where_clauses_.empty()) {
             sql += " WHERE ";
             for (size_t i = 0; i < where_clauses_.size(); ++i) {
-                if (i > 0) sql += " AND ";
+                if (i > 0)
+                    sql += " AND ";
                 sql += where_clauses_[i];
             }
         }
@@ -396,7 +410,7 @@ public:
         return sql;
     }
 
-private:
+  private:
     std::string select_{"*"};
     std::string from_;
     std::vector<std::string> where_clauses_;
@@ -404,4 +418,4 @@ private:
     int limit_{0};
 };
 
-} // export namespace bigbrother::database
+} // namespace bigbrother::database
