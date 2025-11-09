@@ -24,7 +24,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
-#include <fmt/core.h>
+#include <format>
 
 // Module imports
 import bigbrother.risk_management;
@@ -38,132 +38,6 @@ using bigbrother::types::ErrorCode;
 using bigbrother::types::Result;
 using bigbrother::types::makeError;
 using namespace bigbrother::utils;
-
-// ============================================================================
-// Test-specific types (to avoid conflicts with module types)
-// ============================================================================
-
-namespace test {
-
-/**
- * Position with safety flags for manual position protection
- * Note: This is a test-specific struct since the main Position type in
- * bigbrother::types doesn't have the safety tracking fields we need.
- */
-struct Position {
-    std::string account_id;
-    std::string symbol;
-    int quantity{0};
-    double avg_cost{0.0};
-    double current_price{0.0};
-    double market_value{0.0};
-    double unrealized_pnl{0.0};
-
-    // CRITICAL SAFETY FLAGS
-    bool is_bot_managed{false};        // TRUE if bot opened this position
-    std::string managed_by{"MANUAL"};  // "BOT" or "MANUAL"
-    std::string bot_strategy{};        // Strategy that opened this (if bot-managed)
-
-    std::chrono::system_clock::time_point opened_at;
-    std::string opened_by{"MANUAL"};   // "BOT" or "MANUAL"
-    std::chrono::system_clock::time_point updated_at;
-
-    [[nodiscard]] auto canBotTrade() const noexcept -> bool {
-        return is_bot_managed;
-    }
-};
-
-/**
- * Order types for testing
- */
-enum class OrderSide {
-    Buy,
-    Sell,
-    SellShort,
-    BuyToCover
-};
-
-enum class OrderType {
-    Market,
-    Limit,
-    Stop,
-    StopLimit,
-    TrailingStop
-};
-
-enum class OrderStatus {
-    Pending,
-    Working,
-    Filled,
-    PartiallyFilled,
-    Canceled,
-    Rejected
-};
-
-enum class OrderDuration {
-    Day,
-    GTC,  // Good Till Canceled
-    GTD,  // Good Till Date
-    FOK,  // Fill Or Kill
-    IOC   // Immediate Or Cancel
-};
-
-/**
- * Order structure for testing
- */
-struct Order {
-    std::string order_id;
-    std::string account_id;
-    std::string symbol;
-    OrderSide side{OrderSide::Buy};
-    int quantity{0};
-    int filled_quantity{0};
-    OrderType type{OrderType::Market};
-    OrderDuration duration{OrderDuration::Day};
-
-    double limit_price{0.0};
-    double stop_price{0.0};
-    double trail_amount{0.0};
-    double avg_fill_price{0.0};
-
-    OrderStatus status{OrderStatus::Pending};
-    std::string strategy_name;
-    bool dry_run{true};  // Default to dry-run for safety
-
-    std::string rejection_reason;
-    std::chrono::system_clock::time_point created_at;
-    std::chrono::system_clock::time_point updated_at;
-    std::chrono::system_clock::time_point filled_at;
-
-    [[nodiscard]] auto estimatedCost() const noexcept -> double {
-        double price = (type == OrderType::Market) ? limit_price : limit_price;
-        return static_cast<double>(quantity) * price;
-    }
-
-    [[nodiscard]] auto isActive() const noexcept -> bool {
-        return status == OrderStatus::Pending ||
-               status == OrderStatus::Working ||
-               status == OrderStatus::PartiallyFilled;
-    }
-};
-
-/**
- * Order confirmation response
- */
-struct OrderConfirmation {
-    std::string order_id;
-    std::string symbol;
-    OrderSide side;
-    int quantity{0};
-    int filled_quantity{0};
-    double avg_fill_price{0.0};
-    OrderStatus status;
-    std::string strategy_name;
-    bool dry_run{false};
-    std::chrono::system_clock::time_point timestamp;
-};
-
-} // namespace test
 
 // ============================================================================
 // Mock Account Manager
@@ -182,17 +56,18 @@ public:
      * Add a manual position (existing before bot started)
      */
     auto addManualPosition(std::string symbol, int quantity, double avg_cost) -> void {
-        test::Position pos{};
+        AccountPosition pos{};
         pos.account_id = account_id_;
         pos.symbol = std::move(symbol);
         pos.quantity = quantity;
-        pos.avg_cost = avg_cost;
+        pos.average_price = avg_cost;
         pos.current_price = avg_cost;
-        pos.market_value = static_cast<double>(quantity) * avg_cost;
+        pos.unrealized_pnl = 0.0;
+        pos.realized_pnl = 0.0;
         pos.is_bot_managed = false;
         pos.managed_by = "MANUAL";
         pos.opened_by = "MANUAL";
-        pos.opened_at = std::chrono::system_clock::now();
+        pos.opened_at = std::chrono::system_clock::now().time_since_epoch().count();
 
         positions_.push_back(pos);
 
@@ -207,18 +82,19 @@ public:
      */
     auto addBotPosition(std::string symbol, int quantity, double avg_cost,
                        std::string strategy_name) -> void {
-        test::Position pos{};
+        AccountPosition pos{};
         pos.account_id = account_id_;
         pos.symbol = std::move(symbol);
         pos.quantity = quantity;
-        pos.avg_cost = avg_cost;
+        pos.average_price = avg_cost;
         pos.current_price = avg_cost;
-        pos.market_value = static_cast<double>(quantity) * avg_cost;
+        pos.unrealized_pnl = 0.0;
+        pos.realized_pnl = 0.0;
         pos.is_bot_managed = true;
         pos.managed_by = "BOT";
         pos.bot_strategy = std::move(strategy_name);
         pos.opened_by = "BOT";
-        pos.opened_at = std::chrono::system_clock::now();
+        pos.opened_at = std::chrono::system_clock::now().time_since_epoch().count();
 
         positions_.push_back(pos);
 
@@ -232,7 +108,7 @@ public:
      * Get position by symbol
      */
     [[nodiscard]] auto getPosition(std::string const& symbol) const
-        -> std::optional<test::Position> {
+        -> std::optional<AccountPosition> {
 
         for (auto const& pos : positions_) {
             if (pos.symbol == symbol) {
@@ -245,7 +121,7 @@ public:
     /**
      * Get all positions
      */
-    [[nodiscard]] auto getAllPositions() const -> std::vector<test::Position> const& {
+    [[nodiscard]] auto getAllPositions() const -> std::vector<AccountPosition> const& {
         return positions_;
     }
 
@@ -271,12 +147,51 @@ public:
 
 private:
     std::string account_id_;
-    std::vector<test::Position> positions_;
+    std::vector<AccountPosition> positions_;
 };
 
 // ============================================================================
 // Mock Order Manager
 // ============================================================================
+
+/**
+ * Order side enumeration (not exported from schwab_api)
+ */
+enum class OrderSide {
+    Buy,
+    Sell,
+    SellShort,
+    BuyToCover
+};
+
+/**
+ * Order confirmation response
+ */
+struct OrderConfirmation {
+    std::string order_id;
+    std::string symbol;
+    OrderSide side;
+    int quantity{0};
+    int filled_quantity{0};
+    double avg_fill_price{0.0};
+    OrderStatus status;
+    std::string strategy_name;
+    bool dry_run{false};
+    std::chrono::system_clock::time_point timestamp;
+};
+
+/**
+ * Extended Order for testing (adds side and strategy)
+ */
+struct TestOrder : public Order {
+    OrderSide side{OrderSide::Buy};
+    std::string strategy_name;
+    bool dry_run{true};  // Default to dry-run for safety
+
+    [[nodiscard]] auto estimatedCost() const noexcept -> double {
+        return static_cast<double>(quantity) * limit_price;
+    }
+};
 
 /**
  * Mock OrderManager with safety constraints
@@ -291,13 +206,13 @@ public:
     /**
      * Place order with CRITICAL safety checks
      */
-    [[nodiscard]] auto placeOrder(test::Order const& order) -> Result<test::OrderConfirmation> {
+    [[nodiscard]] auto placeOrder(TestOrder const& order) -> Result<OrderConfirmation> {
         // CRITICAL CHECK 1: Is this symbol a manual position?
         auto existing_pos = account_mgr_->getPosition(order.symbol);
 
         if (existing_pos && !existing_pos->is_bot_managed) {
             // REJECT: Manual position exists, cannot trade
-            std::string error_msg = fmt::format(
+            std::string error_msg = std::format(
                 "SAFETY VIOLATION: Cannot trade {} - manual position exists. "
                 "Bot only trades NEW securities or bot-managed positions.",
                 order.symbol
@@ -308,23 +223,23 @@ public:
             // Log to compliance file
             logComplianceViolation(order, "MANUAL_POSITION_PROTECTION", error_msg);
 
-            return makeError<test::OrderConfirmation>(
+            return makeError<OrderConfirmation>(
                 ErrorCode::InvalidParameter,
                 error_msg
             );
         }
 
         // CRITICAL CHECK 2: If closing, verify we own the position
-        if (order.side == test::OrderSide::Sell) {
+        if (order.side == OrderSide::Sell) {
             if (!existing_pos) {
-                return makeError<test::OrderConfirmation>(
+                return makeError<OrderConfirmation>(
                     ErrorCode::InvalidParameter,
-                    fmt::format("Cannot close {} - no position found", order.symbol)
+                    std::format("Cannot close {} - no position found", order.symbol)
                 );
             }
 
             if (!existing_pos->is_bot_managed) {
-                std::string error_msg = fmt::format(
+                std::string error_msg = std::format(
                     "SAFETY VIOLATION: Cannot close {} - manual position. "
                     "Only human can close manual positions.",
                     order.symbol
@@ -333,7 +248,7 @@ public:
                 Logger::getInstance().error(error_msg);
                 logComplianceViolation(order, "MANUAL_POSITION_CLOSE_BLOCKED", error_msg);
 
-                return makeError<test::OrderConfirmation>(
+                return makeError<OrderConfirmation>(
                     ErrorCode::InvalidParameter,
                     error_msg
                 );
@@ -341,14 +256,14 @@ public:
         }
 
         // Order passed safety checks
-        test::OrderConfirmation confirmation{};
+        OrderConfirmation confirmation{};
         confirmation.order_id = generateOrderId();
         confirmation.symbol = order.symbol;
         confirmation.side = order.side;
         confirmation.quantity = order.quantity;
         confirmation.filled_quantity = order.dry_run ? 0 : order.quantity;
         confirmation.avg_fill_price = order.limit_price;
-        confirmation.status = order.dry_run ? test::OrderStatus::Pending : test::OrderStatus::Filled;
+        confirmation.status = order.dry_run ? OrderStatus::Pending : OrderStatus::Filled;
         confirmation.strategy_name = order.strategy_name;
         confirmation.dry_run = order.dry_run;
         confirmation.timestamp = std::chrono::system_clock::now();
@@ -356,18 +271,18 @@ public:
         if (dry_run_mode_ || order.dry_run) {
             Logger::getInstance().info(
                 "[DRY-RUN] Order placed: {} {} shares of {} @ ${:.2f} (strategy: {})",
-                order.side == test::OrderSide::Buy ? "BUY" : "SELL",
+                order.side == OrderSide::Buy ? "BUY" : "SELL",
                 order.quantity, order.symbol, order.limit_price, order.strategy_name
             );
         } else {
             Logger::getInstance().info(
                 "Order EXECUTED: {} {} shares of {} @ ${:.2f} (strategy: {})",
-                order.side == test::OrderSide::Buy ? "BUY" : "SELL",
+                order.side == OrderSide::Buy ? "BUY" : "SELL",
                 order.quantity, order.symbol, order.limit_price, order.strategy_name
             );
 
             // Update positions
-            if (order.side == test::OrderSide::Buy) {
+            if (order.side == OrderSide::Buy) {
                 // Opening position
                 account_mgr_->addBotPosition(
                     order.symbol,
@@ -375,7 +290,7 @@ public:
                     order.limit_price,
                     order.strategy_name
                 );
-            } else if (order.side == test::OrderSide::Sell) {
+            } else if (order.side == OrderSide::Sell) {
                 // Closing position
                 account_mgr_->removePosition(order.symbol);
             }
@@ -401,14 +316,14 @@ public:
     /**
      * Get all orders
      */
-    [[nodiscard]] auto getAllOrders() const -> std::vector<test::Order> const& {
+    [[nodiscard]] auto getAllOrders() const -> std::vector<TestOrder> const& {
         return orders_;
     }
 
     /**
      * Get all confirmations
      */
-    [[nodiscard]] auto getAllConfirmations() const -> std::vector<test::OrderConfirmation> const& {
+    [[nodiscard]] auto getAllConfirmations() const -> std::vector<OrderConfirmation> const& {
         return confirmations_;
     }
 
@@ -422,15 +337,15 @@ public:
 private:
     auto generateOrderId() -> std::string {
         static int counter = 1000;
-        return fmt::format("ORDER_{}", counter++);
+        return std::format("ORDER_{}", counter++);
     }
 
-    auto logComplianceViolation(test::Order const& order, std::string const& violation_type,
+    auto logComplianceViolation(TestOrder const& order, std::string const& violation_type,
                                std::string const& reason) -> void {
-        std::string log_entry = fmt::format(
+        std::string log_entry = std::format(
             "[COMPLIANCE_VIOLATION] Type: {} | Symbol: {} | Side: {} | Reason: {}",
             violation_type, order.symbol,
-            order.side == test::OrderSide::Buy ? "BUY" : "SELL",
+            order.side == OrderSide::Buy ? "BUY" : "SELL",
             reason
         );
 
@@ -438,11 +353,11 @@ private:
         Logger::getInstance().warn(log_entry);
     }
 
-    auto logComplianceSuccess(test::Order const& order, test::OrderConfirmation const& confirmation) -> void {
-        std::string log_entry = fmt::format(
+    auto logComplianceSuccess(TestOrder const& order, OrderConfirmation const& confirmation) -> void {
+        std::string log_entry = std::format(
             "[COMPLIANCE_OK] Order: {} | Symbol: {} | Side: {} | Qty: {} | Strategy: {} | Dry-run: {}",
             confirmation.order_id, order.symbol,
-            order.side == test::OrderSide::Buy ? "BUY" : "SELL",
+            order.side == OrderSide::Buy ? "BUY" : "SELL",
             order.quantity, order.strategy_name,
             order.dry_run ? "YES" : "NO"
         );
@@ -453,8 +368,8 @@ private:
 
     std::shared_ptr<MockAccountManager> account_mgr_;
     bool dry_run_mode_;
-    std::vector<test::Order> orders_;
-    std::vector<test::OrderConfirmation> confirmations_;
+    std::vector<TestOrder> orders_;
+    std::vector<OrderConfirmation> confirmations_;
     std::vector<std::string> compliance_log_;
 };
 
@@ -501,13 +416,12 @@ TEST_F(SchwabE2EWorkflowTest, Scenario1_RejectManualPosition) {
     Logger::getInstance().info("\n=== SCENARIO 1: Bot tries to trade AAPL (manual) ===");
 
     // Bot generates signal for AAPL (which is a manual position)
-    test::Order order{};
-    order.account_id = "XXXX1234";
+    TestOrder order{};
     order.symbol = "AAPL";
-    order.side = test::OrderSide::Buy;
+    order.side = OrderSide::Buy;
     order.quantity = 5;
     order.limit_price = 155.00;
-    order.type = test::OrderType::Limit;
+    order.type = OrderType::Limit;
     order.strategy_name = "SectorRotation";
     order.dry_run = false;
 
@@ -566,13 +480,12 @@ TEST_F(SchwabE2EWorkflowTest, Scenario2_AcceptNewSymbol) {
                               risk_assessment->approved, risk_assessment->expected_value);
 
     // Create order for XLE
-    test::Order order{};
-    order.account_id = "XXXX1234";
+    TestOrder order{};
     order.symbol = "XLE";
-    order.side = test::OrderSide::Buy;
+    order.side = OrderSide::Buy;
     order.quantity = 20;
     order.limit_price = 80.00;
-    order.type = test::OrderType::Limit;
+    order.type = OrderType::Limit;
     order.strategy_name = "SectorRotation";
     order.dry_run = false;
 
@@ -588,7 +501,7 @@ TEST_F(SchwabE2EWorkflowTest, Scenario2_AcceptNewSymbol) {
 
     Logger::getInstance().info("Order confirmation: {} | Status: {}",
                               result->order_id,
-                              result->status == test::OrderStatus::Filled ? "FILLED" : "PENDING");
+                              result->status == OrderStatus::Filled ? "FILLED" : "PENDING");
 
     // Verify position was created
     auto xle_position = account_mgr_->getPosition("XLE");
@@ -620,13 +533,12 @@ TEST_F(SchwabE2EWorkflowTest, Scenario3_CloseOwnPosition) {
                               xle_position->quantity, xle_position->is_bot_managed);
 
     // Create SELL order to close position
-    test::Order order{};
-    order.account_id = "XXXX1234";
+    TestOrder order{};
     order.symbol = "XLE";
-    order.side = test::OrderSide::Sell;
+    order.side = OrderSide::Sell;
     order.quantity = 20;
     order.limit_price = 85.00;
-    order.type = test::OrderType::Limit;
+    order.type = OrderType::Limit;
     order.strategy_name = "SectorRotation";
     order.dry_run = false;
 
@@ -637,7 +549,7 @@ TEST_F(SchwabE2EWorkflowTest, Scenario3_CloseOwnPosition) {
     // ASSERT: Order should be ACCEPTED
     ASSERT_TRUE(result.has_value()) << "Closing bot-managed position should succeed";
     EXPECT_EQ(result->symbol, "XLE");
-    EXPECT_EQ(result->side, test::OrderSide::Sell);
+    EXPECT_EQ(result->side, OrderSide::Sell);
     EXPECT_EQ(result->quantity, 20);
 
     Logger::getInstance().info("Sell order confirmation: {} | Price: ${:.2f}",
@@ -669,13 +581,12 @@ TEST_F(SchwabE2EWorkflowTest, Scenario4_TradeBotManagedPosition) {
                               spy_position->quantity);
 
     // Bot decides to add to SPY position
-    test::Order order{};
-    order.account_id = "XXXX1234";
+    TestOrder order{};
     order.symbol = "SPY";
-    order.side = test::OrderSide::Buy;
+    order.side = OrderSide::Buy;
     order.quantity = 5;
     order.limit_price = 455.00;
-    order.type = test::OrderType::Limit;
+    order.type = OrderType::Limit;
     order.strategy_name = "MomentumStrategy";
     order.dry_run = false;
 
@@ -702,13 +613,12 @@ TEST_F(SchwabE2EWorkflowTest, Scenario5_DryRunMode) {
     order_mgr_->setDryRunMode(true);
 
     // Create order for new symbol
-    test::Order order{};
-    order.account_id = "XXXX1234";
+    TestOrder order{};
     order.symbol = "QQQ";
-    order.side = test::OrderSide::Buy;
+    order.side = OrderSide::Buy;
     order.quantity = 15;
     order.limit_price = 350.00;
-    order.type = test::OrderType::Limit;
+    order.type = OrderType::Limit;
     order.strategy_name = "TechRotation";
     order.dry_run = true;
 
@@ -719,7 +629,7 @@ TEST_F(SchwabE2EWorkflowTest, Scenario5_DryRunMode) {
     ASSERT_TRUE(result.has_value()) << "Dry-run order should be accepted";
     EXPECT_EQ(result->symbol, "QQQ");
     EXPECT_TRUE(result->dry_run) << "Order should be marked as dry-run";
-    EXPECT_EQ(result->status, test::OrderStatus::Pending) << "Status should be Pending (not Filled)";
+    EXPECT_EQ(result->status, OrderStatus::Pending) << "Status should be Pending (not Filled)";
     EXPECT_EQ(result->filled_quantity, 0) << "No shares should be filled in dry-run";
 
     Logger::getInstance().info("Dry-run order: {} | Symbol: {} | Filled: {}",
@@ -783,13 +693,12 @@ TEST_F(SchwabE2EWorkflowTest, CompleteWorkflow) {
     order_mgr_->setDryRunMode(false);
 
     for (auto const& symbol : valid_signals) {
-        test::Order order{};
-        order.account_id = "XXXX1234";
+        TestOrder order{};
         order.symbol = symbol;
-        order.side = test::OrderSide::Buy;
+        order.side = OrderSide::Buy;
         order.quantity = 20;
         order.limit_price = (symbol == "XLE") ? 80.00 : ((symbol == "XLV") ? 120.00 : 200.00);
-        order.type = test::OrderType::Limit;
+        order.type = OrderType::Limit;
         order.strategy_name = "SectorRotation";
         order.dry_run = false;
 
@@ -823,13 +732,12 @@ TEST_F(SchwabE2EWorkflowTest, CompleteWorkflow) {
     EXPECT_EQ(bot_count, 3) << "Should have 3 bot-managed positions";
 
     // Step 4: Close one bot position
-    test::Order close_order{};
-    close_order.account_id = "XXXX1234";
+    TestOrder close_order{};
     close_order.symbol = "XLE";
-    close_order.side = test::OrderSide::Sell;
+    close_order.side = OrderSide::Sell;
     close_order.quantity = 20;
     close_order.limit_price = 85.00;
-    close_order.type = test::OrderType::Limit;
+    close_order.type = OrderType::Limit;
     close_order.strategy_name = "SectorRotation";
     close_order.dry_run = false;
 
@@ -839,13 +747,12 @@ TEST_F(SchwabE2EWorkflowTest, CompleteWorkflow) {
     Logger::getInstance().info("Closed XLE position @ ${:.2f}", close_order.limit_price);
 
     // Step 5: Attempt to close manual position (should fail)
-    test::Order invalid_close{};
-    invalid_close.account_id = "XXXX1234";
+    TestOrder invalid_close{};
     invalid_close.symbol = "AAPL";
-    invalid_close.side = test::OrderSide::Sell;
+    invalid_close.side = OrderSide::Sell;
     invalid_close.quantity = 10;
     invalid_close.limit_price = 160.00;
-    invalid_close.type = test::OrderType::Limit;
+    invalid_close.type = OrderType::Limit;
     invalid_close.strategy_name = "SectorRotation";
     invalid_close.dry_run = false;
 

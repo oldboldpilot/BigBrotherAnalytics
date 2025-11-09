@@ -73,7 +73,6 @@ if(GTest_FOUND)
         risk_management
         GTest::gtest
         GTest::gtest_main
-        spdlog::spdlog
     )
 
     add_test(NAME SchwabE2EWorkflowTests COMMAND test_schwab_e2e_workflow)
