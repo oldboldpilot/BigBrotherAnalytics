@@ -531,3 +531,11 @@ message(STATUS "  backtest            : Backtesting engine")
 message(STATUS "")
 message(STATUS "════════════════════════════════════════════════════════════")
 message(STATUS "")
+
+# Options Pricing Python Bindings (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(bigbrother_options src/python_bindings/options_bindings.cpp)
+target_link_libraries(bigbrother_options PRIVATE options_pricing utils)
+set_target_properties(bigbrother_options PROPERTIES
+    OUTPUT_NAME "bigbrother_options"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
