@@ -12,8 +12,10 @@
 -- Orders Table (Main order tracking)
 -- ============================================================================
 
+CREATE SEQUENCE IF NOT EXISTS orders_seq START 1;
+
 CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT nextval('orders_seq'),
     order_id VARCHAR(50) UNIQUE NOT NULL,
     account_id VARCHAR(50) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
@@ -52,8 +54,10 @@ CREATE INDEX IF NOT EXISTS idx_orders_parent ON orders(parent_order_id);
 -- Order Updates Table (Audit trail)
 -- ============================================================================
 
+CREATE SEQUENCE IF NOT EXISTS order_updates_seq START 1;
+
 CREATE TABLE IF NOT EXISTS order_updates (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT nextval('order_updates_seq'),
     order_id VARCHAR(50) NOT NULL,
     field_name VARCHAR(50) NOT NULL,
     old_value VARCHAR(255),
@@ -71,8 +75,10 @@ CREATE INDEX IF NOT EXISTS idx_updates_timestamp ON order_updates(updated_at);
 -- Order Fills Table (Execution details)
 -- ============================================================================
 
+CREATE SEQUENCE IF NOT EXISTS order_fills_seq START 1;
+
 CREATE TABLE IF NOT EXISTS order_fills (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT nextval('order_fills_seq'),
     order_id VARCHAR(50) NOT NULL,
     fill_id VARCHAR(50) UNIQUE NOT NULL,
     fill_quantity INTEGER NOT NULL,
@@ -93,8 +99,10 @@ CREATE INDEX IF NOT EXISTS idx_fills_timestamp ON order_fills(fill_timestamp);
 -- Order Rejections Table (Track all rejections for analysis)
 -- ============================================================================
 
+CREATE SEQUENCE IF NOT EXISTS order_rejections_seq START 1;
+
 CREATE TABLE IF NOT EXISTS order_rejections (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT nextval('order_rejections_seq'),
     order_id VARCHAR(50) NOT NULL,
     rejection_code VARCHAR(50),
     rejection_reason VARCHAR(255) NOT NULL,
@@ -114,8 +122,10 @@ CREATE INDEX IF NOT EXISTS idx_rejections_code ON order_rejections(rejection_cod
 -- Order Performance Table (Analytics)
 -- ============================================================================
 
+CREATE SEQUENCE IF NOT EXISTS order_performance_seq START 1;
+
 CREATE TABLE IF NOT EXISTS order_performance (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT nextval('order_performance_seq'),
     order_id VARCHAR(50) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     entry_price DECIMAL(10,2) NOT NULL,

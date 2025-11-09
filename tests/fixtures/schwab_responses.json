@@ -1,0 +1,383 @@
+{
+  "oauth": {
+    "token_exchange_success": {
+      "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "token_type": "Bearer",
+      "expires_in": 1800,
+      "scope": "api",
+      "refresh_token_expires_in": 7776000
+    },
+    "token_refresh_success": {
+      "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "token_type": "Bearer",
+      "expires_in": 1800,
+      "scope": "api"
+    },
+    "invalid_grant": {
+      "error": "invalid_grant",
+      "error_description": "Invalid authorization code"
+    },
+    "invalid_client": {
+      "error": "invalid_client",
+      "error_description": "Client authentication failed"
+    }
+  },
+  "quotes": {
+    "single_quote": {
+      "symbol": "SPY",
+      "quote": {
+        "bid": 454.98,
+        "ask": 455.02,
+        "bidSize": 1000,
+        "askSize": 1500,
+        "lastPrice": 455.00,
+        "lastSize": 100,
+        "lastTrade": "2025-11-09T14:30:00Z",
+        "bidTime": "2025-11-09T14:30:00Z",
+        "askTime": "2025-11-09T14:30:00Z",
+        "change": 1.50,
+        "changePercent": 0.33,
+        "openPrice": 453.00,
+        "highPrice": 458.00,
+        "lowPrice": 451.50,
+        "closePrice": 455.00,
+        "volume": 50000000,
+        "openInterest": 0,
+        "totalVolume": 50000000,
+        "volatility": 0.15
+      }
+    },
+    "multiple_quotes": {
+      "SPY": {
+        "symbol": "SPY",
+        "quote": {
+          "bid": 454.98,
+          "ask": 455.02,
+          "lastPrice": 455.00,
+          "change": 1.50,
+          "changePercent": 0.33
+        }
+      },
+      "QQQ": {
+        "symbol": "QQQ",
+        "quote": {
+          "bid": 384.98,
+          "ask": 385.02,
+          "lastPrice": 385.00,
+          "change": 2.00,
+          "changePercent": 0.52
+        }
+      },
+      "XLE": {
+        "symbol": "XLE",
+        "quote": {
+          "bid": 72.48,
+          "ask": 72.52,
+          "lastPrice": 72.50,
+          "change": 0.75,
+          "changePercent": 1.05
+        }
+      }
+    },
+    "error_invalid_symbol": {
+      "error": "INVALID_SYMBOL",
+      "error_description": "Symbol INVALID not found"
+    }
+  },
+  "options": {
+    "chains_full": {
+      "symbol": "SPY",
+      "status": "SUCCESS",
+      "strategy": "SINGLE",
+      "interval": 5.0,
+      "isIndex": true,
+      "isDelayed": false,
+      "expirations": {
+        "2025-11-16": {
+          "95.0": {
+            "call": {
+              "symbol": "SPY_111625C95",
+              "description": "SPY Nov 16, 2025 95 Call",
+              "exchangeName": "OPT",
+              "bidPrice": 360.85,
+              "askPrice": 361.10,
+              "lastPrice": 360.95,
+              "bidSize": 0,
+              "askSize": 0,
+              "lastSize": 0,
+              "openInterest": 1,
+              "volume": 500,
+              "quoteTime": 1699534200000,
+              "tradeTime": 1699534200000,
+              "netChange": 0.0,
+              "impliedVolatility": 0.25,
+              "daysToExpiration": 7,
+              "percentChange": 0.0,
+              "markChange": 0.0,
+              "markPercent": 0.0,
+              "inTheMoney": true,
+              "openPrice": 0.0
+            },
+            "put": {
+              "symbol": "SPY_111625P95",
+              "description": "SPY Nov 16, 2025 95 Put",
+              "exchangeName": "OPT",
+              "bidPrice": 0.01,
+              "askPrice": 0.05,
+              "lastPrice": 0.02,
+              "bidSize": 0,
+              "askSize": 0,
+              "lastSize": 0,
+              "openInterest": 5000,
+              "volume": 1200,
+              "quoteTime": 1699534200000,
+              "tradeTime": 1699534200000,
+              "netChange": 0.0,
+              "impliedVolatility": 0.22,
+              "daysToExpiration": 7,
+              "percentChange": 0.0,
+              "markChange": 0.0,
+              "markPercent": 0.0,
+              "inTheMoney": false,
+              "openPrice": 0.0
+            }
+          },
+          "100.0": {
+            "call": {
+              "symbol": "SPY_111625C100",
+              "bidPrice": 355.85,
+              "askPrice": 356.10,
+              "lastPrice": 355.95,
+              "impliedVolatility": 0.23,
+              "daysToExpiration": 7,
+              "openInterest": 2000
+            },
+            "put": {
+              "symbol": "SPY_111625P100",
+              "bidPrice": 0.05,
+              "askPrice": 0.10,
+              "lastPrice": 0.07,
+              "impliedVolatility": 0.21,
+              "daysToExpiration": 7,
+              "openInterest": 3500
+            }
+          }
+        }
+      }
+    }
+  },
+  "pricehistory": {
+    "candles": {
+      "symbol": "SPY",
+      "candles": [
+        {
+          "open": 450.0,
+          "high": 450.5,
+          "low": 449.75,
+          "close": 450.25,
+          "volume": 1000000,
+          "datetime": 1699488000000
+        },
+        {
+          "open": 450.5,
+          "high": 451.0,
+          "low": 450.0,
+          "close": 450.75,
+          "volume": 1050000,
+          "datetime": 1699574400000
+        },
+        {
+          "open": 450.75,
+          "high": 451.5,
+          "low": 450.25,
+          "close": 451.0,
+          "volume": 1100000,
+          "datetime": 1699660800000
+        }
+      ],
+      "empty": false
+    }
+  },
+  "accounts": {
+    "all_accounts": {
+      "accounts": [
+        {
+          "accountId": "XXXX1234",
+          "displayName": "Paper Trading Account",
+          "accountType": "CASH",
+          "accountStatus": "OPEN",
+          "accountNumber": "XXXX1234",
+          "type": "CASH",
+          "isDayTrader": false,
+          "isClosingOnlyRestricted": false,
+          "initialBalances": {
+            "accruedInterest": 0.0,
+            "cashBalance": 30000.0,
+            "cashReceipts": 0.0,
+            "longOptionMarketValue": 0.0,
+            "liquidationValue": 30000.0,
+            "longMarketValue": 0.0,
+            "moneyMarketFund": 0.0,
+            "savings": 0.0,
+            "shortMarketValue": 0.0,
+            "shortOptionMarketValue": 0.0,
+            "stockBuyingPower": 30000.0,
+            "optionBuyingPower": 30000.0
+          },
+          "currentBalances": {
+            "accruedInterest": 0.0,
+            "cashBalance": 15000.0,
+            "cashReceipts": 0.0,
+            "longOptionMarketValue": 0.0,
+            "liquidationValue": 30000.0,
+            "longMarketValue": 15000.0,
+            "moneyMarketFund": 0.0,
+            "savings": 0.0,
+            "shortMarketValue": 0.0,
+            "shortOptionMarketValue": 0.0,
+            "stockBuyingPower": 30000.0,
+            "optionBuyingPower": 30000.0
+          }
+        }
+      ]
+    },
+    "single_account": {
+      "account": {
+        "accountId": "XXXX1234",
+        "displayName": "Paper Trading Account",
+        "accountType": "CASH",
+        "accountStatus": "OPEN"
+      }
+    }
+  },
+  "positions": {
+    "account_positions": {
+      "positions": [
+        {
+          "symbol": "SPY",
+          "quantity": 10.0,
+          "averagePrice": 450.0,
+          "currentPrice": 455.0,
+          "marketValue": 4550.0,
+          "gainLoss": 50.0,
+          "isBotManaged": true,
+          "percentChange": 1.11
+        },
+        {
+          "symbol": "QQQ",
+          "quantity": 5.0,
+          "averagePrice": 380.0,
+          "currentPrice": 385.0,
+          "marketValue": 1925.0,
+          "gainLoss": 25.0,
+          "isBotManaged": false,
+          "percentChange": 1.32
+        },
+        {
+          "symbol": "XLE",
+          "quantity": 20.0,
+          "averagePrice": 70.0,
+          "currentPrice": 72.5,
+          "marketValue": 1450.0,
+          "gainLoss": 50.0,
+          "isBotManaged": false,
+          "percentChange": 3.57
+        }
+      ]
+    }
+  },
+  "orders": {
+    "place_order_market_buy": {
+      "orderId": "ORD20251109143000001",
+      "accountId": "XXXX1234",
+      "symbol": "SPY",
+      "quantity": 10,
+      "orderType": "MARKET",
+      "price": null,
+      "status": "ACCEPTED",
+      "createdAt": "2025-11-09T14:30:00Z",
+      "dryRun": false
+    },
+    "place_order_limit_buy": {
+      "orderId": "ORD20251109143100002",
+      "accountId": "XXXX1234",
+      "symbol": "QQQ",
+      "quantity": 5,
+      "price": 380.0,
+      "orderType": "LIMIT",
+      "status": "ACCEPTED",
+      "createdAt": "2025-11-09T14:31:00Z",
+      "dryRun": false
+    },
+    "place_order_dry_run": {
+      "orderId": "ORD20251109143200003",
+      "accountId": "XXXX1234",
+      "symbol": "XLE",
+      "quantity": 20,
+      "price": null,
+      "orderType": "MARKET",
+      "status": "PENDING",
+      "createdAt": "2025-11-09T14:32:00Z",
+      "dryRun": true,
+      "message": "Order placed in dry-run mode. Not submitted to Schwab."
+    },
+    "order_rejected_manual_position": {
+      "error": "ORDER_REJECTED",
+      "error_code": "MANUAL_POSITION_PROTECTION",
+      "error_description": "Cannot trade security QQQ - existing manual position detected. Only bot-managed positions can be traded by the algorithm.",
+      "symbol": "QQQ",
+      "reason": "MANUAL_POSITION_EXISTS"
+    }
+  },
+  "errors": {
+    "unauthorized": {
+      "error": "UNAUTHORIZED",
+      "error_description": "Invalid or expired access token",
+      "error_code": "401"
+    },
+    "rate_limited": {
+      "error": "RATE_LIMIT_EXCEEDED",
+      "error_description": "Too many requests. Rate limit is 120 requests per minute.",
+      "error_code": "429",
+      "retry_after": 60
+    },
+    "bad_request": {
+      "error": "BAD_REQUEST",
+      "error_description": "Invalid request parameters",
+      "error_code": "400"
+    },
+    "internal_server_error": {
+      "error": "INTERNAL_SERVER_ERROR",
+      "error_description": "An unexpected error occurred",
+      "error_code": "500"
+    },
+    "insufficient_funds": {
+      "error": "INSUFFICIENT_FUNDS",
+      "error_description": "Insufficient buying power for this order",
+      "error_code": "400"
+    }
+  },
+  "test_data": {
+    "sector_etfs": [
+      "XLE",
+      "XLV",
+      "XLK",
+      "XLY",
+      "XLI",
+      "XLRE",
+      "XLF"
+    ],
+    "options_symbols": [
+      "SPY",
+      "QQQ",
+      "IWM",
+      "DIA"
+    ],
+    "test_accounts": [
+      "XXXX1234",
+      "XXXX5678"
+    ]
+  }
+}

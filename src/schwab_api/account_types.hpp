@@ -112,6 +112,13 @@ struct Position {
     Price previous_close{0.0};           // Previous day close
     Timestamp updated_at{0};
 
+    // CRITICAL: Position Classification (see TRADING_CONSTRAINTS.md)
+    bool is_bot_managed{false};          // TRUE if bot opened this position
+    std::string managed_by{"MANUAL"};    // "BOT" or "MANUAL"
+    std::string opened_by{"MANUAL"};     // Who opened this position
+    std::string bot_strategy;            // Strategy name if bot-managed
+    Timestamp opened_at{0};              // When position was opened
+
     [[nodiscard]] auto getCurrentValue() const noexcept -> double {
         return static_cast<double>(quantity) * current_price;
     }
@@ -135,6 +142,30 @@ struct Position {
 
     [[nodiscard]] auto isOption() const noexcept -> bool {
         return asset_type == "OPTION";
+    }
+
+    [[nodiscard]] auto isBotManaged() const noexcept -> bool {
+        return is_bot_managed;
+    }
+
+    [[nodiscard]] auto isManualPosition() const noexcept -> bool {
+        return !is_bot_managed && managed_by == "MANUAL";
+    }
+
+    // Mark as bot-managed position
+    auto markAsBotManaged(std::string strategy_name) -> void {
+        is_bot_managed = true;
+        managed_by = "BOT";
+        opened_by = "BOT";
+        bot_strategy = std::move(strategy_name);
+    }
+
+    // Mark as manual position (existing positions on startup)
+    auto markAsManual() -> void {
+        is_bot_managed = false;
+        managed_by = "MANUAL";
+        opened_by = "MANUAL";
+        bot_strategy.clear();
     }
 };
 

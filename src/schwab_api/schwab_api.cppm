@@ -1087,6 +1087,19 @@ private:
                 quote.last = q.value("lastPrice", 0.0);
                 quote.volume = q.value("totalVolume", 0);
                 quote.timestamp = q.value("quoteTime", 0);
+
+                // Validate quote has valid data
+                if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
+                    return makeError<Quote>(
+                        ErrorCode::InvalidParameter,
+                        "Quote contains no valid price data for symbol: " + symbol
+                    );
+                }
+            } else {
+                return makeError<Quote>(
+                    ErrorCode::InvalidParameter,
+                    "Symbol not found in response: " + symbol
+                );
             }
 
             return quote;
@@ -1104,19 +1117,108 @@ private:
             OptionsChainData chain;
             chain.symbol = data.value("symbol", "");
             chain.status = data.value("status", "");
-            chain.underlying_price = data.value("underlyingPrice", 0.0);
 
-            // Parse calls
+            // Parse underlying price
+            if (data.contains("underlying")) {
+                auto const& underlying = data["underlying"];
+                chain.underlying_price = underlying.value("last", 0.0);
+            } else {
+                chain.underlying_price = data.value("underlyingPrice", 0.0);
+            }
+
+            // Parse calls from callExpDateMap
             if (data.contains("callExpDateMap")) {
-                // Note: Full implementation would iterate through strikes
-                // and expirations
+                auto const& call_map = data["callExpDateMap"];
+                for (auto const& [exp_date_key, strike_map] : call_map.items()) {
+                    // exp_date_key format: "2025-01-17:7" (date:daysToExp)
+                    for (auto const& [strike_str, contracts] : strike_map.items()) {
+                        if (!contracts.is_array() || contracts.empty()) continue;
+
+                        for (auto const& contract_data : contracts) {
+                            OptionQuote opt_quote;
+
+                            // Parse contract details
+                            opt_quote.contract.symbol = contract_data.value("symbol", "");
+                            opt_quote.contract.underlying = chain.symbol;
+                            opt_quote.contract.type = OptionType::Call;
+                            opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
+                            opt_quote.contract.expiration = contract_data.value("expirationDate", 0L);
+                            opt_quote.contract.contract_size = contract_data.value("multiplier", 100);
+
+                            // Parse quote data
+                            opt_quote.quote.symbol = opt_quote.contract.symbol;
+                            opt_quote.quote.bid = contract_data.value("bid", 0.0);
+                            opt_quote.quote.ask = contract_data.value("ask", 0.0);
+                            opt_quote.quote.last = contract_data.value("last", 0.0);
+                            opt_quote.quote.volume = contract_data.value("totalVolume", 0);
+                            opt_quote.quote.timestamp = contract_data.value("quoteTime", 0L);
+
+                            // Parse greeks
+                            opt_quote.greeks.delta = contract_data.value("delta", 0.0);
+                            opt_quote.greeks.gamma = contract_data.value("gamma", 0.0);
+                            opt_quote.greeks.theta = contract_data.value("theta", 0.0);
+                            opt_quote.greeks.vega = contract_data.value("vega", 0.0);
+                            opt_quote.greeks.rho = contract_data.value("rho", 0.0);
+
+                            // Parse implied volatility and volume
+                            opt_quote.implied_volatility = contract_data.value("volatility", 0.0);
+                            opt_quote.open_interest = contract_data.value("openInterest", 0);
+                            opt_quote.volume = contract_data.value("totalVolume", 0);
+
+                            chain.calls.push_back(opt_quote);
+                        }
+                    }
+                }
             }
 
-            // Parse puts
+            // Parse puts from putExpDateMap
             if (data.contains("putExpDateMap")) {
-                // Note: Full implementation would iterate through strikes
-                // and expirations
+                auto const& put_map = data["putExpDateMap"];
+                for (auto const& [exp_date_key, strike_map] : put_map.items()) {
+                    for (auto const& [strike_str, contracts] : strike_map.items()) {
+                        if (!contracts.is_array() || contracts.empty()) continue;
+
+                        for (auto const& contract_data : contracts) {
+                            OptionQuote opt_quote;
+
+                            // Parse contract details
+                            opt_quote.contract.symbol = contract_data.value("symbol", "");
+                            opt_quote.contract.underlying = chain.symbol;
+                            opt_quote.contract.type = OptionType::Put;
+                            opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
+                            opt_quote.contract.expiration = contract_data.value("expirationDate", 0L);
+                            opt_quote.contract.contract_size = contract_data.value("multiplier", 100);
+
+                            // Parse quote data
+                            opt_quote.quote.symbol = opt_quote.contract.symbol;
+                            opt_quote.quote.bid = contract_data.value("bid", 0.0);
+                            opt_quote.quote.ask = contract_data.value("ask", 0.0);
+                            opt_quote.quote.last = contract_data.value("last", 0.0);
+                            opt_quote.quote.volume = contract_data.value("totalVolume", 0);
+                            opt_quote.quote.timestamp = contract_data.value("quoteTime", 0L);
+
+                            // Parse greeks
+                            opt_quote.greeks.delta = contract_data.value("delta", 0.0);
+                            opt_quote.greeks.gamma = contract_data.value("gamma", 0.0);
+                            opt_quote.greeks.theta = contract_data.value("theta", 0.0);
+                            opt_quote.greeks.vega = contract_data.value("vega", 0.0);
+                            opt_quote.greeks.rho = contract_data.value("rho", 0.0);
+
+                            // Parse implied volatility and volume
+                            opt_quote.implied_volatility = contract_data.value("volatility", 0.0);
+                            opt_quote.open_interest = contract_data.value("openInterest", 0);
+                            opt_quote.volume = contract_data.value("totalVolume", 0);
+
+                            chain.puts.push_back(opt_quote);
+                        }
+                    }
+                }
             }
+
+            Logger::getInstance().debug(
+                "Parsed option chain for {}: {} calls, {} puts",
+                chain.symbol, chain.calls.size(), chain.puts.size()
+            );
 
             return chain;
         } catch (json::exception const& e) {
@@ -1164,15 +1266,31 @@ private:
         try {
             std::vector<Mover> movers;
 
-            if (data.is_array()) {
+            // Schwab API returns movers in a "screeners" array
+            if (data.contains("screeners") && data["screeners"].is_array()) {
+                for (auto const& item : data["screeners"]) {
+                    Mover mover;
+                    mover.symbol = item.value("symbol", "");
+                    mover.description = item.value("description", "");
+                    mover.last_price = item.value("lastPrice", 0.0);
+                    mover.net_change = item.value("netChange", 0.0);
+                    mover.percent_change = item.value("netPercentChange", 0.0);
+                    mover.volume = item.value("totalVolume", 0);
+                    mover.total_volume = item.value("totalVolume", 0.0);
+
+                    movers.push_back(mover);
+                }
+            } else if (data.is_array()) {
+                // Fallback: handle direct array response
                 for (auto const& item : data) {
                     Mover mover;
                     mover.symbol = item.value("symbol", "");
                     mover.description = item.value("description", "");
-                    mover.last_price = item.value("last", 0.0);
+                    mover.last_price = item.value("lastPrice", item.value("last", 0.0));
                     mover.net_change = item.value("netChange", 0.0);
                     mover.percent_change = item.value("netPercentChange", 0.0);
                     mover.volume = item.value("totalVolume", 0);
+                    mover.total_volume = item.value("totalVolume", 0.0);
 
                     movers.push_back(mover);
                 }
@@ -1192,38 +1310,59 @@ private:
         try {
             std::vector<MarketHours> hours;
 
-            for (auto const& [market_name, market_data] : data.items()) {
-                MarketHours mh;
-                mh.market = market_name;
-                mh.is_open = market_data.value("isOpen", false);
-                mh.date = market_data.value("date", "");
+            // Schwab API structure: { "equity": { "EQ": {...} }, "option": { "EQO": {...} } }
+            for (auto const& [market_type, products] : data.items()) {
+                if (!products.is_object()) continue;
 
-                if (market_data.contains("sessionHours")) {
-                    auto const& sessions = market_data["sessionHours"];
+                for (auto const& [product_code, market_data] : products.items()) {
+                    MarketHours mh;
+                    mh.market = market_data.value("marketType", market_type);
+                    mh.product = market_data.value("product", product_code);
+                    mh.is_open = market_data.value("isOpen", false);
+                    mh.date = market_data.value("date", "");
 
-                    if (sessions.contains("preMarket")) {
-                        MarketSession pm;
-                        pm.start = sessions["preMarket"].value("start", "");
-                        pm.end = sessions["preMarket"].value("end", "");
-                        mh.pre_market = pm;
+                    if (market_data.contains("sessionHours")) {
+                        auto const& sessions = market_data["sessionHours"];
+
+                        // Parse pre-market session (may be array with time ranges)
+                        if (sessions.contains("preMarket") && sessions["preMarket"].is_array()
+                            && !sessions["preMarket"].empty()) {
+                            auto const& pm_session = sessions["preMarket"][0];
+                            MarketSession pm;
+                            pm.start = pm_session.value("start", "");
+                            pm.end = pm_session.value("end", "");
+                            if (pm.isValid()) {
+                                mh.pre_market = pm;
+                            }
+                        }
+
+                        // Parse regular market session
+                        if (sessions.contains("regularMarket") && sessions["regularMarket"].is_array()
+                            && !sessions["regularMarket"].empty()) {
+                            auto const& rm_session = sessions["regularMarket"][0];
+                            MarketSession rm;
+                            rm.start = rm_session.value("start", "");
+                            rm.end = rm_session.value("end", "");
+                            if (rm.isValid()) {
+                                mh.regular_market = rm;
+                            }
+                        }
+
+                        // Parse post-market session
+                        if (sessions.contains("postMarket") && sessions["postMarket"].is_array()
+                            && !sessions["postMarket"].empty()) {
+                            auto const& post_session = sessions["postMarket"][0];
+                            MarketSession post;
+                            post.start = post_session.value("start", "");
+                            post.end = post_session.value("end", "");
+                            if (post.isValid()) {
+                                mh.post_market = post;
+                            }
+                        }
                     }
 
-                    if (sessions.contains("regularMarket")) {
-                        MarketSession rm;
-                        rm.start = sessions["regularMarket"].value("start", "");
-                        rm.end = sessions["regularMarket"].value("end", "");
-                        mh.regular_market = rm;
-                    }
-
-                    if (sessions.contains("postMarket")) {
-                        MarketSession pm;
-                        pm.start = sessions["postMarket"].value("start", "");
-                        pm.end = sessions["postMarket"].value("end", "");
-                        mh.post_market = pm;
-                    }
+                    hours.push_back(mh);
                 }
-
-                hours.push_back(mh);
             }
 
             return hours;

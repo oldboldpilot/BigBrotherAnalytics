@@ -138,12 +138,12 @@ class TestOrderManagement(unittest.TestCase):
         ])
 
         result = self.db.execute("""
-            SELECT * FROM orders WHERE order_id = ?
+            SELECT order_type, limit_price FROM orders WHERE order_id = ?
         """, [order_id]).fetchone()
 
         self.assertIsNotNone(result)
-        self.assertEqual(result[7], 'Limit', "Order type should be Limit")
-        self.assertEqual(float(result[8]), limit_price, "Limit price should match")
+        self.assertEqual(result[0], 'Limit', "Order type should be Limit")
+        self.assertEqual(float(result[1]), limit_price, "Limit price should match")
 
         print(f"✓ Limit sell order created: {order_id}")
         print(f"  Symbol: {self.test_symbol}")
@@ -170,12 +170,12 @@ class TestOrderManagement(unittest.TestCase):
         ])
 
         result = self.db.execute("""
-            SELECT * FROM orders WHERE order_id = ?
+            SELECT order_type, stop_price FROM orders WHERE order_id = ?
         """, [order_id]).fetchone()
 
         self.assertIsNotNone(result)
-        self.assertEqual(result[7], 'Stop', "Order type should be Stop")
-        self.assertEqual(float(result[9]), stop_price, "Stop price should match")
+        self.assertEqual(result[0], 'Stop', "Order type should be Stop")
+        self.assertEqual(float(result[1]), stop_price, "Stop price should match")
 
         print(f"✓ Stop-loss order created: {order_id}")
         print(f"  Symbol: {self.test_symbol}")
