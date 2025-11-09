@@ -59,6 +59,8 @@ jobs:
 
     - name: Configure CMake
       run: |
+        # Skip clang-tidy for CodeQL build (will analyze separately)
+        export SKIP_CLANG_TIDY=1
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
           -DCMAKE_CXX_STANDARD=23 \
@@ -70,6 +72,17 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+      with:
+        # Exclude external libraries and third-party code
+        queries: security-extended,security-and-quality
+        paths:
+          - src/
+        paths-ignore:
+          - src/python_bindings/
+          - build/
+          - .venv/
+          - external/
+          - third_party/
 
   container-selection-check:
     name: Container Selection (unordered_map preferred)

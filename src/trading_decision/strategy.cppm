@@ -50,6 +50,7 @@ using namespace bigbrother::types;
 /**
  * Trading Signal
  * C.1: Struct for passive data
+ * C.21: Explicitly defaulted special members for proper move semantics
  */
 struct TradingSignal {
     std::string strategy_name;
@@ -65,6 +66,14 @@ struct TradingSignal {
     // Options-specific
     std::optional<options::OptionContract> option_contract;
     std::optional<options::Greeks> greeks;
+
+    // C.21: Rule of Five - explicitly defaulted for move semantics
+    TradingSignal() = default;
+    TradingSignal(TradingSignal const&) = default;
+    auto operator=(TradingSignal const&) -> TradingSignal& = default;
+    TradingSignal(TradingSignal&&) noexcept = default;
+    auto operator=(TradingSignal&&) noexcept -> TradingSignal& = default;
+    ~TradingSignal() = default;
 
     [[nodiscard]] auto isActionable() const noexcept -> bool {
         return type != SignalType::Hold &&

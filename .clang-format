@@ -3,6 +3,11 @@
 #
 # Author: Olumuyiwa Oluwasanmi
 # Date: 2025-11-08
+#
+# Exclusions: Only format our source code (src/), not:
+#   - External libraries (build/, .venv/, external/)
+#   - Third-party code (pybind11 headers, system headers)
+#   - Generated code
 
 Language: Cpp
 Standard: c++23
