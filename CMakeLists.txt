@@ -47,6 +47,24 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-fprebuilt-module-path=${CMAKE_BINARY_DIR}/modules)
 endif()
 
+# C++23 Standard Library Module Support (import std;)
+# Precompile std module for faster builds and cleaner syntax
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/std.pcm
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/modules
+    COMMAND ${CMAKE_CXX_COMPILER}
+            -std=c++23
+            -stdlib=libc++
+            -nostdinc++
+            -isystem /opt/libc++_modules/include/c++/v1
+            --precompile
+            /opt/libc++_modules/share/libc++/v1/std.cppm
+            -o ${CMAKE_BINARY_DIR}/modules/std.pcm
+    COMMENT "Precompiling C++23 std module for import std; support"
+    VERBATIM
+)
+add_custom_target(std_module DEPENDS ${CMAKE_BINARY_DIR}/modules/std.pcm)
+
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
