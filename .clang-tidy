@@ -44,6 +44,13 @@ WarningsAsErrors: >
   modernize-use-nullptr,
   modernize-use-nodiscard
 
+HeaderFilterRegex: 'src/.*'  # Only check our source code, not external libraries
+FormatStyle: none
+
+# Exclude external libraries and third-party code from all checks
+SystemHeaders: false
+
+CheckOptions:
   # Exclude external libraries and pybind11 from checks
   - key: readability-identifier-naming.IgnoreMainLikeFunctions
     value: true
@@ -105,13 +112,6 @@ WarningsAsErrors: >
     value: 80
   - key: readability-function-size.StatementThreshold
     value: 50
-
-HeaderFilterRegex: 'src/.*'  # Only check our source code, not external libraries
-FormatStyle: none
-
-# Exclude external libraries and third-party code from all checks
-SystemHeaders: false
-CheckOptions:
 
 # ============================================================================
 # BigBrotherAnalytics Coding Standards Enforcement
