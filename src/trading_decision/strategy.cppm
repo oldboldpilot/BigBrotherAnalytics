@@ -48,6 +48,16 @@ using namespace bigbrother::types;
 // ============================================================================
 
 /**
+ * Signal Type Enum
+ */
+enum class SignalType {
+    Buy,
+    Sell,
+    Hold,
+    ClosePosition
+};
+
+/**
  * Trading Signal
  * C.1: Struct for passive data
  * C.21: Explicitly defaulted special members for proper move semantics
