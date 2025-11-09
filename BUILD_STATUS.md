@@ -26,43 +26,39 @@
 
 ---
 
-## ❌ Remaining Build Errors
+## 🔄 Remaining Build Errors (Updated 2025-11-08)
 
-### Category 1: Type Definition Issues
+### Category 1: Type Definition Issues ✅ FIXED
 
 **strategy.cppm:**
-- ✅ SignalType enum added (fixed)
-- ✅ TradingSignal Rule of Five added (fixed)
-- [ ] OptionContract namespace resolution
-- [ ] Quote type resolution (use schwab::Quote)
-- [ ] SchwabClient type resolution (use schwab::SchwabClient)
+- ✅ SignalType enum added
+- ✅ TradingSignal Rule of Five added
+- ✅ Using namespace schwab (Quote, OptionsChainData, SchwabClient resolved)
 
-### Category 2: Module Implementation Conflicts
+### Category 2: Module Implementation Conflicts ✅ FIXED
 
-**risk_manager.cpp:**
-- Multiple redefinition errors
-- Functions implemented in both .cppm and .cpp
-- pImpl pattern issues (Impl class not found)
+**risk_manager.cpp, position_sizer.cpp, stop_loss.cpp, monte_carlo.cpp:**
+- ✅ Removed from CMakeLists.txt (duplicated .cppm implementations)
 
-**Recommendation:** Remove risk_manager.cpp implementations that duplicate .cppm
+**strategy_manager.cpp, strategy_straddle.cpp, strategy_volatility_arb.cpp:**
+- ✅ Removed from CMakeLists.txt (duplicated .cppm implementations)
 
-### Category 3: SimulationResult Struct Mismatch
+**Status:** No more redefinition errors
 
-**monte_carlo.cpp:**
-- Using struct members not in declaration:
-  - min_pnl, max_pnl, median_pnl
-  - cvar_95, win_probability
-  - num_simulations, mean_pnl
+### Category 3: Linker Errors - Missing Implementations
 
-**Recommendation:** Check risk_management.cppm SimulationResult definition vs monte_carlo.cpp usage
+**DatabaseConnection constructor:**
+- Undefined reference to DatabaseConnection(std::string)
+- Declared in database_api.cppm but constructor not inline
 
-### Category 4: Missing Macro/Function
+**Recommendation:** Add inline constructor implementation in database_api.cppm
 
-**monte_carlo.cpp:**
-- PROFILE_SCOPE undeclared
-- Likely from timer.cppm
+### Category 4: Module Compilation Errors
 
-**Recommendation:** Add import or define macro
+**strategies.cppm and backtest.cppm:**
+- Module compilation errors (not yet investigated)
+
+**Recommendation:** Review module dependencies and imports
 
 ---
 

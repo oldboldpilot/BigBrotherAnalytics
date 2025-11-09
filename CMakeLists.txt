@@ -238,9 +238,9 @@ target_link_libraries(options_pricing
 # ============================================================================
 
 add_library(trading_decision SHARED
-    src/trading_decision/strategy_manager.cpp
-    src/trading_decision/strategy_straddle.cpp
-    src/trading_decision/strategy_volatility_arb.cpp
+    # Module implementation units removed - implementations in strategies.cppm
+    # TODO: Merge these .cpp files into strategies.cppm module :private; section
+    # See TIER1_EXTENSION_CHECKLIST.md Section J for consolidation tasks
 )
 
 # C++23 modules with fluent API and trailing return syntax
@@ -272,10 +272,9 @@ endif()
 # ============================================================================
 
 add_library(risk_management SHARED
-    src/risk_management/risk_manager.cpp
-    src/risk_management/position_sizer.cpp
-    src/risk_management/stop_loss.cpp
-    src/risk_management/monte_carlo.cpp
+    # Module implementation units removed - implementations in risk_management.cppm
+    # TODO: Merge these .cpp files into risk_management.cppm module :private; section
+    # See TIER1_EXTENSION_CHECKLIST.md Section J for consolidation tasks
 )
 
 # C++23 modules with fluent API and trailing return syntax
