@@ -238,7 +238,7 @@ inline auto FeatureAnalyzer::getTopFeatures(
 ) -> std::vector<FeatureImportance> {
     auto sorted = features;
     std::sort(sorted.begin(), sorted.end(),
-        [](auto const& a, auto const& b) { return a.importance_score > b.importance_score; });
+        [](auto const& a, auto const& b) -> bool { return a.importance_score > b.importance_score; });
     
     if (sorted.size() > n) {
         sorted.resize(n);

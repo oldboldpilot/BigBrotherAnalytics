@@ -56,6 +56,8 @@ echo "  - portability-* (Cross-platform compatibility)"
 echo "  - openmp-* (OpenMP parallelization safety)"
 echo "  - mpi-* (MPI message passing correctness)"
 echo ""
+echo "Note: Module import errors ignored (false positives before compilation)"
+echo ""
 
 errors=0
 warnings=0
@@ -67,12 +69,15 @@ for file in $CPP_FILES; do
 
     output=$(clang-tidy "$file" -p=./build -- -std=c++23 -I./src 2>&1 || true)
 
-    file_errors=$(echo "$output" | grep -c "error:" || true)
-    file_warnings=$(echo "$output" | grep -c "warning:" || true)
+    # Filter out module import errors (false positives before modules are built)
+    filtered_output=$(echo "$output" | grep -v "module.*not found" || true)
+
+    file_errors=$(echo "$filtered_output" | grep -c "error:" || true)
+    file_warnings=$(echo "$filtered_output" | grep -c "warning:" || true)
 
     if [ "$file_errors" -gt 0 ]; then
         echo -e "${RED}  ❌ $file_errors errors${NC}"
-        echo "$output" | grep "error:" | head -3
+        echo "$filtered_output" | grep "error:" | head -3
         errors=$((errors + file_errors))
     fi
 

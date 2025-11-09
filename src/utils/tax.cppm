@@ -318,7 +318,7 @@ public:
         auto result = trades;
 
         // Sort by exit time
-        std::ranges::sort(result, [](auto const& a, auto const& b) {
+        std::ranges::sort(result, [](auto const& a, auto const& b) -> bool {
             return a.exit_time < b.exit_time;
         });
 
@@ -560,7 +560,7 @@ struct TaxAdjustedMetrics {
 
     double const variance = std::accumulate(
         after_tax_returns.begin(), after_tax_returns.end(), 0.0,
-        [mean_return](double acc, double ret) {
+        [mean_return](double acc, double ret) -> double {
             double const diff = ret - mean_return;
             return acc + diff * diff;
         }

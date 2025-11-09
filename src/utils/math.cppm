@@ -79,7 +79,7 @@ template<std::ranges::range R>
 
     auto const sum = std::ranges::fold_left(
         std::forward<R>(range), 0.0,
-        [](auto acc, auto val) { return acc + static_cast<double>(val); }
+        [](auto acc, auto val) -> double { return acc + static_cast<double>(val); }
     );
 
     return sum / static_cast<double>(std::ranges::size(range));
@@ -100,7 +100,7 @@ template<std::ranges::range R>
     auto const mu = mean(range);
 
     auto const sum_sq_diff = std::ranges::fold_left(
-        std::forward<R>(range) | std::views::transform([mu](auto val) {
+        std::forward<R>(range) | std::views::transform([mu](auto val) -> double {
             auto const diff = static_cast<double>(val) - mu;
             return diff * diff;
         }),
