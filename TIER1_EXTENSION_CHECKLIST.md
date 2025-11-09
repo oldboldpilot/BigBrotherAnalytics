@@ -489,6 +489,138 @@ This checklist provides detailed tasks for Tier 1 Extension, including:
 - [ ] Document any remaining warnings
 - [ ] Get clean bill of health
 
+### C++23 Module Consolidation & Cleanup
+
+**CRITICAL: Convert module implementation units from .cpp to .cppm**
+
+Currently, we have 11 .cpp files that are module implementation units.
+These should be either:
+1. Converted to .cppm with `module :private;` sections
+2. Merged into main .cppm module files
+3. Or kept as .cpp but ensure no duplicates
+
+#### Module Implementation Units to Review (11 files):
+
+**Utils (3 files):**
+- [ ] src/utils/logger.cpp (163 lines) - Convert to logger.cppm private section or keep separate
+- [ ] src/utils/config.cpp (363 lines) - Convert to config.cppm private section or keep separate
+- [ ] src/utils/database.cpp (545 lines) - STUB, likely delete or merge into database.cppm
+
+**Risk Management (4 files):**
+- [ ] src/risk_management/risk_manager.cpp (290 lines) - Merge into risk_management.cppm
+- [ ] src/risk_management/position_sizer.cpp (224 lines) - Merge into risk_management.cppm
+- [ ] src/risk_management/stop_loss.cpp (217 lines) - Merge into risk_management.cppm
+- [ ] src/risk_management/monte_carlo.cpp (281 lines) - Merge into risk_management.cppm
+
+**Trading Decision (3 files):**
+- [ ] src/trading_decision/strategy_manager.cpp (207 lines) - Merge into strategies.cppm
+- [ ] src/trading_decision/strategy_straddle.cpp (411 lines) - Merge into strategies.cppm
+- [ ] src/trading_decision/strategy_volatility_arb.cpp (60 lines) - Merge into strategies.cppm
+
+**Schwab API (1 file):**
+- [ ] src/schwab_api/token_manager.cpp (484 lines) - Merge into schwab_api.cppm
+
+#### Conversion Process for Each File:
+
+**Step 1: Analyze current structure**
+- [ ] Check if module has interface (.cppm) and implementation (.cpp)
+- [ ] Verify all functions declared in .cppm are implemented in .cpp
+- [ ] Check for duplicate implementations
+- [ ] Identify any standalone functions not in module interface
+
+**Step 2: Choose consolidation strategy**
+- [ ] Option A: Merge .cpp into .cppm using `module :private;`
+  ```cpp
+  export module bigbrother.component;
+
+  export namespace bigbrother::component {
+      // Public interface
+  }
+
+  module :private;  // Private implementation section
+
+  namespace bigbrother::component {
+      // Implementation details
+  }
+  ```
+- [ ] Option B: Keep .cpp as module implementation unit (current approach)
+- [ ] Option C: Inline small implementations directly in .cppm export section
+
+**Step 3: Merge implementations**
+- [ ] Copy implementation code from .cpp to chosen location in .cppm
+- [ ] Ensure namespace consistency
+- [ ] Keep global module fragment includes
+- [ ] Preserve authorship headers
+- [ ] Remove redundant imports
+
+**Step 4: Update CMakeLists.txt**
+- [ ] Remove .cpp from add_library() if merged into .cppm
+- [ ] Update target_sources() if needed
+- [ ] Verify module dependencies still correct
+- [ ] Test build after each change
+
+**Step 5: Update calling code**
+- [ ] Ensure all imports use correct module names
+- [ ] Verify no #include references to old files
+- [ ] Check main.cpp imports
+- [ ] Check test file imports
+- [ ] Check other module imports
+
+**Step 6: Remove old .cpp files**
+- [ ] Delete .cpp file after successful merge
+- [ ] Verify build still succeeds
+- [ ] Verify tests still pass
+- [ ] Update git: `git rm src/path/to/file.cpp`
+
+#### Duplicate Detection and Removal
+
+- [ ] Search for duplicate function implementations
+  ```bash
+  # Find duplicate function signatures
+  grep -r "^auto.*::.*(" src/ | sort | uniq -d
+  ```
+- [ ] Check for duplicate class definitions
+- [ ] Look for redundant helper functions
+- [ ] Identify copy-pasted code blocks
+- [ ] Consolidate duplicates into single implementation
+
+#### Verification After Conversion
+
+- [ ] Run full validation
+  ```bash
+  ./scripts/validate_code.sh src/
+  ```
+- [ ] Clean build from scratch
+  ```bash
+  rm -rf build/*
+  cd build && cmake -G Ninja .. && ninja
+  ```
+- [ ] Run all tests
+  ```bash
+  ./run_tests.sh
+  ```
+- [ ] Verify module interface vs implementation separation
+- [ ] Check for any linker errors
+- [ ] Ensure no duplicate symbols
+
+#### Benefits of Consolidation:
+
+**Single-file modules (.cppm only):**
+- Simpler build configuration
+- Easier to maintain
+- Faster compilation (no separate .cpp)
+- Better for header-only style libraries
+
+**Separate .cpp implementation units:**
+- Faster incremental builds (only recompile changed .cpp)
+- Better for large implementations
+- Clearer separation of interface and implementation
+
+**Recommendation:**
+- Small modules (<500 lines total): Merge into single .cppm
+- Large modules (>500 lines): Keep separate .cpp implementation units
+- Very large (>1000 lines): Consider splitting into multiple modules
+
 ### C++23 Module Validation
 - [ ] Verify all .cppm files have proper structure
 - [ ] Check global module fragment (module;) usage
@@ -496,6 +628,7 @@ This checklist provides detailed tasks for Tier 1 Extension, including:
 - [ ] Check export namespace patterns
 - [ ] Validate module dependency order
 - [ ] Test module compilation isolation
+- [ ] Ensure no duplicate module implementations
 
 ---
 
@@ -648,9 +781,168 @@ This checklist provides detailed tasks for Tier 1 Extension, including:
 
 ---
 
+---
+
+## Section J: Module Consolidation & Build Optimization
+
+**Estimated Time:** 12-16 hours
+**Priority:** MEDIUM (improves build performance and maintainability)
+
+### Current Module Structure Analysis
+
+**Module Implementation Files (.cpp) - 11 files total:**
+
+**Small implementations (<250 lines) - RECOMMEND: Merge into .cppm**
+- src/utils/logger.cpp (163 lines) → Merge into logger.cppm
+- src/risk_management/position_sizer.cpp (224 lines) → Merge into risk_management.cppm
+- src/risk_management/stop_loss.cpp (217 lines) → Merge into risk_management.cppm
+- src/trading_decision/strategy_manager.cpp (207 lines) → Merge into strategies.cppm
+- src/trading_decision/strategy_volatility_arb.cpp (60 lines) → Merge into strategies.cppm
+
+**Medium implementations (250-400 lines) - EVALUATE:**
+- src/risk_management/monte_carlo.cpp (281 lines)
+- src/risk_management/risk_manager.cpp (290 lines)
+- src/utils/config.cpp (363 lines)
+- src/trading_decision/strategy_straddle.cpp (411 lines)
+
+**Large implementations (>400 lines) - RECOMMEND: Keep separate or split**
+- src/schwab_api/token_manager.cpp (484 lines)
+- src/utils/database.cpp (545 lines) - STUB, mostly #if 0
+
+**Application files (KEEP as .cpp):**
+- src/main.cpp (entry point)
+- src/python_bindings/bigbrother_bindings.cpp (pybind11)
+- src/trading_engine.cpp (stub)
+
+### Consolidation Tasks
+
+#### Phase 1: Remove Stub/Duplicate Files
+- [ ] Analyze database.cpp - mostly #if 0 disabled code
+- [ ] Check if database.cppm has inline implementation
+- [ ] Remove database.cpp from CMakeLists.txt
+- [ ] Delete database.cpp if no longer needed
+- [ ] Remove config.cpp from CMakeLists.txt (template conflicts)
+- [ ] Verify inline implementations in .cppm are sufficient
+
+#### Phase 2: Merge Small Implementations into .cppm
+
+**logger.cpp → logger.cppm:**
+- [ ] Open logger.cppm and add `module :private;` section at end
+- [ ] Copy logger.cpp implementation to private section
+- [ ] Update CMakeLists.txt to remove logger.cpp
+- [ ] Build and verify no errors
+- [ ] Run tests
+- [ ] Delete logger.cpp
+- [ ] Commit: "refactor: Merge logger implementation into module"
+
+**position_sizer.cpp → risk_management.cppm:**
+- [ ] Add position sizer implementation to risk_management.cppm private section
+- [ ] Remove position_sizer.cpp from CMakeLists.txt
+- [ ] Build and test
+- [ ] Delete position_sizer.cpp
+- [ ] Commit changes
+
+**stop_loss.cpp → risk_management.cppm:**
+- [ ] Add stop loss implementation to risk_management.cppm private section
+- [ ] Remove stop_loss.cpp from CMakeLists.txt
+- [ ] Build and test
+- [ ] Delete stop_loss.cpp
+- [ ] Commit changes
+
+**strategy_manager.cpp → strategies.cppm:**
+- [ ] Add strategy manager implementation to strategies.cppm
+- [ ] Remove from CMakeLists.txt
+- [ ] Build and test
+- [ ] Delete strategy_manager.cpp
+- [ ] Commit changes
+
+**strategy_volatility_arb.cpp → strategies.cppm:**
+- [ ] Add volatility arb implementation to strategies.cppm
+- [ ] Remove from CMakeLists.txt
+- [ ] Build and test
+- [ ] Delete strategy_volatility_arb.cpp
+- [ ] Commit changes
+
+#### Phase 3: Evaluate Medium-Sized Files
+
+**For each medium file (monte_carlo, risk_manager, config, strategy_straddle):**
+- [ ] Measure current incremental build time
+- [ ] Test compilation time if merged into .cppm
+- [ ] Decision: Merge if <2 second compile time increase
+- [ ] Decision: Keep separate if complex implementation
+- [ ] Document decision rationale
+
+#### Phase 4: Optimize Large Files
+
+**token_manager.cpp (484 lines):**
+- [ ] Consider splitting into multiple modules:
+  - token_manager.cppm (auth flow)
+  - token_storage.cppm (persistence)
+- [ ] Or keep as separate implementation unit
+- [ ] Evaluate based on recompilation frequency
+
+**strategy_straddle.cpp (411 lines):**
+- [ ] Consider extracting to strategy_straddle.cppm
+- [ ] Or keep in strategies.cppm with module :private;
+
+#### Phase 5: CMakeLists.txt Cleanup
+
+- [ ] Review all add_library() definitions
+- [ ] Remove references to deleted .cpp files
+- [ ] Ensure only necessary .cpp files remain:
+  - main.cpp (entry point)
+  - python_bindings/bigbrother_bindings.cpp (pybind11)
+  - trading_engine.cpp (stub)
+  - Module implementation units that remain
+- [ ] Verify correct module dependencies
+- [ ] Test complete clean build
+
+#### Phase 6: Duplicate Code Detection
+
+- [ ] Run duplicate code detector
+  ```bash
+  # Find potential duplicates
+  find src -name "*.cppm" -exec grep -l "calculatePrice\|calculateCorrelation" {} \;
+  ```
+- [ ] Check for copy-pasted implementations
+- [ ] Identify common utility functions
+- [ ] Extract duplicates to shared utilities
+- [ ] Create helper modules if needed
+- [ ] Remove all duplicates
+
+#### Phase 7: Verification
+
+- [ ] Clean build from scratch
+  ```bash
+  rm -rf build && mkdir build && cd build
+  cmake -G Ninja .. && ninja
+  ```
+- [ ] Verify all libraries build correctly
+- [ ] Check library sizes (should be similar or smaller)
+- [ ] Run complete test suite
+- [ ] Verify no linker errors
+- [ ] Check for missing symbols
+- [ ] Validate module interfaces complete
+
+### Expected Outcomes
+
+**After consolidation:**
+- Fewer .cpp files (target: ~5 instead of 14)
+- Faster clean builds (less files to compile)
+- Simpler CMakeLists.txt
+- No duplicate implementations
+- Clear module structure
+
+**Metrics:**
+- Current: 14 .cpp files, 25 .cppm files
+- Target: ~5 .cpp files, 25-30 .cppm files
+- Build time: Should improve by 10-20%
+
+---
+
 ## Summary Statistics
 
-### Total Tasks: 200+
+### Total Tasks: 250+
 
 **By Section:**
 - A. BLS API Integration: 25 tasks (8-12 hours)
