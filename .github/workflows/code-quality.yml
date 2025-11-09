@@ -76,13 +76,13 @@ jobs:
         # Exclude external libraries and third-party code
         queries: security-extended,security-and-quality
         paths:
-          - src/
+          - 'src/'
         paths-ignore:
-          - src/python_bindings/
-          - build/
-          - .venv/
-          - external/
-          - third_party/
+          - 'src/python_bindings/'
+          - 'build/'
+          - '.venv/'
+          - 'external/'
+          - 'third_party/'
 
   container-selection-check:
     name: Container Selection (unordered_map preferred)
