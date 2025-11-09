@@ -8,6 +8,10 @@
 set -e
 
 echo "🔍 Running pre-commit standards checks..."
+echo ""
+echo "MANDATORY: clang-tidy runs on all staged C++ files before commit"
+echo "This enforces: C++ Core Guidelines, CERT, concurrency, performance, OpenMP, MPI"
+echo ""
 
 # Colors for output
 RED='\033[0;31m'
@@ -172,11 +176,23 @@ if command -v clang-tidy &> /dev/null; then
     if [ $tidy_violations -eq 0 ]; then
         echo -e "${GREEN}✅ clang-tidy checks passed${NC}"
     else
-        echo -e "${RED}❌ Found $tidy_violations files with clang-tidy errors${NC}"
+        echo -e "${RED}❌ COMMIT BLOCKED: $tidy_violations files with clang-tidy errors${NC}"
+        echo ""
+        echo "clang-tidy is MANDATORY before commits."
+        echo "Fix all errors before committing."
         violations=$((violations + tidy_violations))
     fi
 else
-    echo -e "${YELLOW}⚠️  clang-tidy not found (install: sudo apt-get install clang-tidy)${NC}"
+    echo -e "${RED}❌ COMMIT BLOCKED: clang-tidy not found${NC}"
+    echo ""
+    echo "clang-tidy is REQUIRED for BigBrotherAnalytics development."
+    echo ""
+    echo "Install:"
+    echo "  Ubuntu/Debian: sudo apt-get install clang-tidy"
+    echo "  macOS: brew install llvm"
+    echo "  RHEL/Fedora: sudo dnf install clang-tools-extra"
+    echo ""
+    violations=$((violations + 1))
 fi
 
 # Check 6: Run clang-format (if available)

@@ -20,9 +20,14 @@ BigBrotherAnalytics is a high-performance AI-powered trading platform with **mic
 **Agent Build Workflow:**
 After any code modification, agents MUST:
 1. Run `./scripts/validate_code.sh`
-2. Build with `cd build && ninja`
+2. Build with `cd build && ninja` (clang-tidy runs AUTOMATICALLY before build)
 3. Run tests with `./run_tests.sh`
-4. Only commit if all checks pass
+4. Commit (clang-tidy runs AUTOMATICALLY in pre-commit hook)
+
+**AUTOMATIC clang-tidy Enforcement:**
+- Pre-Build: CMake runs clang-tidy before compiling (BLOCKS build if errors)
+- Pre-Commit: Git hook runs clang-tidy on staged files (BLOCKS commit if errors)
+- Cannot bypass without explicit SKIP_CLANG_TIDY=1 (NOT ALLOWED for code changes)
 
 **Current Status (Nov 2025):**
 - ✅ C++23 module migration complete - 17 modules with fluent APIs

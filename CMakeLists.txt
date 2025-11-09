@@ -1,6 +1,29 @@
 cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
 project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
+# ============================================================================
+# Pre-Build Quality Check: Run clang-tidy
+# ============================================================================
+# Run clang-tidy before every build to enforce code quality
+# Set SKIP_CLANG_TIDY=1 to bypass (NOT RECOMMENDED)
+
+if(NOT DEFINED ENV{SKIP_CLANG_TIDY})
+    message(STATUS "Running pre-build clang-tidy validation...")
+    execute_process(
+        COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_clang_tidy.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE CLANG_TIDY_RESULT
+    )
+
+    if(NOT CLANG_TIDY_RESULT EQUAL 0)
+        message(FATAL_ERROR "clang-tidy validation failed! Fix errors before building.")
+    endif()
+
+    message(STATUS "✅ clang-tidy validation passed")
+else()
+    message(WARNING "⚠️  clang-tidy check SKIPPED (SKIP_CLANG_TIDY is set)")
+endif()
+
 # Require C++23
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

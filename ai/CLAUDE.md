@@ -127,19 +127,31 @@
 **Build and Test Workflow (MANDATORY):**
 ```bash
 # 1. Make changes to code
+
 # 2. Run validation (catches most issues)
 ./scripts/validate_code.sh
 
-# 3. Build
+# 3. Build (clang-tidy runs AUTOMATICALLY before build)
 cd build && ninja
+# CMake runs scripts/run_clang_tidy.sh automatically
+# Build is BLOCKED if clang-tidy finds errors
 
 # 4. Run tests
 env LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH \
     ./run_tests.sh
 
-# 5. Commit (pre-commit hook runs automatically)
-git add -A && git commit -m "message"
+# 5. Commit (pre-commit hook runs clang-tidy AUTOMATICALLY)
+git add -A && git commit -m "message
+
+Author: Olumuyiwa Oluwasanmi"
+# Pre-commit hook runs clang-tidy on staged files
+# Commit is BLOCKED if clang-tidy finds errors
 ```
+
+**CRITICAL: clang-tidy runs AUTOMATICALLY:**
+- Before every build (CMake runs it)
+- Before every commit (pre-commit hook)
+- Bypassing is NOT ALLOWED without explicit justification
 
 When helping with this project:
 1. Always check database strategy first - use DuckDB for Tier 1, not PostgreSQL

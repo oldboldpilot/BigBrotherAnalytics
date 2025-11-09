@@ -44,11 +44,26 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
     CXX=/home/linuxbrew/.linuxbrew/bin/clang++ \
     cmake -G Ninja ..
 
-# Build
+# Build (clang-tidy runs AUTOMATICALLY before compilation)
 ninja
 ```
 
-**Expected:** All modules compile, libraries and executables link successfully
+**What Happens Automatically:**
+1. CMake runs `scripts/run_clang_tidy.sh` before building
+2. clang-tidy validates all C++ files against .clang-tidy config
+3. **Build is BLOCKED if clang-tidy finds errors**
+4. If validation passes, compilation proceeds
+
+**Expected:**
+- clang-tidy validation passes (0 errors)
+- All modules compile
+- Libraries and executables link successfully
+
+**If clang-tidy fails:**
+- Build stops immediately
+- Error messages shown
+- Fix errors in reported files
+- Run `ninja` again
 
 ### Step 3: Run Tests
 
