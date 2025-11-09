@@ -564,7 +564,7 @@ private:
 
         // Standard deviation
         auto const variance = std::accumulate(samples.begin(), samples.end(), 0.0,
-            [mean](double acc, double val) {
+            [mean](double acc, double val) -> double {
                 auto const diff = val - mean;
                 return acc + diff * diff;
             }) / static_cast<double>(count);
