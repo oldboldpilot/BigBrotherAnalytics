@@ -117,8 +117,7 @@ jobs:
         sudo apt-get install -y \
           clang-18 \
           clang-tidy-18 \
-          clang-format-18 \
-          cppcheck
+          clang-format-18
 
     - name: Check Trailing Return Syntax
       run: |
@@ -153,54 +152,59 @@ jobs:
           echo "✅ All functions use trailing return syntax"
         fi
 
-    - name: Check C++ Core Guidelines Compliance
-      run: |
-        echo "🔍 Checking C++ Core Guidelines compliance..."
-
-        # Run clang-tidy with C++ Core Guidelines checks
-        clang-tidy-18 --version
-
-        # Create clang-tidy configuration if not exists
-        if [ ! -f .clang-tidy ]; then
-          cat > .clang-tidy << 'EOF'
-Checks: >
-  cppcoreguidelines-*,
-  modernize-*,
-  performance-*,
-  readability-*,
-  -modernize-use-trailing-return-type,
-  bugprone-*,
-  -readability-magic-numbers,
-  -cppcoreguidelines-avoid-magic-numbers
-WarningsAsErrors: ''
-HeaderFilterRegex: '.*'
-FormatStyle: none
-EOF
-        fi
-
-        # Run clang-tidy on source files
-        find src -name "*.cpp" -o -name "*.cppm" | head -10 | while read file; do
-          echo "Checking $file..."
-          clang-tidy-18 "$file" -- -std=c++23 -I./src || true
-        done
-
     - name: Run clang-tidy (Comprehensive Analysis)
       run: |
         echo "🔍 Running comprehensive clang-tidy analysis..."
+        echo "Using project .clang-tidy configuration with 11 check categories"
+        echo ""
 
-        # Run on all source files (not just changed ones)
+        # Verify .clang-tidy exists
+        if [ ! -f .clang-tidy ]; then
+          echo "❌ Error: .clang-tidy configuration not found!"
+          exit 1
+        fi
+
+        # Show enabled check categories
+        echo "Enabled check categories:"
+        echo "  - cppcoreguidelines-* (C++ Core Guidelines)"
+        echo "  - cert-* (CERT C++ Secure Coding)"
+        echo "  - concurrency-* (Thread safety)"
+        echo "  - performance-* (Optimization)"
+        echo "  - portability-* (Cross-platform)"
+        echo "  - openmp-* (OpenMP safety)"
+        echo "  - mpi-* (MPI safety)"
+        echo "  - modernize-* (C++23 features, trailing return)"
+        echo "  - bugprone-* (Bug detection)"
+        echo "  - clang-analyzer-* (Static analysis)"
+        echo "  - readability-* (Code clarity)"
+        echo ""
+
+        clang-tidy-18 --version
+
+        # Run on source files (limit to avoid timeout)
         find src -name "*.cpp" -o -name "*.cppm" | head -20 | while read file; do
           echo "Analyzing $file..."
           clang-tidy-18 "$file" -- -std=c++23 -I./src 2>&1 | tee -a clang-tidy-report.txt || true
         done
 
         # Check for critical errors
-        if grep -q "error:" clang-tidy-report.txt; then
-          echo "❌ clang-tidy found critical errors"
+        error_count=$(grep -c "error:" clang-tidy-report.txt || echo "0")
+        warning_count=$(grep -c "warning:" clang-tidy-report.txt || echo "0")
+
+        echo ""
+        echo "clang-tidy Results:"
+        echo "  Errors: $error_count"
+        echo "  Warnings: $warning_count"
+        echo ""
+
+        if [ "$error_count" -gt 0 ]; then
+          echo "❌ clang-tidy found $error_count critical errors"
+          echo ""
+          echo "Top errors:"
           grep "error:" clang-tidy-report.txt | head -20
           exit 1
         else
-          echo "✅ clang-tidy comprehensive analysis passed"
+          echo "✅ clang-tidy comprehensive analysis passed (0 errors, $warning_count warnings)"
         fi
 
   fluent-api-check:
