@@ -547,3 +547,11 @@ set_target_properties(bigbrother_correlation PROPERTIES
     OUTPUT_NAME "bigbrother_correlation"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
 )
+
+# Risk Management Python Bindings (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(bigbrother_risk src/python_bindings/risk_bindings.cpp)
+target_link_libraries(bigbrother_risk PRIVATE risk_management utils)
+set_target_properties(bigbrother_risk PROPERTIES
+    OUTPUT_NAME "bigbrother_risk"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
