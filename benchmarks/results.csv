@@ -1,0 +1,20 @@
+Benchmark,Implementation,Data Size,Avg Time (ms),Std Dev (ms),Min Time (ms),Max Time (ms),Iterations
+Pearson (small),NumPy,small,0.021,0.003,0.018,0.028,10
+Pearson (medium),NumPy,medium,0.060,0.010,0.054,0.089,10
+Pearson (large),NumPy,large,0.385,0.011,0.364,0.403,10
+Spearman,SciPy,10K,1.557,0.029,1.504,1.595,10
+Black-Scholes Single,Pure Python,single,0.035,0.003,0.032,0.041,10
+Black-Scholes Batch,Pure Python,1000 options,34.492,1.256,32.789,37.684,10
+Kelly Criterion,Pure Python,single,0.000,0.000,0.000,0.000,10
+Monte Carlo,Pure Python,1000 sims,93.584,1.010,91.175,95.175,10
+Monte Carlo,Pure Python,10000 sims,929.244,5.299,919.511,937.514,10
+Count Query,Python DuckDB,full table,8.520,0.301,8.046,8.880,10
+Count Query,C++ DuckDB Bindings,full table,5.984,0.523,5.372,7.276,10
+Group By,Python DuckDB,full table,9.626,0.418,9.024,10.283,10
+Group By,C++ DuckDB Bindings,full table,6.592,0.443,6.054,7.547,10
+Filter/Sort,Python DuckDB,filtered,8.876,0.373,8.444,9.659,10
+Filter/Sort,C++ DuckDB Bindings,filtered,6.462,0.182,6.279,6.915,10
+Complex Query,Python DuckDB,processed,9.468,0.265,9.080,10.114,10
+Complex Query,C++ DuckDB Bindings,processed,6.889,0.454,6.365,8.088,10
+3 DuckDB Queries,Single Thread,sequential,18.709,1.060,17.175,21.105,10
+3 DuckDB Queries,3 Threads (GIL-free),parallel,18.468,0.567,17.888,19.494,10

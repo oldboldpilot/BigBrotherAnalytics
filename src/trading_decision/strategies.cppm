@@ -40,11 +40,11 @@ export namespace bigbrother::strategies {
 using namespace bigbrother::types;
 using namespace bigbrother::utils;
 using namespace bigbrother::options;
+using bigbrother::employment::EmploymentSignalGenerator;
+using bigbrother::employment::SectorRotationSignal;
 using bigbrother::strategy::IStrategy;
 using bigbrother::strategy::SignalType;
 using bigbrother::strategy::StrategyContext;
-using bigbrother::employment::EmploymentSignalGenerator;
-using bigbrother::employment::SectorRotationSignal;
 // Note: TradingSignal defined in strategy module, not types
 
 // ============================================================================
@@ -273,27 +273,25 @@ class SectorRotationStrategy final : public IStrategy {
         std::string etf_ticker;
 
         // Signal components
-        double employment_score{0.0};   // -1.0 to +1.0 from employment data
-        double sentiment_score{0.0};    // -1.0 to +1.0 from news sentiment
-        double momentum_score{0.0};     // -1.0 to +1.0 from price momentum
-        double composite_score{0.0};    // Weighted average
+        double employment_score{0.0}; // -1.0 to +1.0 from employment data
+        double sentiment_score{0.0};  // -1.0 to +1.0 from news sentiment
+        double momentum_score{0.0};   // -1.0 to +1.0 from price momentum
+        double composite_score{0.0};  // Weighted average
 
         // Classification
-        bool is_overweight{false};      // Top N sectors
-        bool is_underweight{false};     // Bottom M sectors
-        bool is_neutral{false};         // Middle sectors
+        bool is_overweight{false};  // Top N sectors
+        bool is_underweight{false}; // Bottom M sectors
+        bool is_neutral{false};     // Middle sectors
 
         // Position sizing
-        double target_allocation{0.0};  // Target % of portfolio (0.0 to 1.0)
-        double position_size{0.0};      // Dollar amount to allocate
+        double target_allocation{0.0}; // Target % of portfolio (0.0 to 1.0)
+        double position_size{0.0};     // Dollar amount to allocate
 
         [[nodiscard]] auto isStrongSignal() const noexcept -> bool {
             return std::abs(composite_score) > 0.70;
         }
 
-        [[nodiscard]] auto rank() const noexcept -> double {
-            return composite_score;
-        }
+        [[nodiscard]] auto rank() const noexcept -> double { return composite_score; }
     };
 
     /**
@@ -315,13 +313,11 @@ class SectorRotationStrategy final : public IStrategy {
     };
 
     explicit SectorRotationStrategy(Config config = Config{})
-        : config_{std::move(config)},
-          signal_generator_{config_.scripts_path, config_.db_path} {
+        : config_{std::move(config)}, signal_generator_{config_.scripts_path, config_.db_path} {
 
         // Normalize weights
-        auto const total_weight = config_.employment_weight +
-                                 config_.sentiment_weight +
-                                 config_.momentum_weight;
+        auto const total_weight =
+            config_.employment_weight + config_.sentiment_weight + config_.momentum_weight;
         if (total_weight > 0.0) {
             config_.employment_weight /= total_weight;
             config_.sentiment_weight /= total_weight;
@@ -340,28 +336,22 @@ class SectorRotationStrategy final : public IStrategy {
         return "Sector Rotation (Multi-Signal)";
     }
 
-    [[nodiscard]] auto isActive() const noexcept -> bool override {
-        return active_;
-    }
+    [[nodiscard]] auto isActive() const noexcept -> bool override { return active_; }
 
-    auto setActive(bool active) -> void override {
-        active_ = active;
-    }
+    auto setActive(bool active) -> void override { active_ = active; }
 
     [[nodiscard]] auto getParameters() const
         -> std::unordered_map<std::string, std::string> override {
-        return {
-            {"min_composite_score", std::to_string(config_.min_composite_score)},
-            {"rotation_threshold", std::to_string(config_.rotation_threshold)},
-            {"employment_weight", std::to_string(config_.employment_weight)},
-            {"sentiment_weight", std::to_string(config_.sentiment_weight)},
-            {"momentum_weight", std::to_string(config_.momentum_weight)},
-            {"top_n_overweight", std::to_string(config_.top_n_overweight)},
-            {"bottom_n_underweight", std::to_string(config_.bottom_n_underweight)},
-            {"max_sector_allocation", std::to_string(config_.max_sector_allocation)},
-            {"min_sector_allocation", std::to_string(config_.min_sector_allocation)},
-            {"rebalance_frequency_days", std::to_string(config_.rebalance_frequency_days)}
-        };
+        return {{"min_composite_score", std::to_string(config_.min_composite_score)},
+                {"rotation_threshold", std::to_string(config_.rotation_threshold)},
+                {"employment_weight", std::to_string(config_.employment_weight)},
+                {"sentiment_weight", std::to_string(config_.sentiment_weight)},
+                {"momentum_weight", std::to_string(config_.momentum_weight)},
+                {"top_n_overweight", std::to_string(config_.top_n_overweight)},
+                {"bottom_n_underweight", std::to_string(config_.bottom_n_underweight)},
+                {"max_sector_allocation", std::to_string(config_.max_sector_allocation)},
+                {"min_sector_allocation", std::to_string(config_.min_sector_allocation)},
+                {"rebalance_frequency_days", std::to_string(config_.rebalance_frequency_days)}};
     }
 
     /**
@@ -431,10 +421,9 @@ class SectorRotationStrategy final : public IStrategy {
             "{}: Generated {} signals ({} overweight, {} underweight) from sector analysis",
             getName(), signals.size(),
             std::count_if(signals.begin(), signals.end(),
-                [](auto const& s) { return s.type == SignalType::Buy; }),
+                          [](auto const& s) { return s.type == SignalType::Buy; }),
             std::count_if(signals.begin(), signals.end(),
-                [](auto const& s) { return s.type == SignalType::Sell; })
-        );
+                          [](auto const& s) { return s.type == SignalType::Sell; }));
 
         return signals;
     }
@@ -452,12 +441,15 @@ class SectorRotationStrategy final : public IStrategy {
             {10, "Energy", "XLE", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
             {15, "Materials", "XLB", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
             {20, "Industrials", "XLI", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
-            {25, "Consumer Discretionary", "XLY", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
+            {25, "Consumer Discretionary", "XLY", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0,
+             0.0},
             {30, "Consumer Staples", "XLP", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
             {35, "Health Care", "XLV", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
             {40, "Financials", "XLF", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
-            {45, "Information Technology", "XLK", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
-            {50, "Communication Services", "XLC", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
+            {45, "Information Technology", "XLK", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0,
+             0.0},
+            {50, "Communication Services", "XLC", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0,
+             0.0},
             {55, "Utilities", "XLU", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
             {60, "Real Estate", "XLRE", 0.0, 0.0, 0.0, 0.0, false, false, false, 0.0, 0.0},
         };
@@ -476,31 +468,24 @@ class SectorRotationStrategy final : public IStrategy {
 
             // Map rotation signals to sectors
             for (auto& sector : sectors) {
-                auto it = std::find_if(rotation_signals.begin(), rotation_signals.end(),
-                    [&sector](auto const& sig) {
-                        return sig.sector_code == sector.sector_code;
-                    });
+                auto it = std::find_if(
+                    rotation_signals.begin(), rotation_signals.end(),
+                    [&sector](auto const& sig) { return sig.sector_code == sector.sector_code; });
 
                 if (it != rotation_signals.end()) {
                     sector.employment_score = it->employment_score;
-                    Logger::getInstance().debug(
-                        "{}: Employment score = {:.2f}",
-                        sector.sector_name, sector.employment_score
-                    );
+                    Logger::getInstance().debug("{}: Employment score = {:.2f}", sector.sector_name,
+                                                sector.employment_score);
                 } else {
                     // Fallback: neutral score if no data
                     sector.employment_score = 0.0;
-                    Logger::getInstance().warn(
-                        "{}: No employment data found, using neutral score",
-                        sector.sector_name
-                    );
+                    Logger::getInstance().warn("{}: No employment data found, using neutral score",
+                                               sector.sector_name);
                 }
             }
         } catch (std::exception const& e) {
             Logger::getInstance().error(
-                "Failed to fetch employment signals: {}. Using fallback stub data.",
-                e.what()
-            );
+                "Failed to fetch employment signals: {}. Using fallback stub data.", e.what());
             // Fallback to stub data if Python backend fails
             scoreEmploymentSignalsStub(sectors);
         }
@@ -558,8 +543,8 @@ class SectorRotationStrategy final : public IStrategy {
      * Uses recent price action from context.current_quotes
      * to calculate momentum signals.
      */
-    auto scoreMomentumSignals(std::vector<SectorScore>& sectors,
-                             StrategyContext const& context) -> void {
+    auto scoreMomentumSignals(std::vector<SectorScore>& sectors, StrategyContext const& context)
+        -> void {
         for (auto& sector : sectors) {
             // Look up sector ETF quote
             auto it = context.current_quotes.find(sector.etf_ticker);
@@ -584,19 +569,17 @@ class SectorRotationStrategy final : public IStrategy {
      */
     auto calculateCompositeScores(std::vector<SectorScore>& sectors) -> void {
         for (auto& sector : sectors) {
-            sector.composite_score =
-                config_.employment_weight * sector.employment_score +
-                config_.sentiment_weight * sector.sentiment_score +
-                config_.momentum_weight * sector.momentum_score;
+            sector.composite_score = config_.employment_weight * sector.employment_score +
+                                     config_.sentiment_weight * sector.sentiment_score +
+                                     config_.momentum_weight * sector.momentum_score;
 
             // Clamp to [-1.0, +1.0]
             sector.composite_score = std::max(-1.0, std::min(1.0, sector.composite_score));
 
             Logger::getInstance().debug(
                 "{}: Composite score = {:.3f} (emp: {:.3f}, sent: {:.3f}, mom: {:.3f})",
-                sector.sector_name, sector.composite_score,
-                sector.employment_score, sector.sentiment_score, sector.momentum_score
-            );
+                sector.sector_name, sector.composite_score, sector.employment_score,
+                sector.sentiment_score, sector.momentum_score);
         }
     }
 
@@ -604,10 +587,9 @@ class SectorRotationStrategy final : public IStrategy {
      * Rank sectors by composite score (descending)
      */
     auto rankSectors(std::vector<SectorScore>& sectors) -> void {
-        std::sort(sectors.begin(), sectors.end(),
-            [](auto const& a, auto const& b) {
-                return a.composite_score > b.composite_score;
-            });
+        std::sort(sectors.begin(), sectors.end(), [](auto const& a, auto const& b) -> bool {
+            return a.composite_score > b.composite_score;
+        });
     }
 
     /**
@@ -645,11 +627,11 @@ class SectorRotationStrategy final : public IStrategy {
      * Uses available capital and allocation constraints
      * to determine dollar amounts for each position.
      */
-    auto calculatePositionSizing(std::vector<SectorScore>& sectors,
-                                StrategyContext const& context) -> void {
+    auto calculatePositionSizing(std::vector<SectorScore>& sectors, StrategyContext const& context)
+        -> void {
         auto const available_capital = context.available_capital;
-        auto const total_overweight = std::count_if(sectors.begin(), sectors.end(),
-            [](auto const& s) { return s.is_overweight; });
+        auto const total_overweight = std::count_if(
+            sectors.begin(), sectors.end(), [](auto const& s) -> bool { return s.is_overweight; });
 
         if (total_overweight == 0) {
             return;
@@ -665,17 +647,16 @@ class SectorRotationStrategy final : public IStrategy {
                 sector.target_allocation = base_allocation;
 
                 // Clamp to min/max limits
-                sector.target_allocation = std::max(config_.min_sector_allocation,
-                    std::min(config_.max_sector_allocation, sector.target_allocation));
+                sector.target_allocation =
+                    std::max(config_.min_sector_allocation,
+                             std::min(config_.max_sector_allocation, sector.target_allocation));
 
                 // Calculate dollar amount
                 sector.position_size = available_capital * sector.target_allocation;
 
-                Logger::getInstance().debug(
-                    "{}: Overweight -> ${:.2f} ({:.1f}%)",
-                    sector.sector_name, sector.position_size,
-                    sector.target_allocation * 100.0
-                );
+                Logger::getInstance().debug("{}: Overweight -> ${:.2f} ({:.1f}%)",
+                                            sector.sector_name, sector.position_size,
+                                            sector.target_allocation * 100.0);
             } else if (sector.is_underweight) {
                 // Underweight: reduce or exit existing positions
                 sector.target_allocation = 0.0;
@@ -691,9 +672,9 @@ class SectorRotationStrategy final : public IStrategy {
     /**
      * Generate trading signals from scored sectors
      */
-    [[nodiscard]] auto generateTradingSignals(
-        std::vector<SectorScore> const& sectors,
-        StrategyContext const& context) -> std::vector<bigbrother::strategy::TradingSignal> {
+    [[nodiscard]] auto generateTradingSignals(std::vector<SectorScore> const& sectors,
+                                              StrategyContext const& context)
+        -> std::vector<bigbrother::strategy::TradingSignal> {
 
         std::vector<bigbrother::strategy::TradingSignal> signals;
 
@@ -706,16 +687,16 @@ class SectorRotationStrategy final : public IStrategy {
                 signal.type = SignalType::Buy;
                 signal.confidence = std::abs(sector.composite_score);
                 signal.expected_return = sector.position_size * 0.15; // 15% expected return
-                signal.max_risk = sector.position_size * 0.10; // 10% max risk
-                signal.win_probability = 0.60 + (sector.composite_score - config_.rotation_threshold) * 0.20;
+                signal.max_risk = sector.position_size * 0.10;        // 10% max risk
+                signal.win_probability =
+                    0.60 + (sector.composite_score - config_.rotation_threshold) * 0.20;
                 signal.timestamp = context.current_time;
                 signal.rationale = formatOverweightRationale(sector);
                 signals.push_back(signal);
 
-                Logger::getInstance().info(
-                    "{}: OVERWEIGHT {} - Score: {:.3f}, Size: ${:.2f}",
-                    getName(), sector.sector_name, sector.composite_score, sector.position_size
-                );
+                Logger::getInstance().info("{}: OVERWEIGHT {} - Score: {:.3f}, Size: ${:.2f}",
+                                           getName(), sector.sector_name, sector.composite_score,
+                                           sector.position_size);
             }
 
             // Generate SELL signals for underweight sectors
@@ -727,15 +708,14 @@ class SectorRotationStrategy final : public IStrategy {
                 signal.confidence = std::abs(sector.composite_score);
                 signal.expected_return = 0.0; // Avoid losses by exiting
                 signal.max_risk = 0.0;
-                signal.win_probability = 0.55 + (std::abs(sector.composite_score) - config_.rotation_threshold) * 0.15;
+                signal.win_probability =
+                    0.55 + (std::abs(sector.composite_score) - config_.rotation_threshold) * 0.15;
                 signal.timestamp = context.current_time;
                 signal.rationale = formatUnderweightRationale(sector);
                 signals.push_back(signal);
 
-                Logger::getInstance().info(
-                    "{}: UNDERWEIGHT {} - Score: {:.3f}",
-                    getName(), sector.sector_name, sector.composite_score
-                );
+                Logger::getInstance().info("{}: UNDERWEIGHT {} - Score: {:.3f}", getName(),
+                                           sector.sector_name, sector.composite_score);
             }
         }
 

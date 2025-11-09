@@ -12,10 +12,10 @@
  * Date: 2025-11-09
  */
 
-#include <iostream>
 #include <iomanip>
-#include <vector>
+#include <iostream>
 #include <memory>
+#include <vector>
 
 import bigbrother.strategies;
 import bigbrother.strategy;
@@ -28,7 +28,7 @@ using namespace bigbrother::risk;
 using namespace bigbrother::utils;
 
 // Helper function to print signals
-void printSignals(std::vector<TradingSignal> const& signals) {
+auto printSignals(std::vector<TradingSignal> const& signals) -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Generated Trading Signals\n";
     std::cout << std::string(80, '=') << "\n\n";
@@ -38,24 +38,19 @@ void printSignals(std::vector<TradingSignal> const& signals) {
         return;
     }
 
-    std::cout << std::left
-              << std::setw(8) << "Symbol"
-              << std::setw(12) << "Action"
-              << std::setw(12) << "Confidence"
-              << std::setw(15) << "Position Size"
-              << std::setw(12) << "Max Risk"
+    std::cout << std::left << std::setw(8) << "Symbol" << std::setw(12) << "Action" << std::setw(12)
+              << "Confidence" << std::setw(15) << "Position Size" << std::setw(12) << "Max Risk"
               << "\n";
     std::cout << std::string(80, '-') << "\n";
 
     for (auto const& signal : signals) {
         std::string action = (signal.type == SignalType::Buy) ? "OVERWEIGHT" : "UNDERWEIGHT";
-        double position_size = (signal.type == SignalType::Buy)
-            ? signal.expected_return / 0.15  // Reverse calculate from expected return
-            : 0.0;
+        double position_size =
+            (signal.type == SignalType::Buy)
+                ? signal.expected_return / 0.15 // Reverse calculate from expected return
+                : 0.0;
 
-        std::cout << std::left
-                  << std::setw(8) << signal.symbol
-                  << std::setw(12) << action
+        std::cout << std::left << std::setw(8) << signal.symbol << std::setw(12) << action
                   << std::setw(12) << std::fixed << std::setprecision(2) << signal.confidence
                   << std::setw(15) << "$" + std::to_string(static_cast<int>(position_size))
                   << std::setw(12) << "$" + std::to_string(static_cast<int>(signal.max_risk))
@@ -66,7 +61,7 @@ void printSignals(std::vector<TradingSignal> const& signals) {
 }
 
 // Example 1: Basic usage with default configuration
-void example1_basic_usage() {
+auto example1_basic_usage() -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Example 1: Basic Sector Rotation Strategy\n";
     std::cout << std::string(80, '=') << "\n";
@@ -75,14 +70,12 @@ void example1_basic_usage() {
     auto strategy = createSectorRotationStrategy();
 
     // Set up strategy context
-    StrategyContext context{
-        .current_quotes = {},
-        .options_chains = {},
-        .current_positions = {},
-        .account_value = 30000.0,
-        .available_capital = 10000.0,
-        .current_time = static_cast<Timestamp>(std::time(nullptr))
-    };
+    StrategyContext context{.current_quotes = {},
+                            .options_chains = {},
+                            .current_positions = {},
+                            .account_value = 30000.0,
+                            .available_capital = 10000.0,
+                            .current_time = static_cast<Timestamp>(std::time(nullptr))};
 
     // Generate signals
     auto signals = strategy->generateSignals(context);
@@ -92,34 +85,31 @@ void example1_basic_usage() {
 }
 
 // Example 2: Custom configuration for aggressive rotation
-void example2_custom_config() {
+auto example2_custom_config() -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Example 2: Aggressive Rotation Configuration\n";
     std::cout << std::string(80, '=') << "\n";
 
     // Configure for aggressive rotation
-    SectorRotationStrategy::Config config{
-        .min_composite_score = 0.50,      // Lower threshold
-        .rotation_threshold = 0.60,       // More sensitive rotation
-        .employment_weight = 0.70,        // Higher employment weight
-        .sentiment_weight = 0.20,
-        .momentum_weight = 0.10,
-        .top_n_overweight = 4,            // Overweight 4 sectors
-        .bottom_n_underweight = 3,        // Underweight 3 sectors
-        .max_sector_allocation = 0.30,    // Allow higher concentration
-        .min_sector_allocation = 0.03,
-        .rebalance_frequency_days = 14,   // Rebalance bi-weekly
-        .db_path = "data/bigbrother.duckdb",
-        .scripts_path = "scripts"
-    };
+    SectorRotationStrategy::Config config{.min_composite_score = 0.50, // Lower threshold
+                                          .rotation_threshold = 0.60,  // More sensitive rotation
+                                          .employment_weight = 0.70,   // Higher employment weight
+                                          .sentiment_weight = 0.20,
+                                          .momentum_weight = 0.10,
+                                          .top_n_overweight = 4,     // Overweight 4 sectors
+                                          .bottom_n_underweight = 3, // Underweight 3 sectors
+                                          .max_sector_allocation =
+                                              0.30, // Allow higher concentration
+                                          .min_sector_allocation = 0.03,
+                                          .rebalance_frequency_days = 14, // Rebalance bi-weekly
+                                          .db_path = "data/bigbrother.duckdb",
+                                          .scripts_path = "scripts"};
 
     auto strategy = createSectorRotationStrategy(std::move(config));
 
-    StrategyContext context{
-        .account_value = 50000.0,
-        .available_capital = 20000.0,
-        .current_time = static_cast<Timestamp>(std::time(nullptr))
-    };
+    StrategyContext context{.account_value = 50000.0,
+                            .available_capital = 20000.0,
+                            .current_time = static_cast<Timestamp>(std::time(nullptr))};
 
     auto signals = strategy->generateSignals(context);
     printSignals(signals);
@@ -132,7 +122,7 @@ void example2_custom_config() {
 }
 
 // Example 3: Integration with RiskManager
-void example3_risk_integration() {
+auto example3_risk_integration() -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Example 3: Risk Management Integration\n";
     std::cout << std::string(80, '=') << "\n";
@@ -143,11 +133,9 @@ void example3_risk_integration() {
     // Create risk manager
     RiskManager risk_manager{RiskLimits::forThirtyKAccount()};
 
-    StrategyContext context{
-        .account_value = 30000.0,
-        .available_capital = 10000.0,
-        .current_time = static_cast<Timestamp>(std::time(nullptr))
-    };
+    StrategyContext context{.account_value = 30000.0,
+                            .available_capital = 10000.0,
+                            .current_time = static_cast<Timestamp>(std::time(nullptr))};
 
     // Generate signals
     auto signals = strategy->generateSignals(context);
@@ -160,14 +148,11 @@ void example3_risk_integration() {
         if (signal.type == SignalType::Buy) {
             double position_size = signal.expected_return / 0.15;
 
-            auto trade_risk = risk_manager.assessTrade(
-                signal.symbol,
-                position_size,
-                100.0,  // entry_price (placeholder)
-                90.0,   // stop_price (10% stop loss)
-                115.0,  // target_price (15% target)
-                signal.win_probability
-            );
+            auto trade_risk = risk_manager.assessTrade(signal.symbol, position_size,
+                                                       100.0, // entry_price (placeholder)
+                                                       90.0,  // stop_price (10% stop loss)
+                                                       115.0, // target_price (15% target)
+                                                       signal.win_probability);
 
             if (trade_risk && trade_risk->approved) {
                 std::cout << "✓ " << signal.symbol << " - APPROVED\n";
@@ -185,7 +170,7 @@ void example3_risk_integration() {
 }
 
 // Example 4: Strategy performance tracking
-void example4_performance_tracking() {
+auto example4_performance_tracking() -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Example 4: Strategy Performance Tracking\n";
     std::cout << std::string(80, '=') << "\n";
@@ -196,11 +181,9 @@ void example4_performance_tracking() {
     // Add sector rotation strategy
     manager.addStrategy(createSectorRotationStrategy());
 
-    StrategyContext context{
-        .account_value = 30000.0,
-        .available_capital = 10000.0,
-        .current_time = static_cast<Timestamp>(std::time(nullptr))
-    };
+    StrategyContext context{.account_value = 30000.0,
+                            .available_capital = 10000.0,
+                            .current_time = static_cast<Timestamp>(std::time(nullptr))};
 
     // Generate signals
     auto signals = manager.generateSignals(context);
@@ -225,7 +208,7 @@ void example4_performance_tracking() {
 }
 
 // Example 5: Multi-strategy comparison
-void example5_multi_strategy_comparison() {
+auto example5_multi_strategy_comparison() -> void {
     std::cout << "\n" << std::string(80, '=') << "\n";
     std::cout << "Example 5: Multi-Strategy Comparison\n";
     std::cout << std::string(80, '=') << "\n";
@@ -237,11 +220,9 @@ void example5_multi_strategy_comparison() {
     manager.addStrategy(createStraddleStrategy());
     manager.addStrategy(createVolatilityArbStrategy());
 
-    StrategyContext context{
-        .account_value = 30000.0,
-        .available_capital = 10000.0,
-        .current_time = static_cast<Timestamp>(std::time(nullptr))
-    };
+    StrategyContext context{.account_value = 30000.0,
+                            .available_capital = 10000.0,
+                            .current_time = static_cast<Timestamp>(std::time(nullptr))};
 
     auto signals = manager.generateSignals(context);
 
@@ -253,10 +234,9 @@ void example5_multi_strategy_comparison() {
     std::cout << std::string(80, '-') << "\n";
 
     for (auto const& signal : signals) {
-        std::cout << "  [" << signal.strategy_name << "] "
-                  << signal.symbol
-                  << " - Confidence: " << std::fixed << std::setprecision(2)
-                  << signal.confidence << "\n";
+        std::cout << "  [" << signal.strategy_name << "] " << signal.symbol
+                  << " - Confidence: " << std::fixed << std::setprecision(2) << signal.confidence
+                  << "\n";
     }
 
     // Print all performance metrics
@@ -273,7 +253,7 @@ void example5_multi_strategy_comparison() {
 }
 
 // Main function
-int main() {
+auto main() -> int {
     try {
         // Initialize logger
         Logger::getInstance().setLevel(Logger::Level::INFO);
