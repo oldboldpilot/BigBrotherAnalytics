@@ -258,6 +258,7 @@ target_link_libraries(trading_decision
     utils
     correlation_engine
     options_pricing
+    risk_management
     schwab_api
     OpenMP::OpenMP_CXX
 )

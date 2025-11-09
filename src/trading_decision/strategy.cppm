@@ -36,7 +36,7 @@ export module bigbrother.strategy;
 // Import dependencies
 import bigbrother.utils.types;
 import bigbrother.options.pricing;
-import bigbrother.risk;
+import bigbrother.risk_management;
 import bigbrother.schwab;
 
 export namespace bigbrother::strategy {
