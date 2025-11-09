@@ -16,8 +16,9 @@
 #   - PyTorch with CUDA support
 #   - Hugging Face Transformers
 #   - All ML/AI frameworks
-#   - Static analysis tools (mypy, pylint, clang-tidy, cppcheck)
+#   - Static analysis tools (mypy, pylint, clang-tidy)
 #   - pybind11 for C++23/Python integration (GIL-free performance)
+#   - DuckDB C++ API for direct database access from C++
 #   - Maven 3.9+ and OpenJDK 25 (for document processing with Tika)
 #   - Complete verification
 #
@@ -337,7 +338,7 @@
           - automake
           - libtool
           - pkg-config
-          - cppcheck                   # C++ static analyzer
+          - clang-tidy                 # C++ static analyzer (comprehensive)
           - rustup                     # Rust toolchain manager
           - rust                       # Rust compiler (installed via rustup)
           - maven                      # Maven (includes OpenJDK)
@@ -919,7 +920,6 @@
           # Check static analysis tools
           echo "STATIC ANALYSIS TOOLS:"
           check_command "clang-tidy" "clang-tidy"
-          check_command "cppcheck" "cppcheck"
           echo ""
 
           # Check parallel computing
@@ -1068,10 +1068,11 @@
           - And many more...
 
           ### Code Quality & Static Analysis
-          - **Python:** mypy, pylint, pytype (type checking and linting)
-          - **C++:** clang-tidy (C++ Core Guidelines), cppcheck (static analysis)
+          - **Python:** mypy, pylint (type checking and linting)
+          - **C++:** clang-tidy (comprehensive: C++ Core Guidelines, CERT, concurrency, performance, OpenMP, MPI)
           - **Formatters:** black, isort (Python), clang-format (C++)
-          - **Pre-commit hooks:** Automated quality checks before commits
+          - **Pre-commit hooks:** Automated quality checks with clang-tidy enforcement
+          - **pybind11:** C++23/Python integration for high-performance bindings
 
           ## Getting Started
 
@@ -1166,7 +1167,8 @@
           ✓ Python {{ python_version }} with ML/AI frameworks
           ✓ PyTorch with CUDA support
           ✓ Hugging Face Transformers
-          ✓ Static Analysis Tools (mypy, pylint, pytype, clang-tidy, cppcheck)
+          ✓ Static Analysis Tools (mypy, pylint, clang-tidy with comprehensive checks)
+          ✓ pybind11 for C++/Python bindings
           ✓ Complete environment configured
 
           NOTE: Using DuckDB-first approach for rapid validation

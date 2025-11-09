@@ -91,46 +91,7 @@ else
 fi
 
 # ============================================================================
-# 2. cppcheck (Static Analysis)
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}2️⃣  Running cppcheck (Static Analysis)...${NC}"
-echo ""
-
-if command -v cppcheck &> /dev/null; then
-    cppcheck_output=$(cppcheck \
-        --enable=all \
-        --std=c++23 \
-        --language=c++ \
-        --suppressions-list=.cppcheck-suppressions \
-        --inline-suppr \
-        --template='{file}:{line}: {severity}: {message}' \
-        --quiet \
-        $CPP_FILES 2>&1 || true)
-
-    errors=$(echo "$cppcheck_output" | grep -c "error:" || true)
-    warnings=$(echo "$cppcheck_output" | grep -c "warning:" || true)
-
-    if [ $errors -gt 0 ]; then
-        echo -e "${RED}❌ cppcheck found $errors errors:${NC}"
-        echo "$cppcheck_output" | grep "error:" | head -10
-        violations=$((violations + 1))
-    elif [ $warnings -gt 0 ]; then
-        echo -e "${YELLOW}⚠️  cppcheck found $warnings warnings (non-blocking)${NC}"
-        echo "$cppcheck_output" | grep "warning:" | head -5
-        echo -e "${GREEN}✅ cppcheck: No critical errors${NC}"
-    else
-        echo -e "${GREEN}✅ cppcheck: No issues found${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠️  cppcheck not found${NC}"
-    echo "   Install: sudo apt-get install cppcheck"
-    violations=$((violations + 1))
-fi
-
-# ============================================================================
-# 3. Build Check
+# 2. Build Check
 # ============================================================================
 
 echo ""

@@ -104,13 +104,25 @@
 **CRITICAL: Code Quality Enforcement**
 - **ALWAYS run validation before committing:** `./scripts/validate_code.sh`
 - **Automated checks include:**
-  1. clang-tidy (C++ Core Guidelines)
-  2. cppcheck (Static analysis)
-  3. Build verification with ninja
-  4. Trailing return syntax
-  5. Module structure
-  6. [[nodiscard]] attributes
-  7. Documentation completeness
+  1. clang-tidy (COMPREHENSIVE - see below)
+  2. Build verification with ninja
+  3. Trailing return syntax
+  4. Module structure
+  5. [[nodiscard]] attributes
+  6. Documentation completeness
+
+**clang-tidy Comprehensive Checks:**
+- cppcoreguidelines-* (C++ Core Guidelines)
+- cert-* (CERT C++ Secure Coding Standard)
+- concurrency-* (Thread safety, race conditions, deadlocks)
+- performance-* (Optimization opportunities)
+- portability-* (Cross-platform compatibility)
+- openmp-* (OpenMP parallelization safety)
+- mpi-* (MPI message passing correctness)
+- modernize-* (Modern C++23 features)
+- bugprone-* (Bug detection)
+
+**Note:** cppcheck removed - clang-tidy is more comprehensive
 
 **Build and Test Workflow (MANDATORY):**
 ```bash

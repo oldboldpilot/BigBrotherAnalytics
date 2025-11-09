@@ -531,15 +531,19 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
 - Verify employment signal accuracy
 
 **G. Code Quality & Standards (Week 5-6):**
-- **Complete C++ Core Guidelines integration into .clang-tidy**
-  - Enable ALL cppcoreguidelines-* checks
-  - Configure WarningsAsErrors for critical violations
-  - Test against existing codebase
-  - Fix all violations found
-  - Document exceptions/suppressions
-- **Enforce trailing return syntax via clang-tidy**
-  - modernize-use-trailing-return-type enabled
-  - Set as ERROR (blocks commit)
+- **Complete C++ Core Guidelines integration into .clang-tidy** ✅ DONE
+  - Enabled ALL cppcoreguidelines-* checks ✅
+  - Added cert-* (CERT C++ Secure Coding) ✅
+  - Added concurrency-* (thread safety, race conditions) ✅
+  - Added performance-* (optimization checks) ✅
+  - Added portability-* (cross-platform) ✅
+  - Added openmp-* (OpenMP parallelization safety) ✅
+  - Added mpi-* (MPI message passing safety) ✅
+  - Configured WarningsAsErrors for critical violations ✅
+  - **Standardized on clang-tidy ONLY (cppcheck removed)** ✅
+- **Enforce trailing return syntax via clang-tidy** ✅ DONE
+  - modernize-use-trailing-return-type enabled ✅
+  - Set as ERROR (blocks commit) ✅
   - Convert any remaining old-style functions
 - **C++23 module validation**
   - Verify all modules use proper structure
@@ -552,8 +556,36 @@ env CC=/home/linuxbrew/.linuxbrew/bin/clang \
   ```
 - **Fix all violations before Tier 2**
   - Zero clang-tidy errors
-  - Zero cppcheck critical issues
   - 100% C++ Core Guidelines compliance
+
+**H. Python Bindings with pybind11 (Week 6):**
+- **DuckDB C++ API Bindings** (NEW - CRITICAL)
+  - Create pybind11 bindings for DuckDB C++ API
+  - Since DuckDB was built from source, C++ headers available
+  - Enable direct database access from Python with C++ performance
+  - Bypass Python DuckDB library for critical operations
+  - Module: `src/python_bindings/duckdb_bindings.cpp` (Tagged: PYTHON_BINDINGS)
+- **Options Pricing Bindings**
+  - Expose Black-Scholes, Trinomial Tree to Python
+  - Greeks calculations (Delta, Gamma, Theta, Vega, Rho)
+  - Tagged: PYTHON_BINDINGS
+- **Correlation Engine Bindings**
+  - Pearson, Spearman correlations
+  - Time-lagged correlation analysis
+  - Tagged: PYTHON_BINDINGS
+- **Risk Management Bindings**
+  - Kelly Criterion position sizing
+  - Monte Carlo simulation
+  - Risk assessment functions
+  - Tagged: PYTHON_BINDINGS
+- **Tax Calculator Bindings**
+  - Expose tax calculation functions
+  - Wash sale detection
+  - Tagged: PYTHON_BINDINGS
+- **Performance Target:**
+  - 10-100x speedup over pure Python for numerical operations
+  - GIL-free execution for C++ calls
+  - Zero-copy data transfer where possible
 
 ### Tier 2 (Weeks 7-10)
 - Implement full Iron Condor strategy from module

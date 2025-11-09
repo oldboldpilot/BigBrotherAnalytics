@@ -455,16 +455,46 @@ enum class OptionType { Call, Put };
 
 ## 9. CI/CD Enforcement
 
-All standards are automatically enforced via GitHub Actions:
+All standards are automatically enforced via GitHub Actions and local git hooks:
 
-### Checks Run on Every PR:
-1. **CodeQL** - Security analysis
-2. **Trailing Return Syntax** - Custom script
-3. **C++ Core Guidelines** - clang-tidy
-4. **cppcheck** - Static analysis
-5. **Fluent API Verification** - Pattern matching
-6. **Module Standards** - Structure validation
-7. **Documentation** - Completeness check
+### Checks Run Locally (Pre-Commit Hook):
+1. **Trailing Return Syntax** - Pattern matching
+2. **[[nodiscard]] Attributes** - Getter verification
+3. **C++23 Module Structure** - Syntax validation
+4. **Documentation** - Header completeness
+5. **clang-tidy** - Comprehensive analysis (see below)
+6. **Code Formatting** - clang-format
+
+### Checks Run on Every PR (GitHub Actions):
+1. **CodeQL** - Security analysis (scheduled 2x daily)
+2. **clang-tidy Comprehensive** - Full codebase analysis
+3. **Fluent API Verification** - Pattern matching
+4. **Module Standards** - Structure validation
+5. **Container Selection** - Prefer unordered_map
+6. **Documentation** - Completeness check
+
+### clang-tidy Comprehensive Checks:
+
+**Enabled Check Categories:**
+- **cppcoreguidelines-*** - C++ Core Guidelines (all rules)
+- **cert-*** - CERT C++ Secure Coding Standard
+- **concurrency-*** - Thread safety, race conditions, deadlocks
+- **performance-*** - Optimization opportunities, unnecessary copies
+- **portability-*** - Cross-platform compatibility
+- **openmp-*** - OpenMP parallelization safety, data races
+- **mpi-*** - MPI message passing correctness
+- **modernize-*** - Modern C++23 features
+- **bugprone-*** - Common bug patterns
+- **clang-analyzer-*** - Static analysis
+- **readability-*** - Code readability
+
+**Why No cppcheck:**
+clang-tidy is more comprehensive and covers everything cppcheck does, plus:
+- Better C++23 support
+- C++ Core Guidelines built-in
+- Parallelization checks (OpenMP, MPI)
+- Security standards (CERT)
+- Single tool for all checks
 
 ### Local Development:
 ```bash

@@ -13,6 +13,10 @@ Checks: >
   bugprone-*,
   clang-analyzer-*,
   concurrency-*,
+  cert-*,
+  portability-*,
+  openmp-*,
+  mpi-*,
   modernize-use-trailing-return-type,
   modernize-use-auto,
   modernize-use-nodiscard,
@@ -166,13 +170,42 @@ FormatStyle: none
 #    - Prefer emplace over insert
 #    - Check for unnecessary value parameters
 #
-# 6. CONCURRENCY SAFETY
+# 6. CONCURRENCY SAFETY (COMPREHENSIVE)
 #    Checks: concurrency-*
 #    - Thread-safe operations
 #    - Proper mutex usage
 #    - Atomic operations
+#    - Race condition detection
+#    - Deadlock prevention
 #
-# 7. BUG DETECTION
+# 7. SECURITY & CERTIFICATION
+#    Checks: cert-*
+#    - CERT C++ Secure Coding Standard
+#    - Security vulnerabilities
+#    - Undefined behavior
+#    - Integer overflow protection
+#
+# 8. PORTABILITY
+#    Checks: portability-*
+#    - Cross-platform compatibility
+#    - Endianness issues
+#    - Platform-specific code warnings
+#
+# 9. OPENMP PARALLELIZATION
+#    Checks: openmp-*
+#    - OpenMP best practices
+#    - Parallel region safety
+#    - Data race detection in parallel code
+#    - Critical section usage
+#
+# 10. MPI PARALLELIZATION
+#    Checks: mpi-*
+#    - MPI best practices
+#    - Message passing correctness
+#    - Rank and communicator usage
+#    - Buffer management
+#
+# 11. BUG DETECTION
 #    Checks: bugprone-*, clang-analyzer-*
 #    - Potential bugs and logic errors
 #    - Undefined behavior

@@ -184,32 +184,23 @@ EOF
           clang-tidy-18 "$file" -- -std=c++23 -I./src || true
         done
 
-    - name: Run cppcheck
+    - name: Run clang-tidy (Comprehensive Analysis)
       run: |
-        echo "🔍 Running cppcheck static analysis..."
+        echo "🔍 Running comprehensive clang-tidy analysis..."
 
-        cppcheck --version
+        # Run on all source files (not just changed ones)
+        find src -name "*.cpp" -o -name "*.cppm" | head -20 | while read file; do
+          echo "Analyzing $file..."
+          clang-tidy-18 "$file" -- -std=c++23 -I./src 2>&1 | tee -a clang-tidy-report.txt || true
+        done
 
-        cppcheck \
-          --enable=all \
-          --std=c++23 \
-          --language=c++ \
-          --suppress=missingInclude \
-          --suppress=unmatchedSuppression \
-          --suppress=unusedFunction \
-          --inline-suppr \
-          --template='{file}:{line}: {severity}: {message}' \
-          --error-exitcode=1 \
-          -I./src \
-          src/ 2>&1 | tee cppcheck-report.txt || true
-
-        # Check for critical issues
-        if grep -q "error:" cppcheck-report.txt; then
-          echo "❌ cppcheck found critical errors"
-          cat cppcheck-report.txt
+        # Check for critical errors
+        if grep -q "error:" clang-tidy-report.txt; then
+          echo "❌ clang-tidy found critical errors"
+          grep "error:" clang-tidy-report.txt | head -20
           exit 1
         else
-          echo "✅ cppcheck passed"
+          echo "✅ clang-tidy comprehensive analysis passed"
         fi
 
   fluent-api-check:

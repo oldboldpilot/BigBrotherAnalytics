@@ -179,43 +179,9 @@ else
     echo -e "${YELLOW}⚠️  clang-tidy not found (install: sudo apt-get install clang-tidy)${NC}"
 fi
 
-# Check 6: Run cppcheck (static analysis)
+# Check 6: Run clang-format (if available)
 echo ""
-echo "6️⃣  Running cppcheck static analysis..."
-if command -v cppcheck &> /dev/null; then
-    echo "  Analyzing staged C++ files..."
-
-    # Run cppcheck on staged files
-    cppcheck_output=$(cppcheck \
-        --enable=warning,style,performance,portability \
-        --std=c++23 \
-        --language=c++ \
-        --suppress=missingInclude \
-        --suppress=unmatchedSuppression \
-        --inline-suppr \
-        --template='{file}:{line}: {severity}: {message}' \
-        --quiet \
-        $STAGED_CPP_FILES 2>&1)
-
-    # Check for errors (not warnings)
-    if echo "$cppcheck_output" | grep -q "error:"; then
-        echo -e "${RED}❌ cppcheck found errors:${NC}"
-        echo "$cppcheck_output" | grep "error:" | head -5
-        violations=$((violations + 1))
-    elif echo "$cppcheck_output" | grep -q "warning:"; then
-        echo -e "${YELLOW}⚠️  cppcheck warnings (non-blocking):${NC}"
-        echo "$cppcheck_output" | grep "warning:" | head -3
-        echo -e "${GREEN}✅ cppcheck critical checks passed${NC}"
-    else
-        echo -e "${GREEN}✅ cppcheck passed (no issues found)${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠️  cppcheck not found (install: sudo apt-get install cppcheck)${NC}"
-fi
-
-# Check 7: Run clang-format (if available)
-echo ""
-echo "7️⃣  Checking code formatting..."
+echo "6️⃣  Checking code formatting..."
 if command -v clang-format &> /dev/null; then
     format_violations=0
 
