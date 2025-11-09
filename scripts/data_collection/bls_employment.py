@@ -128,12 +128,13 @@ class BLSEmploymentCollector:
         """Load BLS API key from api_keys.yaml configuration file."""
         try:
             import yaml
-            config_path = Path(__file__).parent.parent.parent / 'api_keys.yaml'
+            # Look in configs directory
+            config_path = Path(__file__).parent.parent.parent / 'configs' / 'api_keys.yaml'
 
             if config_path.exists():
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
-                    return config.get('bls_api_key')
+                    return config.get('bls', {}).get('api_key')
         except Exception as e:
             logger.debug(f"Could not load API key from config: {e}")
 
