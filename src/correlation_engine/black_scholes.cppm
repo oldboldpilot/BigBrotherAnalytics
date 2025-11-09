@@ -12,6 +12,7 @@
 // Global module fragment for standard library
 module;
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 

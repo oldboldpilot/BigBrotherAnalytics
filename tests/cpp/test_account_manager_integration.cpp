@@ -174,7 +174,7 @@ TEST_F(AccountManagerTest, ClassifyExistingPositions_RequiresDatabaseInitializat
         << "Classification should fail without database initialization";
 
     if (!classify_result.has_value()) {
-        EXPECT_EQ(classify_result.error().code, ErrorCode::InvalidOperation)
+        EXPECT_EQ(classify_result.error().code, ErrorCode::OrderRejected)
             << "Should return InvalidOperation error";
     }
 }
@@ -922,5 +922,3 @@ TEST_F(AccountManagerTest, Performance_CheckManySymbols) {
     EXPECT_LT(duration.count(), 100)
         << num_checks << " checks should take < 100ms";
 }
-
-} // anonymous namespace

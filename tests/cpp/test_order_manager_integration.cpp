@@ -164,7 +164,7 @@ TEST_F(OrderManagerIntegrationTest, RejectOrderForSymbolWithManualPosition) {
 
     // Verify: Order should be rejected with specific error
     EXPECT_FALSE(result) << "Order should be rejected - manual position exists";
-    EXPECT_EQ(result.error().code, ErrorCode::InvalidOperation)
+    EXPECT_EQ(result.error().code, ErrorCode::OrderRejected)
         << "Error code should be InvalidOperation";
     EXPECT_NE(result.error().message.find("manual position"), std::string::npos)
         << "Error message should mention manual position";
@@ -353,7 +353,7 @@ TEST_F(OrderManagerIntegrationTest, BuyingPowerCheckPerformed) {
 
     // Should succeed in stub (simplified check)
     // In production, would check actual buying power
-    EXPECT_TRUE(result || result.error().code == ErrorCode::InvalidOperation);
+    EXPECT_TRUE(result || result.error().code == ErrorCode::OrderRejected);
 }
 
 TEST_F(OrderManagerIntegrationTest, AcceptOrderWithSufficientBuyingPower) {
@@ -384,7 +384,7 @@ TEST_F(OrderManagerIntegrationTest, RejectOrderExceedingMaxPositions) {
     // Note: In stub implementation, this may pass as position tracking is simplified
     // In production, would enforce strict position limits
     if (!result) {
-        EXPECT_EQ(result.error().code, ErrorCode::InvalidOperation);
+        EXPECT_EQ(result.error().code, ErrorCode::OrderRejected);
         EXPECT_NE(result.error().message.find("position limit"), std::string::npos);
     }
 }

@@ -48,6 +48,17 @@ using namespace bigbrother::schwab;
 using namespace bigbrother::employment;
 
 // ============================================================================
+// Forward Declarations
+// ============================================================================
+
+struct StrategyContext;
+class ContextBuilder;
+class SignalBuilder;
+class PerformanceQueryBuilder;
+class ReportBuilder;
+class StrategyManager;
+
+// ============================================================================
 // Core Strategy Types
 // ============================================================================
 
@@ -117,95 +128,6 @@ struct TradingSignal {
 };
 
 /**
- * Strategy Context Builder
- *
- * Fluent API for building strategy contexts with all required data.
- * Provides type-safe configuration and validation.
- *
- * Example Usage:
- *   auto context = StrategyContext::builder()
- *       .withAccountValue(50000.0)
- *       .withAvailableCapital(10000.0)
- *       .withCurrentTime(getTimestamp())
- *       .withQuotes(quotes_map)
- *       .withOptions(options_chains_map)
- *       .withEmploymentSignals(emp_signals)
- *       .build();
- */
-class ContextBuilder {
-  public:
-    [[nodiscard]] auto withAccountValue(double value) noexcept -> ContextBuilder& {
-        context_.account_value = value;
-        return *this;
-    }
-
-    [[nodiscard]] auto withAvailableCapital(double capital) noexcept -> ContextBuilder& {
-        context_.available_capital = capital;
-        return *this;
-    }
-
-    [[nodiscard]] auto withCurrentTime(Timestamp time) noexcept -> ContextBuilder& {
-        context_.current_time = time;
-        return *this;
-    }
-
-    [[nodiscard]] auto withQuotes(std::unordered_map<std::string, Quote> quotes)
-        -> ContextBuilder& {
-        context_.current_quotes = std::move(quotes);
-        return *this;
-    }
-
-    [[nodiscard]] auto withOptions(std::unordered_map<std::string, OptionsChainData> chains)
-        -> ContextBuilder& {
-        context_.options_chains = std::move(chains);
-        return *this;
-    }
-
-    [[nodiscard]] auto withPositions(std::vector<Position> positions) -> ContextBuilder& {
-        context_.current_positions = std::move(positions);
-        return *this;
-    }
-
-    [[nodiscard]] auto withEmploymentSignals(std::vector<EmploymentSignal> signals)
-        -> ContextBuilder& {
-        context_.employment_signals = std::move(signals);
-        return *this;
-    }
-
-    [[nodiscard]] auto withRotationSignals(std::vector<SectorRotationSignal> signals)
-        -> ContextBuilder& {
-        context_.rotation_signals = std::move(signals);
-        return *this;
-    }
-
-    [[nodiscard]] auto withJoblessClaims(std::optional<EmploymentSignal> alert)
-        -> ContextBuilder& {
-        context_.jobless_claims_alert = alert;
-        return *this;
-    }
-
-    [[nodiscard]] auto addQuote(std::string symbol, Quote quote) -> ContextBuilder& {
-        context_.current_quotes[std::move(symbol)] = std::move(quote);
-        return *this;
-    }
-
-    [[nodiscard]] auto addPosition(Position position) -> ContextBuilder& {
-        context_.current_positions.push_back(std::move(position));
-        return *this;
-    }
-
-    [[nodiscard]] auto addEmploymentSignal(EmploymentSignal signal) -> ContextBuilder& {
-        context_.employment_signals.push_back(std::move(signal));
-        return *this;
-    }
-
-    [[nodiscard]] auto build() -> StrategyContext { return std::move(context_); }
-
-  private:
-    StrategyContext context_;
-};
-
-/**
  * Strategy Context
  *
  * Contains all market data and signals needed for strategy decision-making.
@@ -262,7 +184,7 @@ struct StrategyContext {
     /**
      * Create fluent builder for constructing context
      */
-    [[nodiscard]] static auto builder() -> ContextBuilder { return ContextBuilder{}; }
+    [[nodiscard]] static auto builder() -> ContextBuilder;
 
     /**
      * Get employment signals for a specific sector
@@ -359,6 +281,98 @@ struct StrategyContext {
 };
 
 /**
+ * Strategy Context Builder
+ *
+ * Fluent API for building strategy contexts with all required data.
+ * Provides type-safe configuration and validation.
+ *
+ * Example Usage:
+ *   auto context = StrategyContext::builder()
+ *       .withAccountValue(50000.0)
+ *       .withAvailableCapital(10000.0)
+ *       .withCurrentTime(getTimestamp())
+ *       .withQuotes(quotes_map)
+ *       .withOptions(options_chains_map)
+ *       .withEmploymentSignals(emp_signals)
+ *       .build();
+ */
+class ContextBuilder {
+  public:
+    [[nodiscard]] auto withAccountValue(double value) noexcept -> ContextBuilder& {
+        context_.account_value = value;
+        return *this;
+    }
+
+    [[nodiscard]] auto withAvailableCapital(double capital) noexcept -> ContextBuilder& {
+        context_.available_capital = capital;
+        return *this;
+    }
+
+    [[nodiscard]] auto withCurrentTime(Timestamp time) noexcept -> ContextBuilder& {
+        context_.current_time = time;
+        return *this;
+    }
+
+    [[nodiscard]] auto withQuotes(std::unordered_map<std::string, Quote> quotes)
+        -> ContextBuilder& {
+        context_.current_quotes = std::move(quotes);
+        return *this;
+    }
+
+    [[nodiscard]] auto withOptions(std::unordered_map<std::string, OptionsChainData> chains)
+        -> ContextBuilder& {
+        context_.options_chains = std::move(chains);
+        return *this;
+    }
+
+    [[nodiscard]] auto withPositions(std::vector<Position> positions) -> ContextBuilder& {
+        context_.current_positions = std::move(positions);
+        return *this;
+    }
+
+    [[nodiscard]] auto withEmploymentSignals(std::vector<EmploymentSignal> signals)
+        -> ContextBuilder& {
+        context_.employment_signals = std::move(signals);
+        return *this;
+    }
+
+    [[nodiscard]] auto withRotationSignals(std::vector<SectorRotationSignal> signals)
+        -> ContextBuilder& {
+        context_.rotation_signals = std::move(signals);
+        return *this;
+    }
+
+    [[nodiscard]] auto withJoblessClaims(std::optional<EmploymentSignal> alert)
+        -> ContextBuilder& {
+        context_.jobless_claims_alert = alert;
+        return *this;
+    }
+
+    [[nodiscard]] auto addQuote(std::string symbol, Quote quote) -> ContextBuilder& {
+        context_.current_quotes[std::move(symbol)] = std::move(quote);
+        return *this;
+    }
+
+    [[nodiscard]] auto addPosition(Position position) -> ContextBuilder& {
+        context_.current_positions.push_back(std::move(position));
+        return *this;
+    }
+
+    [[nodiscard]] auto addEmploymentSignal(EmploymentSignal signal) -> ContextBuilder& {
+        context_.employment_signals.push_back(std::move(signal));
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> StrategyContext { return std::move(context_); }
+
+  private:
+    StrategyContext context_;
+};
+
+// Implementation of StrategyContext::builder() after ContextBuilder is defined
+inline auto StrategyContext::builder() -> ContextBuilder { return ContextBuilder{}; }
+
+/**
  * Base Strategy Interface
  */
 class IStrategy {
@@ -397,11 +411,6 @@ class BaseStrategy : public IStrategy {
     std::string description_;
     bool active_;
 };
-
-// Forward declarations
-class SignalBuilder;
-class PerformanceQueryBuilder;
-class ReportBuilder;
 
 // ============================================================================
 // Signal Builder - Fluent API for signal generation

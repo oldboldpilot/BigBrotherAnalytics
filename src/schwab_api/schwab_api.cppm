@@ -1378,412 +1378,6 @@ private:
 };
 
 // ============================================================================
-// Order Manager (Fluent API)
-// ============================================================================
-
-class OrderManager {
-public:
-    explicit OrderManager(std::shared_ptr<TokenManager> token_mgr)
-        : token_mgr_{std::move(token_mgr)},
-          order_counter_{0},
-          dry_run_mode_{false},
-          max_position_size_{10000},
-          max_positions_{10} {}
-
-    // C.21: Rule of Five - deleted due to mutex member
-    OrderManager(OrderManager const&) = delete;
-    auto operator=(OrderManager const&) -> OrderManager& = delete;
-    OrderManager(OrderManager&&) noexcept = delete;
-    auto operator=(OrderManager&&) noexcept -> OrderManager& = delete;
-    ~OrderManager() = default;
-
-    // Configuration
-    [[nodiscard]] auto setDryRunMode(bool enabled) -> OrderManager& {
-        dry_run_mode_ = enabled;
-        Logger::getInstance().info("Dry-run mode: {}", enabled ? "ENABLED" : "DISABLED");
-        return *this;
-    }
-
-    [[nodiscard]] auto setMaxPositionSize(int max_size) -> OrderManager& {
-        max_position_size_ = max_size;
-        return *this;
-    }
-
-    [[nodiscard]] auto setMaxPositions(int max_positions) -> OrderManager& {
-        max_positions_ = max_positions;
-        return *this;
-    }
-
-    [[nodiscard]] auto setAccountManager(AccountManager* account_mgr) -> OrderManager& {
-        account_mgr_ = account_mgr;
-        return *this;
-    }
-
-    // Fluent API
-    [[nodiscard]] auto placeOrder(Order order) -> Result<std::string> {
-        // 1. Validate authentication token
-        auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
-
-        // 2. Validate order parameters
-        auto validation_result = validateOrderParameters(order);
-        if (!validation_result) return std::unexpected(validation_result.error());
-
-        // 3. CRITICAL: Check if symbol is already held as MANUAL position
-        auto manual_check_result = validateOrderAgainstManualPositions(order);
-        if (!manual_check_result) return std::unexpected(manual_check_result.error());
-
-        // 4. Check buying power (if BUY order)
-        if (order.quantity > 0) {  // BUY order
-            auto buying_power_result = checkBuyingPower(order);
-            if (!buying_power_result) return std::unexpected(buying_power_result.error());
-        }
-
-        // 5. Check position limits
-        auto position_limit_result = checkPositionLimits();
-        if (!position_limit_result) return std::unexpected(position_limit_result.error());
-
-        // 6. Generate order ID
-        order.order_id = "ORD" + std::to_string(++order_counter_);
-        order.created_at = std::chrono::system_clock::now().time_since_epoch().count();
-
-        // 7. Dry-run mode check
-        if (dry_run_mode_) {
-            Logger::getInstance().warn(
-                "[DRY-RUN] Would place order: {} {} shares of {} @ ${:.2f} (type: {}, duration: {})",
-                order.order_id, order.quantity, order.symbol, order.limit_price,
-                orderTypeToString(order.type), orderDurationToString(order.duration)
-            );
-
-            // In dry-run, mark as pending but don't actually place
-            order.status = OrderStatus::Pending;
-            std::lock_guard<std::mutex> lock(mutex_);
-            orders_[order.order_id] = order;
-            return order.order_id;
-        }
-
-        // 8. Place actual order (in production)
-        order.status = OrderStatus::Working;
-
-        std::lock_guard<std::mutex> lock(mutex_);
-        orders_[order.order_id] = order;
-
-        // 9. Compliance logging
-        logOrderCompliance(order, "PLACED");
-
-        Logger::getInstance().info(
-            "Placed order: {} {} shares of {} @ ${:.2f}",
-            order.order_id, order.quantity, order.symbol, order.limit_price
-        );
-
-        return order.order_id;
-    }
-
-    [[nodiscard]] auto cancelOrder(std::string const& order_id) -> Result<void> {
-        auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
-
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = orders_.find(order_id);
-        if (it == orders_.end()) {
-            return makeError<void>(ErrorCode::InvalidParameter, "Order not found");
-        }
-
-        // Dry-run check
-        if (dry_run_mode_) {
-            Logger::getInstance().warn("[DRY-RUN] Would cancel order: {}", order_id);
-            return {};
-        }
-
-        it->second.status = OrderStatus::Canceled;
-        it->second.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
-
-        logOrderCompliance(it->second, "CANCELED");
-        Logger::getInstance().info("Canceled order: {}", order_id);
-        return {};
-    }
-
-    [[nodiscard]] auto getOrderStatus(std::string const& order_id) -> Result<OrderStatus> {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = orders_.find(order_id);
-        if (it == orders_.end()) {
-            return makeError<OrderStatus>(ErrorCode::InvalidParameter, "Order not found");
-        }
-        return it->second.status;
-    }
-
-    [[nodiscard]] auto getActiveOrders() const -> std::vector<Order> {
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::vector<Order> active_orders;
-        for (auto const& [id, order] : orders_) {
-            if (order.isActive()) {
-                active_orders.push_back(order);
-            }
-        }
-        return active_orders;
-    }
-
-private:
-    // ========================================================================
-    // Safety Check Methods
-    // ========================================================================
-
-    /**
-     * Validate basic order parameters
-     */
-    [[nodiscard]] auto validateOrderParameters(Order const& order) const -> Result<void> {
-        // Check symbol
-        if (order.symbol.empty()) {
-            return makeError<void>(ErrorCode::InvalidParameter, "Symbol cannot be empty");
-        }
-
-        // Check quantity
-        if (order.quantity == 0) {
-            return makeError<void>(ErrorCode::InvalidParameter, "Quantity cannot be zero");
-        }
-
-        // For limit orders, check price
-        if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
-            if (order.limit_price <= 0.0) {
-                return makeError<void>(
-                    ErrorCode::InvalidParameter,
-                    "Limit price must be positive for limit orders"
-                );
-            }
-        }
-
-        // For stop orders, check stop price
-        if (order.type == OrderType::Stop || order.type == OrderType::StopLimit) {
-            if (order.stop_price <= 0.0) {
-                return makeError<void>(
-                    ErrorCode::InvalidParameter,
-                    "Stop price must be positive for stop orders"
-                );
-            }
-        }
-
-        // Check position size limits
-        if (std::abs(order.quantity) > max_position_size_) {
-            return makeError<void>(
-                ErrorCode::InvalidParameter,
-                "Order quantity exceeds maximum position size limit"
-            );
-        }
-
-        return {};
-    }
-
-    /**
-     * CRITICAL: Check if symbol is already held as a MANUAL position
-     * This prevents the bot from trading securities managed by the human trader
-     */
-    [[nodiscard]] auto validateOrderAgainstManualPositions(Order const& order) const
-        -> Result<void> {
-
-        if (!account_mgr_) {
-            // If no account manager is set, we can't check - allow but warn
-            Logger::getInstance().warn(
-                "No AccountManager set - cannot verify manual positions for {}",
-                order.symbol
-            );
-            return {};
-        }
-
-        // Check if this symbol is manually held
-        if (isSymbolManuallyHeld(order.symbol)) {
-            return makeError<void>(
-                ErrorCode::InvalidOperation,
-                "Cannot trade " + order.symbol + " - manual position exists. " +
-                "Bot only trades NEW securities or bot-managed positions. " +
-                "See TRADING_CONSTRAINTS.md for details."
-            );
-        }
-
-        return {};
-    }
-
-    /**
-     * Check if symbol is held as a manual (non-bot-managed) position
-     */
-    [[nodiscard]] auto isSymbolManuallyHeld(std::string const& symbol) const -> bool {
-        if (!account_mgr_) return false;
-
-        // Get all positions
-        auto positions_result = account_mgr_->getPositions();
-        if (!positions_result) {
-            Logger::getInstance().error("Failed to fetch positions: {}",
-                positions_result.error());
-            return false;  // Fail open - allow trade if we can't verify
-        }
-
-        // Check each position
-        for (auto const& pos : *positions_result) {
-            if (pos.symbol == symbol) {
-                // Found position - check if it's manual
-                // Note: AccountPosition doesn't have is_bot_managed flag in current impl
-                // For now, we assume all positions are manual unless we track them
-                Logger::getInstance().warn(
-                    "Position exists for {}: {} shares @ ${:.2f}",
-                    symbol, pos.quantity, pos.average_price
-                );
-                return true;  // Conservative: treat all existing positions as manual
-            }
-        }
-
-        return false;  // No position exists - safe to trade
-    }
-
-    /**
-     * Check if account has sufficient buying power for the order
-     */
-    [[nodiscard]] auto checkBuyingPower(Order const& order) const -> Result<void> {
-        if (!account_mgr_) {
-            Logger::getInstance().warn(
-                "No AccountManager set - cannot verify buying power for order"
-            );
-            return {};  // Allow if we can't verify
-        }
-
-        // Get account balance
-        auto balance_result = account_mgr_->getBalance();
-        if (!balance_result) {
-            return makeError<void>(
-                ErrorCode::InvalidOperation,
-                "Failed to retrieve account balance: " + balance_result.error()
-            );
-        }
-
-        auto const& balance = *balance_result;
-
-        // Calculate estimated order cost
-        double estimated_cost = 0.0;
-        if (order.type == OrderType::Market) {
-            // For market orders, we need a price estimate
-            // Conservative approach: assume we need quantity * estimated_price
-            // This is a simplified check - real implementation would get current quote
-            estimated_cost = static_cast<double>(order.quantity) * 100.0;  // Placeholder
-            Logger::getInstance().warn(
-                "Market order - using conservative estimate for buying power check"
-            );
-        } else if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
-            estimated_cost = static_cast<double>(order.quantity) * order.limit_price;
-        }
-
-        // Check buying power
-        if (!balance.hasSufficientFunds(estimated_cost)) {
-            return makeError<void>(
-                ErrorCode::InvalidOperation,
-                "Insufficient buying power: need $" +
-                std::to_string(estimated_cost) + ", available $" +
-                std::to_string(balance.buying_power)
-            );
-        }
-
-        Logger::getInstance().info(
-            "Buying power check passed: need ${:.2f}, have ${:.2f}",
-            estimated_cost, balance.buying_power
-        );
-
-        return {};
-    }
-
-    /**
-     * Check if we're within position count limits
-     */
-    [[nodiscard]] auto checkPositionLimits() const -> Result<void> {
-        if (!account_mgr_) {
-            return {};  // Can't check without account manager
-        }
-
-        auto positions_result = account_mgr_->getPositions();
-        if (!positions_result) {
-            return makeError<void>(
-                ErrorCode::InvalidOperation,
-                "Failed to retrieve positions: " + positions_result.error()
-            );
-        }
-
-        auto const& positions = *positions_result;
-
-        if (static_cast<int>(positions.size()) >= max_positions_) {
-            return makeError<void>(
-                ErrorCode::InvalidOperation,
-                "Maximum position limit reached: " + std::to_string(max_positions_)
-            );
-        }
-
-        return {};
-    }
-
-    /**
-     * Log order activity for compliance and audit trail
-     */
-    auto logOrderCompliance(Order const& order, std::string const& action) const -> void {
-        Logger::getInstance().info(
-            "[COMPLIANCE] {} - Order: {}, Symbol: {}, Qty: {}, Type: {}, Price: ${:.2f}, "
-            "Status: {}, Timestamp: {}",
-            action, order.order_id, order.symbol, order.quantity,
-            orderTypeToString(order.type), order.limit_price,
-            orderStatusToString(order.status), order.created_at
-        );
-    }
-
-    // ========================================================================
-    // Helper Methods
-    // ========================================================================
-
-    [[nodiscard]] auto orderTypeToString(OrderType type) const -> std::string {
-        switch (type) {
-            case OrderType::Market: return "MARKET";
-            case OrderType::Limit: return "LIMIT";
-            case OrderType::Stop: return "STOP";
-            case OrderType::StopLimit: return "STOP_LIMIT";
-            default: return "UNKNOWN";
-        }
-    }
-
-    [[nodiscard]] auto orderDurationToString(OrderDuration duration) const -> std::string {
-        switch (duration) {
-            case OrderDuration::Day: return "DAY";
-            case OrderDuration::GTC: return "GTC";
-            case OrderDuration::GTD: return "GTD";
-            case OrderDuration::FOK: return "FOK";
-            case OrderDuration::IOC: return "IOC";
-            default: return "UNKNOWN";
-        }
-    }
-
-    [[nodiscard]] auto orderStatusToString(OrderStatus status) const -> std::string {
-        switch (status) {
-            case OrderStatus::Pending: return "PENDING";
-            case OrderStatus::Working: return "WORKING";
-            case OrderStatus::Filled: return "FILLED";
-            case OrderStatus::PartiallyFilled: return "PARTIALLY_FILLED";
-            case OrderStatus::Canceled: return "CANCELED";
-            case OrderStatus::Rejected: return "REJECTED";
-            default: return "UNKNOWN";
-        }
-    }
-
-    // ========================================================================
-    // Member Variables
-    // ========================================================================
-
-    std::shared_ptr<TokenManager> token_mgr_;
-    std::unordered_map<std::string, Order> orders_;
-    std::atomic<int> order_counter_;
-    mutable std::mutex mutex_;
-
-    // Safety configuration
-    std::atomic<bool> dry_run_mode_;
-    int max_position_size_;
-    int max_positions_;
-
-    // Account manager for balance/position checks
-    AccountManager* account_mgr_{nullptr};
-};
-
-// ============================================================================
 // Account Manager (Fluent API)
 // ============================================================================
 
@@ -1853,7 +1447,7 @@ public:
      */
     [[nodiscard]] auto classifyExistingPositions() -> Result<void> {
         if (!db_initialized_) {
-            return makeError<void>(ErrorCode::InvalidOperation,
+            return makeError<void>(ErrorCode::OrderRejected,
                 "Database not initialized. Call initializeDatabase() first");
         }
 
@@ -2103,7 +1697,7 @@ public:
 
         if (hasManualPosition(symbol)) {
             return makeError<void>(
-                ErrorCode::InvalidOperation,
+                ErrorCode::OrderRejected,
                 "Cannot trade " + symbol + " - manual position exists. "
                 "Bot only trades NEW securities or bot-managed positions."
             );
@@ -2244,6 +1838,412 @@ private:
     // In production, these would be backed by DuckDB
     std::unordered_map<std::string, AccountPosition> manual_positions_;  // Manual positions (DO NOT TOUCH)
     std::unordered_set<std::string> bot_managed_symbols_;               // Bot-managed symbols (can trade)
+};
+
+// ============================================================================
+// Order Manager (Fluent API)
+// ============================================================================
+
+class OrderManager {
+public:
+    explicit OrderManager(std::shared_ptr<TokenManager> token_mgr)
+        : token_mgr_{std::move(token_mgr)},
+          order_counter_{0},
+          dry_run_mode_{false},
+          max_position_size_{10000},
+          max_positions_{10} {}
+
+    // C.21: Rule of Five - deleted due to mutex member
+    OrderManager(OrderManager const&) = delete;
+    auto operator=(OrderManager const&) -> OrderManager& = delete;
+    OrderManager(OrderManager&&) noexcept = delete;
+    auto operator=(OrderManager&&) noexcept -> OrderManager& = delete;
+    ~OrderManager() = default;
+
+    // Configuration
+    [[nodiscard]] auto setDryRunMode(bool enabled) -> OrderManager& {
+        dry_run_mode_ = enabled;
+        Logger::getInstance().info("Dry-run mode: {}", enabled ? "ENABLED" : "DISABLED");
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPositionSize(int max_size) -> OrderManager& {
+        max_position_size_ = max_size;
+        return *this;
+    }
+
+    [[nodiscard]] auto setMaxPositions(int max_positions) -> OrderManager& {
+        max_positions_ = max_positions;
+        return *this;
+    }
+
+    [[nodiscard]] auto setAccountManager(AccountManager* account_mgr) -> OrderManager& {
+        account_mgr_ = account_mgr;
+        return *this;
+    }
+
+    // Fluent API
+    [[nodiscard]] auto placeOrder(Order order) -> Result<std::string> {
+        // 1. Validate authentication token
+        auto token = token_mgr_->getAccessToken();
+        if (!token) return std::unexpected(token.error());
+
+        // 2. Validate order parameters
+        auto validation_result = validateOrderParameters(order);
+        if (!validation_result) return std::unexpected(validation_result.error());
+
+        // 3. CRITICAL: Check if symbol is already held as MANUAL position
+        auto manual_check_result = validateOrderAgainstManualPositions(order);
+        if (!manual_check_result) return std::unexpected(manual_check_result.error());
+
+        // 4. Check buying power (if BUY order)
+        if (order.quantity > 0) {  // BUY order
+            auto buying_power_result = checkBuyingPower(order);
+            if (!buying_power_result) return std::unexpected(buying_power_result.error());
+        }
+
+        // 5. Check position limits
+        auto position_limit_result = checkPositionLimits();
+        if (!position_limit_result) return std::unexpected(position_limit_result.error());
+
+        // 6. Generate order ID
+        order.order_id = "ORD" + std::to_string(++order_counter_);
+        order.created_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        // 7. Dry-run mode check
+        if (dry_run_mode_) {
+            Logger::getInstance().warn(
+                "[DRY-RUN] Would place order: {} {} shares of {} @ ${:.2f} (type: {}, duration: {})",
+                order.order_id, order.quantity, order.symbol, order.limit_price,
+                orderTypeToString(order.type), orderDurationToString(order.duration)
+            );
+
+            // In dry-run, mark as pending but don't actually place
+            order.status = OrderStatus::Pending;
+            std::lock_guard<std::mutex> lock(mutex_);
+            orders_[order.order_id] = order;
+            return order.order_id;
+        }
+
+        // 8. Place actual order (in production)
+        order.status = OrderStatus::Working;
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        orders_[order.order_id] = order;
+
+        // 9. Compliance logging
+        logOrderCompliance(order, "PLACED");
+
+        Logger::getInstance().info(
+            "Placed order: {} {} shares of {} @ ${:.2f}",
+            order.order_id, order.quantity, order.symbol, order.limit_price
+        );
+
+        return order.order_id;
+    }
+
+    [[nodiscard]] auto cancelOrder(std::string const& order_id) -> Result<void> {
+        auto token = token_mgr_->getAccessToken();
+        if (!token) return std::unexpected(token.error());
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = orders_.find(order_id);
+        if (it == orders_.end()) {
+            return makeError<void>(ErrorCode::InvalidParameter, "Order not found");
+        }
+
+        // Dry-run check
+        if (dry_run_mode_) {
+            Logger::getInstance().warn("[DRY-RUN] Would cancel order: {}", order_id);
+            return {};
+        }
+
+        it->second.status = OrderStatus::Canceled;
+        it->second.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        logOrderCompliance(it->second, "CANCELED");
+        Logger::getInstance().info("Canceled order: {}", order_id);
+        return {};
+    }
+
+    [[nodiscard]] auto getOrderStatus(std::string const& order_id) -> Result<OrderStatus> {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = orders_.find(order_id);
+        if (it == orders_.end()) {
+            return makeError<OrderStatus>(ErrorCode::InvalidParameter, "Order not found");
+        }
+        return it->second.status;
+    }
+
+    [[nodiscard]] auto getActiveOrders() const -> std::vector<Order> {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<Order> active_orders;
+        for (auto const& [id, order] : orders_) {
+            if (order.isActive()) {
+                active_orders.push_back(order);
+            }
+        }
+        return active_orders;
+    }
+
+private:
+    // ========================================================================
+    // Safety Check Methods
+    // ========================================================================
+
+    /**
+     * Validate basic order parameters
+     */
+    [[nodiscard]] auto validateOrderParameters(Order const& order) const -> Result<void> {
+        // Check symbol
+        if (order.symbol.empty()) {
+            return makeError<void>(ErrorCode::InvalidParameter, "Symbol cannot be empty");
+        }
+
+        // Check quantity
+        if (order.quantity == 0) {
+            return makeError<void>(ErrorCode::InvalidParameter, "Quantity cannot be zero");
+        }
+
+        // For limit orders, check price
+        if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
+            if (order.limit_price <= 0.0) {
+                return makeError<void>(
+                    ErrorCode::InvalidParameter,
+                    "Limit price must be positive for limit orders"
+                );
+            }
+        }
+
+        // For stop orders, check stop price
+        if (order.type == OrderType::Stop || order.type == OrderType::StopLimit) {
+            if (order.stop_price <= 0.0) {
+                return makeError<void>(
+                    ErrorCode::InvalidParameter,
+                    "Stop price must be positive for stop orders"
+                );
+            }
+        }
+
+        // Check position size limits
+        if (std::abs(order.quantity) > max_position_size_) {
+            return makeError<void>(
+                ErrorCode::InvalidParameter,
+                "Order quantity exceeds maximum position size limit"
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * CRITICAL: Check if symbol is already held as a MANUAL position
+     * This prevents the bot from trading securities managed by the human trader
+     */
+    [[nodiscard]] auto validateOrderAgainstManualPositions(Order const& order) const
+        -> Result<void> {
+
+        if (!account_mgr_) {
+            // If no account manager is set, we can't check - allow but warn
+            Logger::getInstance().warn(
+                "No AccountManager set - cannot verify manual positions for {}",
+                order.symbol
+            );
+            return {};
+        }
+
+        // Check if this symbol is manually held
+        if (isSymbolManuallyHeld(order.symbol)) {
+            return makeError<void>(
+                ErrorCode::OrderRejected,
+                "Cannot trade " + order.symbol + " - manual position exists. " +
+                "Bot only trades NEW securities or bot-managed positions. " +
+                "See TRADING_CONSTRAINTS.md for details."
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * Check if symbol is held as a manual (non-bot-managed) position
+     */
+    [[nodiscard]] auto isSymbolManuallyHeld(std::string const& symbol) const -> bool {
+        if (!account_mgr_) return false;
+
+        // Get all positions
+        auto positions_result = account_mgr_->getPositions();
+        if (!positions_result) {
+            Logger::getInstance().error("Failed to fetch positions: {}",
+                positions_result.error());
+            return false;  // Fail open - allow trade if we can't verify
+        }
+
+        // Check each position
+        for (auto const& pos : *positions_result) {
+            if (pos.symbol == symbol) {
+                // Found position - check if it's manual
+                // Note: AccountPosition doesn't have is_bot_managed flag in current impl
+                // For now, we assume all positions are manual unless we track them
+                Logger::getInstance().warn(
+                    "Position exists for {}: {} shares @ ${:.2f}",
+                    symbol, pos.quantity, pos.average_price
+                );
+                return true;  // Conservative: treat all existing positions as manual
+            }
+        }
+
+        return false;  // No position exists - safe to trade
+    }
+
+    /**
+     * Check if account has sufficient buying power for the order
+     */
+    [[nodiscard]] auto checkBuyingPower(Order const& order) const -> Result<void> {
+        if (!account_mgr_) {
+            Logger::getInstance().warn(
+                "No AccountManager set - cannot verify buying power for order"
+            );
+            return {};  // Allow if we can't verify
+        }
+
+        // Get account balance
+        auto balance_result = account_mgr_->getBalance();
+        if (!balance_result) {
+            return makeError<void>(
+                ErrorCode::OrderRejected,
+                std::string("Failed to retrieve account balance: ") + balance_result.error().message
+            );
+        }
+
+        auto const& balance = *balance_result;
+
+        // Calculate estimated order cost
+        double estimated_cost = 0.0;
+        if (order.type == OrderType::Market) {
+            // For market orders, we need a price estimate
+            // Conservative approach: assume we need quantity * estimated_price
+            // This is a simplified check - real implementation would get current quote
+            estimated_cost = static_cast<double>(order.quantity) * 100.0;  // Placeholder
+            Logger::getInstance().warn(
+                "Market order - using conservative estimate for buying power check"
+            );
+        } else if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
+            estimated_cost = static_cast<double>(order.quantity) * order.limit_price;
+        }
+
+        // Check buying power
+        if (!balance.hasSufficientFunds(estimated_cost)) {
+            return makeError<void>(
+                ErrorCode::OrderRejected,
+                "Insufficient buying power: need $" +
+                std::to_string(estimated_cost) + ", available $" +
+                std::to_string(balance.buying_power)
+            );
+        }
+
+        Logger::getInstance().info(
+            "Buying power check passed: need ${:.2f}, have ${:.2f}",
+            estimated_cost, balance.buying_power
+        );
+
+        return {};
+    }
+
+    /**
+     * Check if we're within position count limits
+     */
+    [[nodiscard]] auto checkPositionLimits() const -> Result<void> {
+        if (!account_mgr_) {
+            return {};  // Can't check without account manager
+        }
+
+        auto positions_result = account_mgr_->getPositions();
+        if (!positions_result) {
+            return makeError<void>(
+                ErrorCode::OrderRejected,
+                std::string("Failed to retrieve positions: ") + positions_result.error().message
+            );
+        }
+
+        auto const& positions = *positions_result;
+
+        if (static_cast<int>(positions.size()) >= max_positions_) {
+            return makeError<void>(
+                ErrorCode::OrderRejected,
+                "Maximum position limit reached: " + std::to_string(max_positions_)
+            );
+        }
+
+        return {};
+    }
+
+    /**
+     * Log order activity for compliance and audit trail
+     */
+    auto logOrderCompliance(Order const& order, std::string const& action) const -> void {
+        Logger::getInstance().info(
+            "[COMPLIANCE] {} - Order: {}, Symbol: {}, Qty: {}, Type: {}, Price: ${:.2f}, "
+            "Status: {}, Timestamp: {}",
+            action, order.order_id, order.symbol, order.quantity,
+            orderTypeToString(order.type), order.limit_price,
+            orderStatusToString(order.status), order.created_at
+        );
+    }
+
+    // ========================================================================
+    // Helper Methods
+    // ========================================================================
+
+    [[nodiscard]] auto orderTypeToString(OrderType type) const -> std::string {
+        switch (type) {
+            case OrderType::Market: return "MARKET";
+            case OrderType::Limit: return "LIMIT";
+            case OrderType::Stop: return "STOP";
+            case OrderType::StopLimit: return "STOP_LIMIT";
+            default: return "UNKNOWN";
+        }
+    }
+
+    [[nodiscard]] auto orderDurationToString(OrderDuration duration) const -> std::string {
+        switch (duration) {
+            case OrderDuration::Day: return "DAY";
+            case OrderDuration::GTC: return "GTC";
+            case OrderDuration::GTD: return "GTD";
+            case OrderDuration::FOK: return "FOK";
+            case OrderDuration::IOC: return "IOC";
+            default: return "UNKNOWN";
+        }
+    }
+
+    [[nodiscard]] auto orderStatusToString(OrderStatus status) const -> std::string {
+        switch (status) {
+            case OrderStatus::Pending: return "PENDING";
+            case OrderStatus::Working: return "WORKING";
+            case OrderStatus::Filled: return "FILLED";
+            case OrderStatus::PartiallyFilled: return "PARTIALLY_FILLED";
+            case OrderStatus::Canceled: return "CANCELED";
+            case OrderStatus::Rejected: return "REJECTED";
+            default: return "UNKNOWN";
+        }
+    }
+
+    // ========================================================================
+    // Member Variables
+    // ========================================================================
+
+    std::shared_ptr<TokenManager> token_mgr_;
+    std::unordered_map<std::string, Order> orders_;
+    std::atomic<int> order_counter_;
+    mutable std::mutex mutex_;
+
+    // Safety configuration
+    std::atomic<bool> dry_run_mode_;
+    int max_position_size_;
+    int max_positions_;
+
+    // Account manager for balance/position checks
+    AccountManager* account_mgr_{nullptr};
 };
 
 // ============================================================================

@@ -222,9 +222,20 @@ template<std::ranges::range R>
     -> std::vector<double> {
 
     std::vector<double> result;
-    result.reserve(std::ranges::size(range) - window_size + 1);
 
-    for (auto window : std::forward<R>(range) | std::views::slide(window_size)) {
+    auto const size = std::ranges::size(range);
+    if (size < window_size) {
+        return result;
+    }
+
+    result.reserve(size - window_size + 1);
+
+    // Manual implementation instead of std::views::slide (not in libc++ C++23)
+    for (size_t i = 0; i + window_size <= size; ++i) {
+        auto window = std::ranges::subrange(
+            std::ranges::begin(range) + i,
+            std::ranges::begin(range) + i + window_size
+        );
         result.push_back(mean(window));
     }
 
@@ -280,15 +291,23 @@ template<std::ranges::range R>
         return {};
     }
 
-    auto const adjacent_pairs = std::forward<R>(range) | std::views::adjacent<2>;
-
     std::vector<double> returns;
     returns.reserve(std::ranges::size(range) - 1);
 
-    for (auto [prev, curr] : adjacent_pairs) {
+    // Manual implementation instead of std::views::adjacent<2> (not in libc++ C++23)
+    auto it = std::ranges::begin(range);
+    auto end = std::ranges::end(range);
+    if (it == end) return returns;
+
+    auto prev = *it;
+    ++it;
+    while (it != end) {
+        auto curr = *it;
         if (prev > 0.0) {
             returns.push_back(std::log(curr / prev));
         }
+        prev = curr;
+        ++it;
     }
 
     return returns;
@@ -306,15 +325,23 @@ template<std::ranges::range R>
         return {};
     }
 
-    auto const adjacent_pairs = std::forward<R>(range) | std::views::adjacent<2>;
-
     std::vector<double> returns;
     returns.reserve(std::ranges::size(range) - 1);
 
-    for (auto [prev, curr] : adjacent_pairs) {
+    // Manual implementation instead of std::views::adjacent<2> (not in libc++ C++23)
+    auto it = std::ranges::begin(range);
+    auto end = std::ranges::end(range);
+    if (it == end) return returns;
+
+    auto prev = *it;
+    ++it;
+    while (it != end) {
+        auto curr = *it;
         if (prev != 0.0) {
             returns.push_back((curr - prev) / prev);
         }
+        prev = curr;
+        ++it;
     }
 
     return returns;
@@ -482,14 +509,14 @@ template<std::ranges::range R1, std::ranges::range R2>
     requires Numeric<std::ranges::range_value_t<R1>> &&
              Numeric<std::ranges::range_value_t<R2>>
 [[nodiscard]] constexpr auto dot_product(R1&& range1, R2&& range2) noexcept -> double {
+    // Manual implementation instead of std::views::zip_transform (not in libc++ C++23)
+    // Using std::views::zip and transform separately
     return std::ranges::fold_left(
-        std::views::zip_transform(
-            [](auto a, auto b) -> double {
-                return static_cast<double>(a) * static_cast<double>(b);
-            },
-            std::forward<R1>(range1),
-            std::forward<R2>(range2)
-        ),
+        std::views::zip(std::forward<R1>(range1), std::forward<R2>(range2)) |
+        std::views::transform([](auto const& pair) -> double {
+            auto const [a, b] = pair;
+            return static_cast<double>(a) * static_cast<double>(b);
+        }),
         0.0,
         std::plus<>{}
     );

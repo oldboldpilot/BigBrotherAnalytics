@@ -140,11 +140,11 @@ public:
     explicit Database(std::string path)
         : path_{std::move(path)}, connected_{false} {}
 
-    // C.21: Rule of Five - movable, not copyable
+    // C.21: Rule of Five - not copyable, not movable (mutex member)
     Database(Database const&) = delete;
     auto operator=(Database const&) -> Database& = delete;
-    Database(Database&&) noexcept = default;
-    auto operator=(Database&&) noexcept -> Database& = default;
+    Database(Database&&) noexcept = delete;
+    auto operator=(Database&&) noexcept -> Database& = delete;
     
     ~Database() {
         disconnect();

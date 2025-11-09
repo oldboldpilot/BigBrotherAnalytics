@@ -48,6 +48,16 @@ using bigbrother::strategy::StrategyContext;
 // Note: TradingSignal defined in strategy module, not types
 
 // ============================================================================
+// Forward Declarations
+// ============================================================================
+
+class StraddleStrategy;
+class StrangleStrategy;
+class VolatilityArbStrategy;
+class SectorRotationStrategy;
+class SectorRotationStrategyBuilder;
+
+// ============================================================================
 // Strategy Performance Tracking
 // ============================================================================
 
@@ -77,16 +87,7 @@ class StraddleStrategyBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
-        auto strategy = std::make_unique<StraddleStrategy>();
-        if (min_iv_rank_) {
-            strategy->setMinIVRank(*min_iv_rank_);
-        }
-        if (max_distance_) {
-            strategy->setMaxDistance(*max_distance_);
-        }
-        return strategy;
-    }
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy>;
 
   private:
     std::optional<double> min_iv_rank_;
@@ -156,6 +157,18 @@ class StraddleStrategy final : public IStrategy {
     double max_distance_{0.10};
 };
 
+// StraddleStrategyBuilder::build() implementation
+inline auto StraddleStrategyBuilder::build() -> std::unique_ptr<IStrategy> {
+    auto strategy = std::make_unique<StraddleStrategy>();
+    if (min_iv_rank_) {
+        strategy->setMinIVRank(*min_iv_rank_);
+    }
+    if (max_distance_) {
+        strategy->setMaxDistance(*max_distance_);
+    }
+    return strategy;
+}
+
 // ============================================================================
 // Strangle Strategy Builder
 // ============================================================================
@@ -172,16 +185,7 @@ class StrangleStrategyBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
-        auto strategy = std::make_unique<StrangleStrategy>();
-        if (min_iv_rank_) {
-            strategy->setMinIVRank(*min_iv_rank_);
-        }
-        if (wing_width_) {
-            strategy->setWingWidth(*wing_width_);
-        }
-        return strategy;
-    }
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy>;
 
   private:
     std::optional<double> min_iv_rank_;
@@ -251,6 +255,18 @@ class StrangleStrategy final : public IStrategy {
     double wing_width_{0.20};
 };
 
+// StrangleStrategyBuilder::build() implementation
+inline auto StrangleStrategyBuilder::build() -> std::unique_ptr<IStrategy> {
+    auto strategy = std::make_unique<StrangleStrategy>();
+    if (min_iv_rank_) {
+        strategy->setMinIVRank(*min_iv_rank_);
+    }
+    if (wing_width_) {
+        strategy->setWingWidth(*wing_width_);
+    }
+    return strategy;
+}
+
 // ============================================================================
 // Volatility Arbitrage Strategy Builder
 // ============================================================================
@@ -268,16 +284,7 @@ class VolatilityArbStrategyBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
-        auto strategy = std::make_unique<VolatilityArbStrategy>();
-        if (min_iv_hv_spread_) {
-            strategy->setMinIVHVSpread(*min_iv_hv_spread_);
-        }
-        if (lookback_days_) {
-            strategy->setLookbackPeriod(*lookback_days_);
-        }
-        return strategy;
-    }
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy>;
 
   private:
     std::optional<double> min_iv_hv_spread_;
@@ -349,106 +356,21 @@ class VolatilityArbStrategy final : public IStrategy {
     int lookback_days_{30};
 };
 
+// VolatilityArbStrategyBuilder::build() implementation
+inline auto VolatilityArbStrategyBuilder::build() -> std::unique_ptr<IStrategy> {
+    auto strategy = std::make_unique<VolatilityArbStrategy>();
+    if (min_iv_hv_spread_) {
+        strategy->setMinIVHVSpread(*min_iv_hv_spread_);
+    }
+    if (lookback_days_) {
+        strategy->setLookbackPeriod(*lookback_days_);
+    }
+    return strategy;
+}
+
 // ============================================================================
 // Sector Rotation Strategy
 // ============================================================================
-
-// ============================================================================
-// Sector Rotation Strategy Builder
-// ============================================================================
-
-/**
- * SectorRotationStrategyBuilder - Fluent API for configuring SectorRotationStrategy
- *
- * Example Usage:
- *   auto strategy = SectorRotationStrategy::builder()
- *       .withEmploymentWeight(0.60)
- *       .withSentimentWeight(0.30)
- *       .withMomentumWeight(0.10)
- *       .topNOverweight(3)
- *       .bottomNUnderweight(2)
- *       .rotationThreshold(0.70)
- *       .minCompositeScore(0.60)
- *       .maxSectorAllocation(0.25)
- *       .minSectorAllocation(0.05)
- *       .build();
- */
-class SectorRotationStrategyBuilder {
-  public:
-    [[nodiscard]] auto withEmploymentWeight(double weight) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.employment_weight = weight;
-        return *this;
-    }
-
-    [[nodiscard]] auto withSentimentWeight(double weight) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.sentiment_weight = weight;
-        return *this;
-    }
-
-    [[nodiscard]] auto withMomentumWeight(double weight) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.momentum_weight = weight;
-        return *this;
-    }
-
-    [[nodiscard]] auto topNOverweight(int n) noexcept -> SectorRotationStrategyBuilder& {
-        config_.top_n_overweight = n;
-        return *this;
-    }
-
-    [[nodiscard]] auto bottomNUnderweight(int n) noexcept -> SectorRotationStrategyBuilder& {
-        config_.bottom_n_underweight = n;
-        return *this;
-    }
-
-    [[nodiscard]] auto minCompositeScore(double score) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.min_composite_score = score;
-        return *this;
-    }
-
-    [[nodiscard]] auto rotationThreshold(double threshold) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.rotation_threshold = threshold;
-        return *this;
-    }
-
-    [[nodiscard]] auto maxSectorAllocation(double max_alloc) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.max_sector_allocation = max_alloc;
-        return *this;
-    }
-
-    [[nodiscard]] auto minSectorAllocation(double min_alloc) noexcept
-        -> SectorRotationStrategyBuilder& {
-        config_.min_sector_allocation = min_alloc;
-        return *this;
-    }
-
-    [[nodiscard]] auto rebalanceFrequency(int days) noexcept -> SectorRotationStrategyBuilder& {
-        config_.rebalance_frequency_days = days;
-        return *this;
-    }
-
-    [[nodiscard]] auto withDatabasePath(std::string const& path) -> SectorRotationStrategyBuilder& {
-        config_.db_path = path;
-        return *this;
-    }
-
-    [[nodiscard]] auto withScriptsPath(std::string const& path) -> SectorRotationStrategyBuilder& {
-        config_.scripts_path = path;
-        return *this;
-    }
-
-    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
-        return std::make_unique<SectorRotationStrategy>(config_);
-    }
-
-  private:
-    SectorRotationStrategy::Config config_;
-};
 
 /**
  * SectorRotationStrategy - Multi-Signal Sector Allocation Strategy
@@ -555,7 +477,7 @@ class SectorRotationStrategy final : public IStrategy {
         std::string scripts_path{"scripts"};
     };
 
-    explicit SectorRotationStrategy(Config config = Config{})
+    explicit SectorRotationStrategy(Config config)
         : config_{std::move(config)}, signal_generator_{config_.scripts_path, config_.db_path} {
 
         // Normalize weights
@@ -578,9 +500,7 @@ class SectorRotationStrategy final : public IStrategy {
     /**
      * Create fluent builder for SectorRotationStrategy
      */
-    [[nodiscard]] static auto builder() -> SectorRotationStrategyBuilder {
-        return SectorRotationStrategyBuilder{};
-    }
+    [[nodiscard]] static auto builder() -> SectorRotationStrategyBuilder;
 
     [[nodiscard]] auto getName() const noexcept -> std::string override {
         return "Sector Rotation (Multi-Signal)";
@@ -999,6 +919,108 @@ class SectorRotationStrategy final : public IStrategy {
 };
 
 // ============================================================================
+// Sector Rotation Strategy Builder
+// ============================================================================
+
+/**
+ * SectorRotationStrategyBuilder - Fluent API for configuring SectorRotationStrategy
+ *
+ * Example Usage:
+ *   auto strategy = SectorRotationStrategy::builder()
+ *       .withEmploymentWeight(0.60)
+ *       .withSentimentWeight(0.30)
+ *       .withMomentumWeight(0.10)
+ *       .topNOverweight(3)
+ *       .bottomNUnderweight(2)
+ *       .rotationThreshold(0.70)
+ *       .minCompositeScore(0.60)
+ *       .maxSectorAllocation(0.25)
+ *       .minSectorAllocation(0.05)
+ *       .build();
+ */
+class SectorRotationStrategyBuilder {
+  public:
+    [[nodiscard]] auto withEmploymentWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.employment_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto withSentimentWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.sentiment_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto withMomentumWeight(double weight) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.momentum_weight = weight;
+        return *this;
+    }
+
+    [[nodiscard]] auto topNOverweight(int n) noexcept -> SectorRotationStrategyBuilder& {
+        config_.top_n_overweight = n;
+        return *this;
+    }
+
+    [[nodiscard]] auto bottomNUnderweight(int n) noexcept -> SectorRotationStrategyBuilder& {
+        config_.bottom_n_underweight = n;
+        return *this;
+    }
+
+    [[nodiscard]] auto minCompositeScore(double score) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.min_composite_score = score;
+        return *this;
+    }
+
+    [[nodiscard]] auto rotationThreshold(double threshold) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.rotation_threshold = threshold;
+        return *this;
+    }
+
+    [[nodiscard]] auto maxSectorAllocation(double max_alloc) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.max_sector_allocation = max_alloc;
+        return *this;
+    }
+
+    [[nodiscard]] auto minSectorAllocation(double min_alloc) noexcept
+        -> SectorRotationStrategyBuilder& {
+        config_.min_sector_allocation = min_alloc;
+        return *this;
+    }
+
+    [[nodiscard]] auto rebalanceFrequency(int days) noexcept -> SectorRotationStrategyBuilder& {
+        config_.rebalance_frequency_days = days;
+        return *this;
+    }
+
+    [[nodiscard]] auto withDatabasePath(std::string const& path) -> SectorRotationStrategyBuilder& {
+        config_.db_path = path;
+        return *this;
+    }
+
+    [[nodiscard]] auto withScriptsPath(std::string const& path) -> SectorRotationStrategyBuilder& {
+        config_.scripts_path = path;
+        return *this;
+    }
+
+    [[nodiscard]] auto build() -> std::unique_ptr<IStrategy> {
+        return std::make_unique<SectorRotationStrategy>(config_);
+    }
+
+  private:
+    SectorRotationStrategy::Config config_;
+};
+
+// SectorRotationStrategy::builder() implementation
+inline auto SectorRotationStrategy::builder() -> SectorRotationStrategyBuilder {
+    return SectorRotationStrategyBuilder{};
+}
+
+// ============================================================================
 // Strategy Manager (Fluent API)
 // ============================================================================
 
@@ -1149,7 +1171,7 @@ class StrategyManager {
 }
 
 [[nodiscard]] inline auto createSectorRotationStrategy(
-    SectorRotationStrategy::Config config = SectorRotationStrategy::Config{})
+    SectorRotationStrategy::Config config)
     -> std::unique_ptr<IStrategy> {
     return std::make_unique<SectorRotationStrategy>(std::move(config));
 }

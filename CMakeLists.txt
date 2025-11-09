@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
-project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # ============================================================================
-# Compiler Configuration
+# Compiler Configuration (MUST be before project())
 # ============================================================================
 # Use Clang 21 from /usr/local/bin
 set(CMAKE_C_COMPILER "/usr/local/bin/clang")
 set(CMAKE_CXX_COMPILER "/usr/local/bin/clang++")
+
+project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # Use libc++ (LLVM's C++ standard library)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
@@ -458,10 +459,29 @@ endif()
 
 enable_testing()
 
-find_package(GTest)
-if(GTest_FOUND)
+# Use GoogleTest built with libc++ from /usr/local
+# Manually create imported targets to bypass system GTest
+if(EXISTS "/usr/local/lib/libgtest.a" AND EXISTS "/usr/local/lib/libgtest_main.a")
+    set(GTest_FOUND TRUE)
+
+    # Create imported target for GTest::gtest
+    add_library(GTest::gtest STATIC IMPORTED)
+    set_target_properties(GTest::gtest PROPERTIES
+        IMPORTED_LOCATION "/usr/local/lib/libgtest.a"
+        INTERFACE_INCLUDE_DIRECTORIES "/usr/local/include"
+        INTERFACE_LINK_LIBRARIES "/usr/local/lib/libc++.so;/lib/x86_64-linux-gnu/libc++abi.so"
+    )
+
+    # Create imported target for GTest::gtest_main
+    add_library(GTest::gtest_main STATIC IMPORTED)
+    set_target_properties(GTest::gtest_main PROPERTIES
+        IMPORTED_LOCATION "/usr/local/lib/libgtest_main.a"
+        INTERFACE_INCLUDE_DIRECTORIES "/usr/local/include"
+        INTERFACE_LINK_LIBRARIES "GTest::gtest"
+    )
+
     add_subdirectory(tests/cpp)
-    message(STATUS "C++ tests enabled")
+    message(STATUS "C++ tests enabled (using libc++ compatible GoogleTest from /usr/local)")
 else()
     message(STATUS "Google Test not found - C++ tests disabled")
 endif()

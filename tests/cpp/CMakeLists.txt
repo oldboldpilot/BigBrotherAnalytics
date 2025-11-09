@@ -1,7 +1,5 @@
 # C++ Tests
-
-# Find Google Test (optional for now)
-find_package(GTest)
+# GoogleTest imported targets are configured in root CMakeLists.txt
 
 if(GTest_FOUND)
     # Options Pricing Tests
@@ -14,8 +12,8 @@ if(GTest_FOUND)
     target_link_libraries(test_options_pricing
         PRIVATE
         options_pricing
-        GTest::GTest
-        GTest::Main
+        GTest::gtest
+        GTest::gtest_main
     )
 
     add_test(NAME OptionsPricingTests COMMAND test_options_pricing)
@@ -30,8 +28,8 @@ if(GTest_FOUND)
     target_link_libraries(test_correlation
         PRIVATE
         correlation_engine
-        GTest::GTest
-        GTest::Main
+        GTest::gtest
+        GTest::gtest_main
     )
 
     add_test(NAME CorrelationTests COMMAND test_correlation)
@@ -44,8 +42,8 @@ if(GTest_FOUND)
     target_link_libraries(test_order_manager_integration
         PRIVATE
         schwab_api
-        GTest::GTest
-        GTest::Main
+        GTest::gtest
+        GTest::gtest_main
     )
 
     add_test(NAME OrderManagerIntegrationTests COMMAND test_order_manager_integration)
@@ -58,8 +56,8 @@ if(GTest_FOUND)
     target_link_libraries(test_account_manager_integration
         PRIVATE
         schwab_api
-        GTest::GTest
-        GTest::Main
+        GTest::gtest
+        GTest::gtest_main
     )
 
     add_test(NAME AccountManagerIntegrationTests COMMAND test_account_manager_integration)
@@ -73,8 +71,9 @@ if(GTest_FOUND)
         PRIVATE
         schwab_api
         risk_management
-        GTest::GTest
-        GTest::Main
+        GTest::gtest
+        GTest::gtest_main
+        spdlog::spdlog
     )
 
     add_test(NAME SchwabE2EWorkflowTests COMMAND test_schwab_e2e_workflow)

@@ -18,6 +18,7 @@ module;
 #include <memory>
 #include <chrono>
 #include <map>
+#include <algorithm>
 
 // Module declaration
 export module bigbrother.explainability;
