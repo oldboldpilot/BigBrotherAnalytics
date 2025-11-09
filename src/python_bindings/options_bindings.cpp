@@ -16,44 +16,61 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
-// Import our modules (this will need proper module import syntax)
-// For now, using forward declarations until module imports work in bindings
+// Import C++23 modules
+import bigbrother.pricing.black_scholes;
+import bigbrother.pricing.trinomial_tree;
 
 namespace py = pybind11;
 
 namespace bigbrother::options {
 
-// Forward declarations - will import from modules later
-struct Greeks {
-    double delta{0.0};
-    double gamma{0.0};
-    double theta{0.0};
-    double vega{0.0};
-    double rho{0.0};
-};
-
 // Trinomial Tree pricing (DEFAULT - most accurate for American options)
 auto trinomial_price(double spot, double strike, double volatility,
                     double time_to_expiry, double risk_free_rate,
                     bool is_call, int steps = 100) -> double {
-    // TODO: Call actual trinomial tree from options_pricing module
-    // For now, simple stub (will be 50-100x faster than Python when implemented)
-    return is_call ? spot * 0.5 : strike * 0.4;
+    auto result = TrinomialTreeModel::price(
+        spot, strike, risk_free_rate, time_to_expiry, volatility,
+        0.0,  // dividend yield
+        is_call,
+        true,  // American style
+        steps
+    );
+
+    if (!result) {
+        throw std::runtime_error(result.error());
+    }
+
+    return *result;
 }
 
 // Black-Scholes pricing (faster but less accurate, European only)
 auto black_scholes_call(double spot, double strike, double volatility,
                        double time_to_expiry, double risk_free_rate) -> double {
-    // TODO: Call actual Black-Scholes implementation
-    return spot * 0.5;  // Placeholder
+    return BlackScholesModel::callPrice(spot, strike, risk_free_rate,
+                                        time_to_expiry, volatility);
+}
+
+auto black_scholes_put(double spot, double strike, double volatility,
+                      double time_to_expiry, double risk_free_rate) -> double {
+    return BlackScholesModel::putPrice(spot, strike, risk_free_rate,
+                                       time_to_expiry, volatility);
 }
 
 auto calculate_greeks(double spot, double strike, double volatility,
                      double time_to_expiry, double risk_free_rate) -> Greeks {
-    // TODO: Call actual Greeks calculation from options_pricing module
-    Greeks g;
-    g.delta = 0.5;  // Placeholder (will be computed with finite differences)
-    return g;
+    auto result = TrinomialTreeModel::greeks(
+        spot, strike, risk_free_rate, time_to_expiry, volatility,
+        0.0,  // dividend yield
+        true,  // call option
+        true,  // American style
+        100    // steps
+    );
+
+    if (!result) {
+        throw std::runtime_error(result.error());
+    }
+
+    return *result;
 }
 
 } // namespace bigbrother::options
@@ -129,9 +146,9 @@ PYBIND11_MODULE(bigbrother_options, m) {
           py::arg("time_to_expiry"), py::arg("risk_free_rate") = 0.041);
 
     m.def("black_scholes_put",
-          [](double spot, double strike, double vol, double T, double r) -> double {
+          [](double spot, double strike, double vol, double T, double r) {
               py::gil_scoped_release release;  // GIL-FREE
-              return strike * 0.5;  // TODO: Implement
+              return black_scholes_put(spot, strike, vol, T, r);
           },
           "Calculate Black-Scholes put (European only, faster)",
           py::arg("spot"), py::arg("strike"), py::arg("volatility"),

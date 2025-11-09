@@ -14,6 +14,10 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <vector>
+#include <span>
+
+// Import C++23 modules
+import bigbrother.correlation;
 
 namespace py = pybind11;
 
@@ -21,14 +25,30 @@ namespace bigbrother::correlation {
 
 // Pearson correlation (GIL-free)
 auto pearson(std::vector<double> const& x, std::vector<double> const& y) -> double {
-    // TODO: Call actual Pearson from correlation module
-    return 0.75;
+    auto result = CorrelationCalculator::pearson(
+        std::span<const double>{x},
+        std::span<const double>{y}
+    );
+
+    if (!result) {
+        throw std::runtime_error(result.error().message);
+    }
+
+    return *result;
 }
 
 // Spearman correlation (GIL-free)
 auto spearman(std::vector<double> const& x, std::vector<double> const& y) -> double {
-    // TODO: Call actual Spearman
-    return 0.70;
+    auto result = CorrelationCalculator::spearman(
+        std::span<const double>{x},
+        std::span<const double>{y}
+    );
+
+    if (!result) {
+        throw std::runtime_error(result.error().message);
+    }
+
+    return *result;
 }
 
 } // namespace bigbrother::correlation

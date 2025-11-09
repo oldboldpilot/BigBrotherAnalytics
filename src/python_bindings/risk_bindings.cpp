@@ -14,43 +14,79 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <vector>
+#include <algorithm>
+
+// Import C++23 modules
+import bigbrother.risk_management;
+import bigbrother.utils.types;
 
 namespace py = pybind11;
 
 namespace bigbrother::risk {
 
+using namespace bigbrother::types;
+
 // Kelly Criterion calculation (GIL-free)
 auto kelly_criterion(double win_probability, double win_loss_ratio) -> double {
-    // TODO: Call actual Kelly implementation from risk_management module
-    // Kelly% = W - (1-W)/R where W=win_prob, R=win/loss ratio
+    // Simple Kelly formula: f* = (p*b - q) / b
+    // where p = win probability, q = 1-p, b = win/loss ratio
     if (win_loss_ratio <= 0.0) return 0.0;
-    return win_probability - ((1.0 - win_probability) / win_loss_ratio);
+
+    double const kelly = (win_probability * win_loss_ratio - (1.0 - win_probability)) / win_loss_ratio;
+    // Cap at 25% for safety
+    return std::clamp(kelly, 0.0, 0.25);
 }
 
 // Position sizing (GIL-free)
 auto calculate_position_size(double account_value, double kelly_fraction,
                              double max_position_pct) -> double {
-    // TODO: Call actual position sizer
-    auto kelly_size = account_value * kelly_fraction;
+    auto result = PositionSizer::calculate(
+        SizingMethod::KellyCriterion,
+        account_value,
+        kelly_fraction,  // Using as win_probability for simplicity
+        1.0,  // win_amount
+        1.0,  // loss_amount
+        0.0   // volatility
+    );
+
+    if (!result) {
+        return account_value * max_position_pct;
+    }
+
+    auto kelly_size = *result;
     auto max_size = account_value * max_position_pct;
     return std::min(kelly_size, max_size);
 }
 
 // Monte Carlo simulation (GIL-free, OpenMP parallel)
-struct SimulationResult {
-    double expected_value{0.0};
-    double std_deviation{0.0};
-    double var_95{0.0};
-    double probability_of_profit{0.0};
-};
+// Using the SimulationResult from risk_management module
 
 auto monte_carlo_simulate(double spot, double vol, double drift,
                           int num_simulations) -> SimulationResult {
-    // TODO: Call actual Monte Carlo from risk_management (uses OpenMP)
-    SimulationResult result;
-    result.expected_value = spot * 1.05;  // Placeholder
-    result.probability_of_profit = 0.65;
-    return result;
+    // Create pricing params for Monte Carlo (field order matches PricingParams definition)
+    PricingParams params{
+        .spot_price = spot,
+        .strike_price = spot,  // ATM for simplicity
+        .risk_free_rate = 0.041,
+        .time_to_expiration = 0.25,  // 3 months
+        .volatility = vol,
+        .dividend_yield = 0.0,
+        .option_type = OptionType::Call
+    };
+
+    auto result = MonteCarloSimulator::simulateOptionTrade(
+        params,
+        1.0,  // position_size (1 contract)
+        num_simulations,
+        100   // num_steps
+    );
+
+    if (!result) {
+        // Return empty result on error
+        return SimulationResult{};
+    }
+
+    return *result;
 }
 
 } // namespace bigbrother::risk

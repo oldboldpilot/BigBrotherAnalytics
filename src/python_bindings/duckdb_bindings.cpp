@@ -4,6 +4,10 @@
  * CRITICAL: Direct C++ DuckDB access for 5-10x speedup vs Python DuckDB
  * GIL-FREE query execution with zero-copy NumPy array transfer
  *
+ * NOTE: Currently using stub implementation due to DuckDB C++ API compatibility
+ * issues with Clang 21 + C++23. Will be upgraded when DuckDB supports C++23.
+ * For production use, recommend using Python DuckDB directly via uv.
+ *
  * Author: Olumuyiwa Oluwasanmi
  * Date: 2025-11-09
  *
@@ -16,16 +20,23 @@
 #include <string>
 #include <vector>
 
+// Import C++23 modules (stub implementation)
+import bigbrother.utils.database;
+import bigbrother.utils.types;
+
 namespace py = pybind11;
 
 namespace bigbrother::database {
 
-// Database query result (simplified)
+using namespace bigbrother::utils;
+using namespace bigbrother::types;
+
+// Database query result (simplified wrapper around DBResultSet)
 struct QueryResult {
     std::vector<std::string> columns;
     std::vector<std::vector<double>> data;
     size_t row_count{0};
-    
+
     auto to_dict() const -> py::dict {
         py::dict result;
         for (size_t i = 0; i < columns.size(); ++i) {
@@ -41,31 +52,53 @@ struct QueryResult {
     }
 };
 
-// DuckDB Connection (GIL-free)
+// DuckDB Connection (GIL-free, wraps bigbrother::utils::Database)
 class DuckDBConnection {
 public:
-    explicit DuckDBConnection(std::string db_path) : db_path_{std::move(db_path)} {
-        // TODO: Initialize actual DuckDB C++ connection
+    explicit DuckDBConnection(std::string db_path)
+        : db_path_{std::move(db_path)},
+          db_{std::make_unique<Database>(db_path_)} {
+        // Connect to database
+        auto result = db_->connect();
+        if (!result) {
+            throw std::runtime_error("Failed to connect to database: " +
+                                    result.error().message);
+        }
     }
-    
+
     auto execute(std::string const& query) -> QueryResult {
-        // TODO: Execute query using DuckDB C++ API
-        // For now, stub
-        QueryResult result;
-        result.columns = {"symbol", "price"};
-        result.row_count = 0;
-        return result;
+        if (!db_) {
+            throw std::runtime_error("Database not initialized");
+        }
+
+        // Execute query using Database module
+        auto result = db_->query(query);
+        if (!result) {
+            throw std::runtime_error("Query failed: " + result.error().message);
+        }
+
+        // Convert DBResultSet to QueryResult
+        QueryResult qr;
+        qr.columns = result->getColumnNames();
+        qr.row_count = result->rowCount();
+
+        // Note: For simplicity, currently only returning metadata
+        // Full data conversion would require variant visitor pattern
+        // Recommend using Python DuckDB directly for production queries
+
+        return qr;
     }
-    
+
     auto to_dataframe(std::string const& table_name) -> py::dict {
-        // TODO: Fast path to pandas DataFrame
-        // Uses zero-copy NumPy array transfer
-        return py::dict();
+        // Simple table-to-dict conversion
+        std::string query = "SELECT * FROM " + table_name;
+        auto result = execute(query);
+        return result.to_dict();
     }
-    
+
 private:
     std::string db_path_;
-    // TODO: Add actual DuckDB connection object
+    std::unique_ptr<Database> db_;
 };
 
 } // namespace bigbrother::database
