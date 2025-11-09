@@ -1,17 +1,71 @@
 # API Keys for BigBrotherAnalytics
 # Copy this file to api_keys.yaml and fill in your keys
+#
+# Author: Olumuyiwa Oluwasanmi
+# Date: 2025-11-08
 
-# FRED API Key (Free - https://fred.stlouisfed.org/docs/api/api_key.html)
+# =============================================================================
+# Economic Data APIs (FREE - Tier 1)
+# =============================================================================
+
+# FRED API Key (Federal Reserve Economic Data)
+# Free: https://fred.stlouisfed.org/docs/api/api_key.html
+# Used for: Macroeconomic indicators, interest rates, yield curves
 fred_api_key: your_key_here
 
-# Schwab API (for live trading - Tier 2+)
+# Bureau of Labor Statistics (BLS) API
+# Free: https://data.bls.gov/registrationEngine/
+# Used for: Employment data, unemployment, jobless claims, JOLTS
+# Limits: 500 queries/day (registered) vs 25/day (unregistered)
+bls_api_key: your_key_here
+
+# =============================================================================
+# News & Sentiment APIs (Tier 1)
+# =============================================================================
+
+# NewsAPI (Free tier: 100 requests/day)
+# Sign up: https://newsapi.org/
+# Used for: Real-time news, sentiment analysis
+news_api_key: your_key_here
+
+# Alpha Vantage (Free tier: 500 calls/day)
+# Sign up: https://www.alphavantage.co/support/#api-key
+# Used for: Stock data, news sentiment, corporate actions
+alpha_vantage_api_key: your_key_here
+
+# =============================================================================
+# Market Data APIs
+# =============================================================================
+
+# Polygon.io (optional - Tier 2+)
+# Starter: $200/month for real-time data
+# polygon_api_key: your_key_here
+
+# Finnhub (Free tier available)
+# Sign up: https://finnhub.io/
+# finnhub_api_key: your_key_here
+
+# =============================================================================
+# Trading APIs (Tier 2+)
+# =============================================================================
+
+# Schwab API (for live trading)
+# Developer portal: https://developer.schwab.com/
 schwab:
   app_key: your_app_key_here
   app_secret: your_app_secret_here
   redirect_uri: https://localhost:8080
 
-# Polygon.io (optional - for real-time data)
-# polygon_api_key: your_key_here
+# =============================================================================
+# Optional Services
+# =============================================================================
 
-# Note: Never commit api_keys.yaml to git!
+# Sentry (Error tracking - free tier)
+# sentry_dsn: your_sentry_dsn_here
+
+# =============================================================================
+# SECURITY NOTICE
+# =============================================================================
+# NEVER commit api_keys.yaml to git!
 # This file is in .gitignore for security
+# Keep your keys confidential

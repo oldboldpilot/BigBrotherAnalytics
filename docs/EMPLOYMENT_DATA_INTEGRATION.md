@@ -42,6 +42,8 @@ Employment data serves as a critical leading and coincident indicator for:
 duckdb data/bigbrother.duckdb < scripts/database_schema_employment.sql
 ```
 
+**Note:** BLS API key configuration is already set up in `api_keys.yaml`
+
 ### 2. BLS API Integration
 
 **Location:** `scripts/data_collection/bls_employment.py`
@@ -276,17 +278,38 @@ ORDER BY total_hired DESC;
 
 ## Configuration
 
-### Environment Variables
+### API Keys Configuration
 
-Add to `.env` or `api_keys.yaml`:
+**Primary Method: api_keys.yaml (Centralized Configuration)**
+
+The project uses `api_keys.yaml` for all API key management:
 
 ```yaml
 # Bureau of Labor Statistics API
-BLS_API_KEY: "your_bls_api_key_here"
+# Get free key: https://data.bls.gov/registrationEngine/
+bls_api_key: your_bls_api_key_here
 
-# Layoffs.fyi (if API becomes available)
-LAYOFFS_FYI_API_KEY: "your_api_key_here"
+# NewsAPI (for sentiment analysis)
+# Get free key: https://newsapi.org/
+news_api_key: your_news_api_key_here
+
+# Alpha Vantage (alternative market data)
+# Get free key: https://www.alphavantage.co/support/#api-key
+alpha_vantage_api_key: your_key_here
 ```
+
+**Alternative Method: Environment Variables**
+
+You can also use environment variables (script checks both):
+
+```bash
+export BLS_API_KEY="your_bls_api_key_here"
+export NEWS_API_KEY="your_news_api_key_here"
+```
+
+**Priority:** api_keys.yaml is checked first, then environment variables.
+
+**Note:** api_keys.yaml is in .gitignore and will never be committed (for security).
 
 ### Schedule Data Updates
 
@@ -349,8 +372,17 @@ duckdb data/bigbrother.duckdb "SELECT COUNT(*) FROM sector_employment_raw;"
 ## Next Steps
 
 1. **Run database schema initialization**
-2. **Obtain BLS API key** (free, 5 minutes)
+   ```bash
+   duckdb data/bigbrother.duckdb < scripts/database_schema_employment.sql
+   ```
+
+2. **BLS API key** - Already configured in api_keys.yaml ✅
+
 3. **Execute initial data collection** (5 years of history)
+   ```bash
+   python scripts/data_collection/bls_employment.py
+   ```
+
 4. **Implement sector-company mapping**
 5. **Build sector rotation strategy**
 6. **Backtest with employment signals**

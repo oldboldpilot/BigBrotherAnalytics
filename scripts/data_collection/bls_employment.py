@@ -102,10 +102,14 @@ class BLSEmploymentCollector:
         Initialize BLS Employment Collector.
 
         Args:
-            api_key: BLS API key (optional, from env BLS_API_KEY)
+            api_key: BLS API key (optional, reads from api_keys.yaml or env BLS_API_KEY)
             db_path: Path to DuckDB database
         """
-        self.api_key = api_key or os.getenv('BLS_API_KEY')
+        # Try to load from api_keys.yaml first, then env variable
+        if api_key:
+            self.api_key = api_key
+        else:
+            self.api_key = self._load_api_key_from_config() or os.getenv('BLS_API_KEY')
         self.db_path = Path(db_path)
 
         # Use v2 API if we have a key, otherwise v1
@@ -119,6 +123,21 @@ class BLSEmploymentCollector:
         # Ensure database exists
         if not self.db_path.parent.exists():
             self.db_path.parent.mkdir(parents=True)
+
+    def _load_api_key_from_config(self) -> Optional[str]:
+        """Load BLS API key from api_keys.yaml configuration file."""
+        try:
+            import yaml
+            config_path = Path(__file__).parent.parent.parent / 'api_keys.yaml'
+
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    return config.get('bls_api_key')
+        except Exception as e:
+            logger.debug(f"Could not load API key from config: {e}")
+
+        return None
 
     def fetch_series(
         self,
