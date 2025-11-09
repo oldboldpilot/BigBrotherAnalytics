@@ -21,8 +21,9 @@ echo -e "${BLUE}  clang-tidy Pre-Build Validation${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# Find all C++ source files (exclude tests and external)
-CPP_FILES=$(find src -name "*.cpp" -o -name "*.cppm" | grep -v "test\|external\|third_party" || true)
+# Find all C++ source files (exclude tests, external, and python_bindings)
+# Python bindings excluded because they require Python.h headers
+CPP_FILES=$(find src -name "*.cpp" -o -name "*.cppm" | grep -v "test\|external\|third_party\|python_bindings" || true)
 
 if [ -z "$CPP_FILES" ]; then
     echo -e "${GREEN}✅ No C++ files to check${NC}"
@@ -56,7 +57,11 @@ echo "  - portability-* (Cross-platform compatibility)"
 echo "  - openmp-* (OpenMP parallelization safety)"
 echo "  - mpi-* (MPI message passing correctness)"
 echo ""
-echo "Note: Module import errors ignored (false positives before compilation)"
+echo ""
+echo "Exclusions:"
+echo "  - Test files (tests/)"
+echo "  - External dependencies"
+echo "  - Python bindings (requires Python.h headers)"
 echo ""
 
 errors=0
