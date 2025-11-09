@@ -293,7 +293,7 @@ auto StrategyManager::generateSignals(StrategyContext const& context)
     }
 
     // Sort by expected value
-    std::ranges::sort(all_signals, [](auto const& a, auto const& b) {
+    std::ranges::sort(all_signals, [](auto const& a, auto const& b) -> bool {
         return a.expected_return > b.expected_return;
     });
 

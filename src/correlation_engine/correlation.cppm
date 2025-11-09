@@ -537,7 +537,7 @@ auto CorrelationCalculator::findOptimalLag(
 
     // Find max absolute correlation
     auto max_it = std::ranges::max_element(corrs,
-        [](double a, double b) { return std::abs(a) < std::abs(b); });
+        [](double a, double b) -> bool { return std::abs(a) < std::abs(b); });
 
     int const optimal_lag = static_cast<int>(std::distance(corrs.begin(), max_it));
     double const max_corr = *max_it;
