@@ -42,6 +42,8 @@ import bigbrother.schwab;
 export namespace bigbrother::strategy {
 
 using namespace bigbrother::types;
+using namespace bigbrother::options;
+using namespace bigbrother::schwab;
 
 // ============================================================================
 // Core Strategy Types
@@ -74,8 +76,8 @@ struct TradingSignal {
     std::string rationale;
 
     // Options-specific
-    std::optional<options::OptionContract> option_contract;
-    std::optional<options::Greeks> greeks;
+    std::optional<OptionContract> option_contract;
+    std::optional<Greeks> greeks;
 
     // C.21: Rule of Five - explicitly defaulted for move semantics
     TradingSignal() = default;
@@ -103,7 +105,7 @@ struct TradingSignal {
  */
 struct StrategyContext {
     std::unordered_map<std::string, Quote> current_quotes;
-    std::unordered_map<std::string, schwab::OptionsChainData> options_chains;
+    std::unordered_map<std::string, OptionsChainData> options_chains;
     std::vector<Position> current_positions;
     double account_value{0.0};
     double available_capital{0.0};
