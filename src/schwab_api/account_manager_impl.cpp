@@ -22,6 +22,7 @@
 #include <format>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <cmath>
 
 namespace bigbrother::schwab {
 

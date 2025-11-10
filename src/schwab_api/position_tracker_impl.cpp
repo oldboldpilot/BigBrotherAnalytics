@@ -75,7 +75,7 @@ class PositionTrackerImpl {
         spdlog::info("Starting PositionTracker for account: {}", account_id_);
 
         // Start background thread
-        tracking_thread_ = std::thread([this]() { trackingLoop(); });
+        tracking_thread_ = std::thread([this]() -> void { trackingLoop(); });
     }
 
     auto stop() -> void {
