@@ -225,6 +225,8 @@ double calculatePrice(double spot, double strike) {  // WRONG!
 
 ### C++23 Module Structure
 
+**MANDATORY:** All new C++ code must use C++23 modules (`.cppm` files).
+
 ```cpp
 /**
  * BigBrotherAnalytics - Component Name
@@ -241,21 +243,21 @@ double calculatePrice(double spot, double strike) {  // WRONG!
  * - Trailing return type syntax throughout
  */
 
-// Global module fragment (standard library only)
+// 1. Global module fragment (standard library only)
 module;
 
 #include <vector>
 #include <string>
 #include <expected>
 
-// Module declaration
+// 2. Module declaration
 export module bigbrother.component.name;
 
-// Import dependencies
+// 3. Import dependencies
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
 
-// Exported interface
+// 4. Exported interface (public API)
 export namespace bigbrother::component {
     [[nodiscard]] auto calculate() -> Result<double>;
 
@@ -267,7 +269,7 @@ export namespace bigbrother::component {
     };
 }
 
-// Private implementation (optional)
+// 5. Private implementation (optional)
 module :private;
 
 namespace bigbrother::component {
@@ -277,6 +279,18 @@ namespace bigbrother::component {
     }
 }
 ```
+
+**Module Naming:** `bigbrother.<category>.<component>`
+- Examples: `bigbrother.utils.types`, `bigbrother.options.pricing`, `bigbrother.risk_management`
+
+**Complete Reference:** See [docs/CPP23_MODULES_GUIDE.md](../docs/CPP23_MODULES_GUIDE.md) - 1000+ line comprehensive guide covering:
+- Module structure patterns with 5-section breakdown
+- CMake integration with FILE_SET CXX_MODULES
+- Compilation process and BMI (Binary Module Interface) files
+- Module dependency management and avoiding circular dependencies
+- Best practices and common pitfalls
+- Migration guide from headers to modules
+- Real examples from all 25 BigBrotherAnalytics modules
 
 ### Container Performance Standard (CRITICAL)
 

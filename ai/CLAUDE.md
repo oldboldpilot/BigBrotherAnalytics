@@ -195,10 +195,143 @@ Author: Olumuyiwa Oluwasanmi"
 - Before every commit (pre-commit hook)
 - Bypassing is NOT ALLOWED without explicit justification
 
+## C++23 Modules (MANDATORY)
+
+**ALL new C++ code MUST use C++23 modules - NO traditional headers.**
+
+### Module File Structure
+
+**Every `.cppm` file follows this structure:**
+
+```cpp
+/**
+ * BigBrotherAnalytics - Component Name
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: YYYY-MM-DD
+ *
+ * Following C++ Core Guidelines:
+ * - Trailing return type syntax throughout
+ * - std::expected for error handling
+ */
+
+// 1. Global module fragment (standard library ONLY)
+module;
+#include <vector>
+#include <string>
+#include <expected>
+
+// 2. Module declaration
+export module bigbrother.component.name;
+
+// 3. Module imports (internal dependencies)
+import bigbrother.utils.types;
+import bigbrother.utils.logger;
+
+// 4. Exported interface (public API)
+export namespace bigbrother::component {
+    [[nodiscard]] auto calculate() -> double;
+
+    class PublicAPI {
+    public:
+        auto method() -> void;
+    private:
+        double value_;
+    };
+}
+
+// 5. Private implementation (optional)
+module :private;
+namespace bigbrother::component {
+    auto PublicAPI::method() -> void {
+        const auto local_const = 42;  // lower_case
+    }
+}
+```
+
+### Module Naming Convention
+
+```
+bigbrother.<category>.<component>
+
+Examples:
+- bigbrother.utils.types
+- bigbrother.utils.logger
+- bigbrother.options.pricing
+- bigbrother.risk_management
+- bigbrother.schwab_api
+- bigbrother.strategy
+```
+
+### Module Rules (Enforced by clang-tidy)
+
+✅ **ALWAYS:**
+- Use `.cppm` extension for module files
+- Start with `module;` for standard library includes
+- Use `export module bigbrother.category.component;`
+- Use trailing return syntax: `auto func() -> ReturnType`
+- Add `[[nodiscard]]` to all getters
+- Use `module :private;` for implementation details
+- Import with `import bigbrother.module.name;`
+
+❌ **NEVER:**
+- Use `#include` for project headers (only standard library)
+- Mix modules and headers
+- Create circular module dependencies
+- Forget `export` keyword
+- Use old-style function syntax
+- Export implementation details
+
+### CMake Integration
+
+```cmake
+add_library(bigbrother_modules)
+target_sources(bigbrother_modules
+    PUBLIC FILE_SET CXX_MODULES FILES
+        src/utils/types.cppm
+        src/options/pricing.cppm
+        # ... other modules
+)
+```
+
+### Compilation
+
+```bash
+# Build (modules compile to BMI files first)
+cd build
+env CC=/usr/local/bin/clang CXX=/usr/local/bin/clang++ cmake -G Ninja ..
+ninja bigbrother
+```
+
+**Module Compilation Flow:**
+```
+module.cppm → BMI (.pcm) → object.o → linked executable
+              ↑ cached
+importing.cpp uses BMI (fast)
+```
+
+### Complete Reference
+
+**See:** `docs/CPP23_MODULES_GUIDE.md` - Comprehensive 1000+ line guide covering:
+- Module structure patterns
+- CMake integration
+- Compilation process
+- Best practices
+- Common pitfalls
+- Migration guide
+- Real examples from BigBrotherAnalytics
+
+**Project Status:**
+- 25 C++23 modules implemented
+- 100% trailing return syntax
+- Zero traditional headers in new code
+- Clang 21.1.5 required
+
 When helping with this project:
 1. Always check database strategy first - use DuckDB for Tier 1, not PostgreSQL
-2. Reference `ai/MANIFEST.md` for current goals and active agents
-3. Check `ai/IMPLEMENTATION_PLAN.md` for task status and checkpoints
-4. Use workflows in `ai/WORKFLOWS/` for repeatable processes
-5. **For complex tasks, use the Orchestrator** (`PROMPTS/orchestrator.md`)
-6. Focus on validation speed - POC has $30k at stake
+2. **Read `docs/CPP23_MODULES_GUIDE.md` before writing C++ code**
+3. Reference `ai/MANIFEST.md` for current goals and active agents
+4. Check `ai/IMPLEMENTATION_PLAN.md` for task status and checkpoints
+5. Use workflows in `ai/WORKFLOWS/` for repeatable processes
+6. **For complex tasks, use the Orchestrator** (`PROMPTS/orchestrator.md`)
+7. Focus on validation speed - POC has $30k at stake
