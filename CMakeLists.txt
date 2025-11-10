@@ -424,6 +424,24 @@ target_link_libraries(backtest
 )
 
 # ============================================================================
+# Schwab API Live Test
+# ============================================================================
+
+add_executable(test_schwab_live
+    examples/test_schwab_live.cpp
+)
+
+target_link_libraries(test_schwab_live
+    PRIVATE
+    schwab_api
+    options_pricing
+    utils
+    ${CURL_LIBRARIES}
+    c++
+    c++abi
+)
+
+# ============================================================================
 # Python Bindings (Optional)
 # ============================================================================
 
