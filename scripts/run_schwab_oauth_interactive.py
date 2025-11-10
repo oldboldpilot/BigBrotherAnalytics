@@ -92,12 +92,14 @@ def main():
 
     try:
         # Use client_from_login_flow which runs the callback server
+        # asyncio=False prevents the "Address already in use" error
         client = auth.client_from_login_flow(
             config["app_key"],
             config["app_secret"],
             config.get("callback_url", "https://127.0.0.1:8182"),
             str(token_path),
-            callback_timeout=500.0  # 8+ minutes
+            callback_timeout=500.0,  # 8+ minutes
+            asyncio=False  # Use synchronous mode
         )
 
         print()

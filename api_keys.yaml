@@ -1,0 +1,11 @@
+# API Keys for BigBrotherAnalytics
+# This file is in .gitignore and will not be committed
+
+# FRED API Key (Free from https://fred.stlouisfed.org)
+fred_api_key: 59198d407629d638298efe9927e6dc7c
+
+# Schwab API (for live trading - add when ready for Tier 2)
+# schwab:
+#   app_key: your_key_here
+#   app_secret: your_secret_here
+#   redirect_uri: https://localhost:8080

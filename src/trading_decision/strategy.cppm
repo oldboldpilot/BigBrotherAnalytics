@@ -889,7 +889,7 @@ auto SignalBuilder::generate() -> std::vector<TradingSignal> {
     // Filter by minimum confidence
     if (min_confidence_) {
         auto it = std::remove_if(all_signals.begin(), all_signals.end(),
-                                [conf = *min_confidence_](auto const& s) {
+                                [conf = *min_confidence_](auto const& s) -> bool {
                                     return s.confidence < conf;
                                 });
         all_signals.erase(it, all_signals.end());
@@ -899,14 +899,14 @@ auto SignalBuilder::generate() -> std::vector<TradingSignal> {
     if (min_risk_reward_) {
         auto it = std::remove_if(
             all_signals.begin(), all_signals.end(),
-            [ratio = *min_risk_reward_](auto const& s) { return s.riskRewardRatio() < ratio; });
+            [ratio = *min_risk_reward_](auto const& s) -> bool { return s.riskRewardRatio() < ratio; });
         all_signals.erase(it, all_signals.end());
     }
 
     // Filter by actionable signals
     if (only_actionable_) {
         auto it = std::remove_if(all_signals.begin(), all_signals.end(),
-                                [](auto const& s) { return !s.isActionable(); });
+                                [](auto const& s) -> bool { return !s.isActionable(); });
         all_signals.erase(it, all_signals.end());
     }
 

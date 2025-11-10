@@ -350,6 +350,8 @@ target_link_libraries(schwab_api
     CURL::libcurl
     OpenMP::OpenMP_CXX
     Threads::Threads
+    c++
+    c++abi
 )
 
 if(nlohmann_json_FOUND)

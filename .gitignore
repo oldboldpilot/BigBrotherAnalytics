@@ -61,6 +61,8 @@ data/backtest_results/*.json
 # Credentials and secrets (NEVER COMMIT)
 configs/api_keys.yaml
 configs/*_secret*.yaml
+configs/*.yaml
+configs/*.json
 .env
 .env.*
 *.pem
@@ -94,4 +96,4 @@ htmlcov/
 *.bak
 tmp/
 temp/
-api_keys.yaml
+configs/api_keys.yaml
