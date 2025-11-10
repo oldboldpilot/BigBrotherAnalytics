@@ -19,17 +19,21 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include <functional>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <unordered_map>
-#include <functional>
+#include <vector>
+
+// Forward declaration of DuckDBConnection from parent namespace
+namespace bigbrother::database {
+class DuckDBConnection;
+}
 
 namespace bigbrother::database::fluent {
 
-// Forward declarations
-class DuckDBConnection;
+// Forward declarations for fluent API classes only
 class QueryBuilder;
 class EmploymentDataAccessor;
 class SectorDataAccessor;
@@ -47,7 +51,7 @@ class SectorDataAccessor;
  *         .execute();
  */
 class QueryBuilder {
-public:
+  public:
     explicit QueryBuilder(DuckDBConnection& conn) : conn_(conn) {}
 
     /**
@@ -176,9 +180,7 @@ public:
      * Example:
      *     auto result = builder.execute();
      */
-    auto execute() -> std::string {
-        return buildQuery();
-    }
+    auto execute() -> std::string { return buildQuery(); }
 
     /**
      * Build query without executing (for inspection)
@@ -188,9 +190,7 @@ public:
      * Example:
      *     std::string sql = builder.build();
      */
-    auto build() const -> std::string {
-        return buildQuery();
-    }
+    auto build() const -> std::string { return buildQuery(); }
 
     /**
      * Reset builder to initial state
@@ -209,7 +209,7 @@ public:
         return *this;
     }
 
-private:
+  private:
     DuckDBConnection& conn_;
     std::vector<std::string> select_columns_;
     bool select_all_ = false;
@@ -229,12 +229,13 @@ private:
             oss << "* ";
         } else if (!select_columns_.empty()) {
             for (size_t i = 0; i < select_columns_.size(); ++i) {
-                if (i > 0) oss << ", ";
+                if (i > 0)
+                    oss << ", ";
                 oss << select_columns_[i];
             }
             oss << " ";
         } else {
-            oss << "* ";  // Default to all if not specified
+            oss << "* "; // Default to all if not specified
         }
 
         // FROM clause
@@ -246,7 +247,8 @@ private:
         if (!where_conditions_.empty()) {
             oss << "WHERE ";
             for (size_t i = 0; i < where_conditions_.size(); ++i) {
-                if (i > 0) oss << "AND ";
+                if (i > 0)
+                    oss << "AND ";
                 oss << where_conditions_[i] << " ";
             }
 
@@ -260,7 +262,8 @@ private:
         if (!order_clauses_.empty()) {
             oss << "ORDER BY ";
             for (size_t i = 0; i < order_clauses_.size(); ++i) {
-                if (i > 0) oss << ", ";
+                if (i > 0)
+                    oss << ", ";
                 oss << order_clauses_[i].first << " " << order_clauses_[i].second;
             }
             oss << " ";
@@ -292,7 +295,7 @@ private:
  *         .get();
  */
 class EmploymentDataAccessor {
-public:
+  public:
     explicit EmploymentDataAccessor(DuckDBConnection& conn) : conn_(conn) {}
 
     /**
@@ -381,7 +384,7 @@ public:
         return query;
     }
 
-private:
+  private:
     DuckDBConnection& conn_;
     std::string sector_;
     std::string start_date_;
@@ -401,7 +404,7 @@ private:
  *         .get();
  */
 class SectorDataAccessor {
-public:
+  public:
     explicit SectorDataAccessor(DuckDBConnection& conn) : conn_(conn) {}
 
     /**
@@ -468,7 +471,8 @@ public:
         std::string query = "SELECT * FROM sectors";
 
         if (include_employment_) {
-            query = "SELECT s.*, e.employment_data FROM sectors s LEFT JOIN employment e ON s.id = e.sector_id";
+            query = "SELECT s.*, e.employment_data FROM sectors s LEFT JOIN employment e ON s.id = "
+                    "e.sector_id";
         }
 
         if (!sort_by_.empty()) {
@@ -482,7 +486,7 @@ public:
         return query;
     }
 
-private:
+  private:
     DuckDBConnection& conn_;
     bool include_employment_ = false;
     bool include_rotation_ = false;
@@ -493,4 +497,4 @@ private:
     friend class DuckDBConnection;
 };
 
-}  // namespace bigbrother::database::fluent
+} // namespace bigbrother::database::fluent

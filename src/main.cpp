@@ -36,6 +36,7 @@ import bigbrother.risk_management;
 import bigbrother.schwab_api;
 import bigbrother.strategy;
 import bigbrother.strategies;
+import bigbrother.employment.signals;
 
 #include <atomic>
 #include <chrono>
@@ -309,28 +310,383 @@ class TradingEngine {
         strategy::StrategyContext context;
 
         context.current_time = utils::Timer::now();
-        context.account_value = 30'000.0;     // TODO: Get from Schwab API
-        context.available_capital = 20'000.0; // TODO: Get from Schwab API
 
-        // Get current positions
-        context.current_positions = {}; // TODO: Get from Schwab API
+        // Get account information from Schwab API
+        auto account_info_result = schwab_client_->account().getAccountInfo();
+        if (account_info_result) {
+            auto const& balance = account_info_result->balance;
+            context.account_value = balance.total_value;
+            context.available_capital = balance.buying_power;
 
-        // TODO: Load market data, options chains, correlation data
-        // TODO: Get current quotes from Schwab API
-        // TODO: Get options chains from Schwab API
+            utils::Logger::getInstance().debug("Account: ${:.2f} total, ${:.2f} buying power",
+                                               balance.total_value, balance.buying_power);
+        } else {
+            utils::Logger::getInstance().error("Failed to get account info: {}",
+                                               account_info_result.error().message);
+            // Use safe defaults
+            context.account_value = 30'000.0;
+            context.available_capital = 20'000.0;
+        }
+
+        // Get current positions from Schwab API
+        auto positions_result = schwab_client_->account().getPositions();
+        if (positions_result) {
+            context.current_positions = *positions_result;
+            utils::Logger::getInstance().debug("Retrieved {} current positions",
+                                               context.current_positions.size());
+        } else {
+            utils::Logger::getInstance().error("Failed to get positions: {}",
+                                               positions_result.error().message);
+            context.current_positions = {};
+        }
+
+        // Get quotes for commonly traded symbols (sector ETFs)
+        std::vector<std::string> symbols = {
+            "SPY", "QQQ", "IWM",                                          // Market indices
+            "XLE", "XLF", "XLV", "XLI", "XLK", "XLY", "XLP", "XLU", "XLB" // Sector ETFs
+        };
+
+        for (auto const& symbol : symbols) {
+            auto quote_result = schwab_client_->marketData().getQuote(symbol);
+            if (quote_result) {
+                context.current_quotes[symbol] = *quote_result;
+            } else {
+                utils::Logger::getInstance().warn("Failed to get quote for {}: {}", symbol,
+                                                  quote_result.error().message);
+            }
+        }
+
+        utils::Logger::getInstance().debug("Retrieved {} quotes", context.current_quotes.size());
+
+        // Load employment signals from BLS data
+        loadEmploymentSignals(context);
+
+        // Get options chains for high-conviction symbols (liquid ETFs)
+        // Focus on SPY and QQQ for now - highly liquid with tight spreads
+        std::vector<std::string> options_symbols = {"SPY", "QQQ"};
+
+        for (auto const& symbol : options_symbols) {
+            auto request = schwab::OptionsChainRequest::forSymbol(symbol);
+            request.contract_type = "ALL";   // Both calls and puts
+            request.days_to_expiration = 45; // ~45 DTE for reasonable theta decay
+
+            auto chain_result = schwab_client_->marketData().getOptionChain(request);
+            if (chain_result) {
+                context.options_chains[symbol] = *chain_result;
+                utils::Logger::getInstance().info(
+                    "Fetched options chain for {}: {} calls, {} puts (underlying: ${:.2f})", symbol,
+                    chain_result->calls.size(), chain_result->puts.size(),
+                    chain_result->underlying_price);
+            } else {
+                utils::Logger::getInstance().warn("Failed to get options chain for {}: {}", symbol,
+                                                  chain_result.error().message);
+            }
+        }
+
+        utils::Logger::getInstance().debug("Retrieved {} options chains",
+                                           context.options_chains.size());
+
+        // TODO: Load correlation data
 
         return context;
     }
 
+    /**
+     * Load employment signals from BLS data via Python backend
+     *
+     * Populates the StrategyContext with:
+     * - employment_signals: Individual sector employment trends
+     * - rotation_signals: Sector rotation recommendations
+     * - jobless_claims_alert: Recession warning (if applicable)
+     */
+    auto loadEmploymentSignals(strategy::StrategyContext& context) -> void {
+        utils::Logger::getInstance().debug("Loading employment signals from DuckDB...");
+
+        try {
+            // Initialize employment signal generator
+            auto const scripts_path = config_.get<std::string>("paths.scripts", "scripts");
+            auto const db_path =
+                config_.get<std::string>("database.path", "data/bigbrother.duckdb");
+
+            employment::EmploymentSignalGenerator signal_generator{scripts_path, db_path};
+
+            // 1. Generate employment signals for all sectors
+            utils::Logger::getInstance().debug("Generating sector employment signals...");
+            auto employment_signals = signal_generator.generateSignals();
+
+            utils::Logger::getInstance().info("Loaded {} employment signals",
+                                              employment_signals.size());
+
+            // Log actionable employment signals
+            int actionable_count = 0;
+            for (auto const& signal : employment_signals) {
+                if (signal.isActionable()) {
+                    actionable_count++;
+                    utils::Logger::getInstance().info(
+                        "  Employment Signal: {} | {} | Confidence: {:.1f}% | Change: {:+.2f}% | "
+                        "Strength: {:+.2f}",
+                        signal.sector_name, signal.bullish ? "BULLISH" : "BEARISH",
+                        signal.confidence * 100.0, signal.employment_change,
+                        signal.signal_strength);
+                    utils::Logger::getInstance().debug("    Rationale: {}", signal.rationale);
+                }
+            }
+
+            utils::Logger::getInstance().info("Actionable employment signals: {}/{}",
+                                              actionable_count, employment_signals.size());
+
+            // Add signals to context
+            context.employment_signals = std::move(employment_signals);
+
+            // 2. Generate sector rotation signals
+            utils::Logger::getInstance().debug("Generating sector rotation signals...");
+            auto rotation_signals = signal_generator.generateRotationSignals();
+
+            utils::Logger::getInstance().info("Loaded {} rotation signals",
+                                              rotation_signals.size());
+
+            // Log rotation recommendations
+            int overweight_count = 0;
+            int underweight_count = 0;
+            for (auto const& rotation : rotation_signals) {
+                if (rotation.isStrongSignal()) {
+                    std::string action_str;
+                    if (rotation.action == employment::SectorRotationSignal::Action::Overweight) {
+                        action_str = "OVERWEIGHT";
+                        overweight_count++;
+                    } else if (rotation.action ==
+                               employment::SectorRotationSignal::Action::Underweight) {
+                        action_str = "UNDERWEIGHT";
+                        underweight_count++;
+                    } else {
+                        action_str = "NEUTRAL";
+                    }
+
+                    utils::Logger::getInstance().info("  Rotation Signal: {} ({}) | {} | Score: "
+                                                      "{:+.2f} | Target Allocation: {:.1f}%",
+                                                      rotation.sector_name, rotation.sector_etf,
+                                                      action_str, rotation.composite_score,
+                                                      rotation.target_allocation);
+                }
+            }
+
+            utils::Logger::getInstance().info(
+                "Sector rotation recommendations: {} Overweight, {} Underweight", overweight_count,
+                underweight_count);
+
+            // Add rotation signals to context
+            context.rotation_signals = std::move(rotation_signals);
+
+            // 3. Check for jobless claims spike (recession warning)
+            utils::Logger::getInstance().debug("Checking for jobless claims spike...");
+            auto jobless_claims_alert = signal_generator.checkJoblessClaimsSpike();
+
+            if (jobless_claims_alert) {
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+                utils::Logger::getInstance().critical(
+                    "  JOBLESS CLAIMS SPIKE DETECTED - RECESSION WARNING");
+                utils::Logger::getInstance().critical("  Confidence: {:.1f}% | Change: {:+.2f}%",
+                                                      jobless_claims_alert->confidence * 100.0,
+                                                      jobless_claims_alert->employment_change);
+                utils::Logger::getInstance().critical("  Rationale: {}",
+                                                      jobless_claims_alert->rationale);
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+
+                // Add alert to context
+                context.jobless_claims_alert = jobless_claims_alert;
+            } else {
+                utils::Logger::getInstance().debug("No jobless claims spike detected");
+            }
+
+            // 4. Calculate and log aggregate employment health
+            auto aggregate_score = context.getAggregateEmploymentScore();
+            std::string health_status;
+            if (aggregate_score > 0.3) {
+                health_status = "STRONG";
+            } else if (aggregate_score > 0.0) {
+                health_status = "IMPROVING";
+            } else if (aggregate_score > -0.3) {
+                health_status = "WEAKENING";
+            } else {
+                health_status = "WEAK";
+            }
+
+            utils::Logger::getInstance().info("Aggregate employment health: {} (score: {:+.2f})",
+                                              health_status, aggregate_score);
+
+            // 5. Log strongest employment signals for quick reference
+            auto strongest_signals = context.getStrongestEmploymentSignals(3);
+            if (!strongest_signals.empty()) {
+                utils::Logger::getInstance().info("Top employment signals:");
+                for (auto const& signal : strongest_signals) {
+                    utils::Logger::getInstance().info(
+                        "  - {} | Strength: {:+.2f} | {:.1f}% confidence", signal.sector_name,
+                        signal.signal_strength, signal.confidence * 100.0);
+                }
+            }
+
+        } catch (std::exception const& e) {
+            utils::Logger::getInstance().error("Failed to load employment signals: {}", e.what());
+            utils::Logger::getInstance().warn(
+                "Continuing without employment signals - strategies will use price data only");
+
+            // Initialize empty signal vectors to prevent null reference issues
+            context.employment_signals = {};
+            context.rotation_signals = {};
+            context.jobless_claims_alert = std::nullopt;
+        }
+    }
+
     auto updatePositions() -> void {
-        // TODO: Update positions from Schwab API
-        // TODO: Calculate real-time P&L
-        // TODO: Update risk metrics
+        utils::Logger::getInstance().debug("Updating positions and P&L...");
+
+        // Get latest positions from Schwab API
+        auto positions_result = schwab_client_->account().getPositions();
+        if (!positions_result) {
+            utils::Logger::getInstance().error("Failed to update positions: {}",
+                                               positions_result.error().message);
+            return;
+        }
+
+        auto const& positions = *positions_result;
+
+        // Calculate total P&L
+        double total_unrealized_pnl = 0.0;
+        double total_realized_pnl = 0.0;
+        int bot_managed_count = 0;
+
+        for (auto const& position : positions) {
+            total_unrealized_pnl += position.unrealized_pnl;
+            total_realized_pnl += position.realized_pnl;
+
+            if (position.is_bot_managed) {
+                bot_managed_count++;
+
+                utils::Logger::getInstance().debug(
+                    "  Bot Position: {} | Qty: {} | Price: ${:.2f} | P&L: ${:.2f}", position.symbol,
+                    position.quantity, position.current_price, position.unrealized_pnl);
+            }
+        }
+
+        utils::Logger::getInstance().info("Positions: {} total ({} bot-managed) | Unrealized P&L: "
+                                          "${:.2f} | Realized P&L: ${:.2f}",
+                                          positions.size(), bot_managed_count, total_unrealized_pnl,
+                                          total_realized_pnl);
+
+        // Update positions in DuckDB for historical tracking
+        if (database_) {
+            try {
+                // Store positions snapshot in database
+                auto conn = database_->getConnection();
+
+                // Create table if not exists
+                conn->Query(R"(
+                    CREATE TABLE IF NOT EXISTS positions_history (
+                        timestamp TIMESTAMP,
+                        symbol VARCHAR,
+                        quantity INTEGER,
+                        average_price DOUBLE,
+                        current_price DOUBLE,
+                        unrealized_pnl DOUBLE,
+                        is_bot_managed BOOLEAN,
+                        strategy VARCHAR
+                    )
+                )");
+
+                // Insert current positions
+                for (auto const& pos : positions) {
+                    if (pos.is_bot_managed) {
+                        auto stmt = conn->Prepare(R"(
+                            INSERT INTO positions_history
+                            VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)
+                        )");
+
+                        stmt->Execute(pos.symbol, static_cast<int>(pos.quantity), pos.average_price,
+                                      pos.current_price, pos.unrealized_pnl, pos.is_bot_managed,
+                                      pos.bot_strategy);
+                    }
+                }
+
+                utils::Logger::getInstance().debug("Positions saved to database");
+
+            } catch (std::exception const& e) {
+                utils::Logger::getInstance().error("Failed to save positions to database: {}",
+                                                   e.what());
+            }
+        }
     }
 
     auto checkStopLosses() -> void {
-        // TODO: Check stop losses for all positions
-        // TODO: Execute stop orders if triggered
+        utils::Logger::getInstance().debug("Checking stop losses...");
+
+        // Get current positions
+        auto positions_result = schwab_client_->account().getPositions();
+        if (!positions_result) {
+            utils::Logger::getInstance().error("Failed to get positions for stop loss check: {}",
+                                               positions_result.error().message);
+            return;
+        }
+
+        auto const& positions = *positions_result;
+
+        for (auto const& position : positions) {
+            // Only manage bot-managed positions
+            if (!position.is_bot_managed) {
+                continue;
+            }
+
+            // Calculate position loss percentage
+            double position_value = static_cast<double>(position.quantity) * position.average_price;
+            double loss_pct = 0.0;
+
+            if (position_value > 0.0) {
+                loss_pct = (position.unrealized_pnl / position_value) * 100.0;
+            }
+
+            // Stop loss trigger: 10% loss on any single position
+            constexpr double STOP_LOSS_PCT = -10.0;
+
+            if (loss_pct <= STOP_LOSS_PCT) {
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+                utils::Logger::getInstance().critical("  STOP LOSS TRIGGERED: {} ({:.1f}%)",
+                                                      position.symbol, loss_pct);
+                utils::Logger::getInstance().critical("  Position: {} @ ${:.2f}, Current: ${:.2f}",
+                                                      position.quantity, position.average_price,
+                                                      position.current_price);
+                utils::Logger::getInstance().critical("  Loss: ${:.2f}", position.unrealized_pnl);
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+
+                // Place market order to close position
+                schwab::Order close_order;
+                close_order.symbol = position.symbol;
+                close_order.type = schwab::OrderType::Market;
+                close_order.duration = schwab::OrderDuration::Day;
+                close_order.quantity = position.quantity; // Close entire position
+
+                utils::Logger::getInstance().warn("Placing STOP LOSS order to close {} position...",
+                                                  position.symbol);
+
+                auto order_result = schwab_client_->orders().placeOrder(close_order);
+
+                if (order_result) {
+                    utils::Logger::getInstance().critical("✓ STOP LOSS executed: {} (Order ID: {})",
+                                                          position.symbol, *order_result);
+                } else {
+                    utils::Logger::getInstance().error("✗ STOP LOSS FAILED for {}: {}",
+                                                       position.symbol,
+                                                       order_result.error().message);
+
+                    // This is critical - alert immediately
+                    utils::Logger::getInstance().critical(
+                        "MANUAL INTERVENTION REQUIRED: Stop loss order failed for {}",
+                        position.symbol);
+                }
+            }
+        }
     }
 
     utils::Logger& logger_{utils::Logger::getInstance()};

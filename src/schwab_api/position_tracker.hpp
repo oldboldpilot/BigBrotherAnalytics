@@ -14,18 +14,18 @@
 
 #pragma once
 
-#include "account_types.hpp"
 #include "account_manager.hpp"
-#include <duckdb.hpp>
-#include <string>
-#include <memory>
+#include "account_types.hpp"
 #include <atomic>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <chrono>
-#include <vector>
+#include <condition_variable>
+#include <duckdb.hpp>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace bigbrother::schwab {
 
@@ -40,7 +40,7 @@ namespace bigbrother::schwab {
  * - Thread-safe background updates
  */
 class PositionTracker {
-public:
+  public:
     /**
      * Constructor
      *
@@ -48,15 +48,10 @@ public:
      * @param db_path Path to DuckDB database
      * @param refresh_interval_seconds Refresh interval (default 30s)
      */
-    explicit PositionTracker(
-        std::shared_ptr<AccountManager> account_mgr,
-        std::string db_path,
-        int refresh_interval_seconds = 30
-    ) : account_mgr_{std::move(account_mgr)},
-        db_path_{std::move(db_path)},
-        refresh_interval_{refresh_interval_seconds},
-        running_{false},
-        paused_{false} {
+    explicit PositionTracker(std::shared_ptr<AccountManager> account_mgr, std::string db_path,
+                             int refresh_interval_seconds = 30)
+        : account_mgr_{std::move(account_mgr)}, db_path_{std::move(db_path)},
+          refresh_interval_{refresh_interval_seconds}, running_{false}, paused_{false} {
 
         // Open DuckDB connection
         db_ = std::make_unique<duckdb::DuckDB>(db_path_);
@@ -69,9 +64,7 @@ public:
     PositionTracker(PositionTracker&&) noexcept = delete;
     auto operator=(PositionTracker&&) noexcept -> PositionTracker& = delete;
 
-    ~PositionTracker() {
-        stop();
-    }
+    ~PositionTracker() { stop(); }
 
     // ========================================================================
     // Control Methods
@@ -86,7 +79,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (running_) {
-            return;  // Already running
+            return; // Already running
         }
 
         account_id_ = std::move(account_id);
@@ -94,7 +87,7 @@ public:
         paused_ = false;
 
         // Start background thread
-        tracking_thread_ = std::thread([this]() { trackingLoop(); });
+        tracking_thread_ = std::thread([this]() -> void { trackingLoop(); });
     }
 
     /**
@@ -103,7 +96,8 @@ public:
     auto stop() -> void {
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            if (!running_) return;
+            if (!running_)
+                return;
             running_ = false;
         }
 
@@ -134,9 +128,7 @@ public:
     /**
      * Force immediate position refresh
      */
-    auto refreshNow() -> void {
-        cv_.notify_one();
-    }
+    auto refreshNow() -> void { cv_.notify_one(); }
 
     // ========================================================================
     // Query Methods
@@ -153,8 +145,7 @@ public:
     /**
      * Get position for specific symbol
      */
-    [[nodiscard]] auto getPosition(std::string const& symbol) const
-        -> std::optional<Position> {
+    [[nodiscard]] auto getPosition(std::string const& symbol) const -> std::optional<Position> {
 
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -178,16 +169,12 @@ public:
     /**
      * Check if tracking is running
      */
-    [[nodiscard]] auto isRunning() const noexcept -> bool {
-        return running_;
-    }
+    [[nodiscard]] auto isRunning() const noexcept -> bool { return running_; }
 
     /**
      * Check if tracking is paused
      */
-    [[nodiscard]] auto isPaused() const noexcept -> bool {
-        return paused_;
-    }
+    [[nodiscard]] auto isPaused() const noexcept -> bool { return paused_; }
 
     /**
      * Get last update timestamp
@@ -197,7 +184,7 @@ public:
         return last_update_timestamp_;
     }
 
-private:
+  private:
     // ========================================================================
     // Tracking Loop
     // ========================================================================
@@ -211,7 +198,7 @@ private:
             // Wait for refresh interval or stop signal
             std::unique_lock<std::mutex> lock(mutex_);
             cv_.wait_for(lock, std::chrono::seconds(refresh_interval_),
-                        [this]() { return !running_ || !paused_; });
+                         [this]() -> bool { return !running_ || !paused_; });
         }
     }
 
@@ -284,19 +271,16 @@ private:
                 auto const& old_pos = old_map[symbol];
 
                 if (new_pos.quantity != old_pos.quantity) {
-                    std::string change_type = (new_pos.quantity > old_pos.quantity)
-                        ? "INCREASED" : "DECREASED";
+                    std::string change_type =
+                        (new_pos.quantity > old_pos.quantity) ? "INCREASED" : "DECREASED";
                     recordPositionChange(change_type, new_pos, old_pos);
                 }
             }
         }
     }
 
-    auto recordPositionChange(
-        std::string const& change_type,
-        Position const& new_pos,
-        std::optional<Position> const& old_pos
-    ) -> void {
+    auto recordPositionChange(std::string const& change_type, Position const& new_pos,
+                              std::optional<Position> const& old_pos) -> void {
         // Insert into position_changes table
         try {
             std::string query = R"(
@@ -310,16 +294,9 @@ private:
 
             auto stmt = conn_->Prepare(query);
             stmt->Execute(
-                new_pos.account_id,
-                new_pos.symbol,
-                change_type,
-                old_pos ? old_pos->quantity : 0,
-                new_pos.quantity,
-                new_pos.quantity - (old_pos ? old_pos->quantity : 0),
-                old_pos ? old_pos->average_cost : 0.0,
-                new_pos.average_cost,
-                new_pos.current_price
-            );
+                new_pos.account_id, new_pos.symbol, change_type, old_pos ? old_pos->quantity : 0,
+                new_pos.quantity, new_pos.quantity - (old_pos ? old_pos->quantity : 0),
+                old_pos ? old_pos->average_cost : 0.0, new_pos.average_cost, new_pos.current_price);
         } catch (...) {
             // Log error but continue
         }
@@ -335,9 +312,7 @@ private:
             conn_->Query("BEGIN TRANSACTION");
 
             // Delete existing positions for this account
-            auto delete_stmt = conn_->Prepare(
-                "DELETE FROM positions WHERE account_id = ?"
-            );
+            auto delete_stmt = conn_->Prepare("DELETE FROM positions WHERE account_id = ?");
             delete_stmt->Execute(account_id_);
 
             // Insert current positions
@@ -354,13 +329,11 @@ private:
                 )";
 
                 auto stmt = conn_->Prepare(query);
-                stmt->Execute(
-                    pos.account_id, pos.symbol, pos.asset_type, pos.cusip,
-                    pos.quantity, pos.long_quantity, pos.short_quantity,
-                    pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
-                    pos.unrealized_pnl, pos.unrealized_pnl_percent,
-                    pos.day_pnl, pos.day_pnl_percent, pos.previous_close
-                );
+                stmt->Execute(pos.account_id, pos.symbol, pos.asset_type, pos.cusip, pos.quantity,
+                              pos.long_quantity, pos.short_quantity, pos.average_cost,
+                              pos.current_price, pos.market_value, pos.cost_basis,
+                              pos.unrealized_pnl, pos.unrealized_pnl_percent, pos.day_pnl,
+                              pos.day_pnl_percent, pos.previous_close);
             }
 
             // Commit transaction
@@ -385,11 +358,9 @@ private:
                 )";
 
                 auto stmt = conn_->Prepare(query);
-                stmt->Execute(
-                    pos.account_id, pos.symbol, pos.asset_type, pos.quantity,
-                    pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
-                    pos.unrealized_pnl, pos.unrealized_pnl_percent, pos.day_pnl
-                );
+                stmt->Execute(pos.account_id, pos.symbol, pos.asset_type, pos.quantity,
+                              pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
+                              pos.unrealized_pnl, pos.unrealized_pnl_percent, pos.day_pnl);
             }
         } catch (...) {
             // Log error but continue

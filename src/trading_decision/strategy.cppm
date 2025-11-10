@@ -35,6 +35,7 @@ export module bigbrother.strategy;
 
 // Import dependencies
 import bigbrother.utils.types;
+import bigbrother.utils.logger;
 import bigbrother.options.pricing;
 import bigbrother.risk_management;
 import bigbrother.schwab_api; // Changed from bigbrother.schwab
@@ -79,7 +80,7 @@ struct PerformanceMetrics {
     int winning_trades{0};
     int losing_trades{0};
     double total_pnl{0.0};
-    double win_rate{0.0};  // 0.0 to 1.0
+    double win_rate{0.0}; // 0.0 to 1.0
     double sharpe_ratio{0.0};
     double max_drawdown{0.0};
     double profit_factor{0.0};
@@ -342,8 +343,7 @@ class ContextBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto withJoblessClaims(std::optional<EmploymentSignal> alert)
-        -> ContextBuilder& {
+    [[nodiscard]] auto withJoblessClaims(std::optional<EmploymentSignal> alert) -> ContextBuilder& {
         context_.jobless_claims_alert = alert;
         return *this;
     }
@@ -370,7 +370,9 @@ class ContextBuilder {
 };
 
 // Implementation of StrategyContext::builder() after ContextBuilder is defined
-inline auto StrategyContext::builder() -> ContextBuilder { return ContextBuilder{}; }
+inline auto StrategyContext::builder() -> ContextBuilder {
+    return ContextBuilder{};
+}
 
 /**
  * Base Strategy Interface
@@ -630,10 +632,9 @@ class StrategyManager {
      */
     [[nodiscard]] auto removeStrategy(std::string const& name) -> StrategyManager& {
         std::lock_guard lock{mutex_};
-        strategies_.erase(
-            std::remove_if(strategies_.begin(), strategies_.end(),
-                          [&name](auto const& s) { return s->getName() == name; }),
-            strategies_.end());
+        strategies_.erase(std::remove_if(strategies_.begin(), strategies_.end(),
+                                         [&name](auto const& s) { return s->getName() == name; }),
+                          strategies_.end());
         return *this;
     }
 
@@ -888,33 +889,32 @@ auto SignalBuilder::generate() -> std::vector<TradingSignal> {
 
     // Filter by minimum confidence
     if (min_confidence_) {
-        auto it = std::remove_if(all_signals.begin(), all_signals.end(),
-                                [conf = *min_confidence_](auto const& s) -> bool {
-                                    return s.confidence < conf;
-                                });
+        auto it = std::remove_if(
+            all_signals.begin(), all_signals.end(),
+            [conf = *min_confidence_](auto const& s) -> bool { return s.confidence < conf; });
         all_signals.erase(it, all_signals.end());
     }
 
     // Filter by minimum risk/reward ratio
     if (min_risk_reward_) {
-        auto it = std::remove_if(
-            all_signals.begin(), all_signals.end(),
-            [ratio = *min_risk_reward_](auto const& s) -> bool { return s.riskRewardRatio() < ratio; });
+        auto it = std::remove_if(all_signals.begin(), all_signals.end(),
+                                 [ratio = *min_risk_reward_](auto const& s) -> bool {
+                                     return s.riskRewardRatio() < ratio;
+                                 });
         all_signals.erase(it, all_signals.end());
     }
 
     // Filter by actionable signals
     if (only_actionable_) {
         auto it = std::remove_if(all_signals.begin(), all_signals.end(),
-                                [](auto const& s) -> bool { return !s.isActionable(); });
+                                 [](auto const& s) -> bool { return !s.isActionable(); });
         all_signals.erase(it, all_signals.end());
     }
 
     // Sort by confidence (highest first)
-    std::ranges::sort(all_signals,
-                     [](auto const& a, auto const& b) -> bool {
-                         return a.confidence > b.confidence;
-                     });
+    std::ranges::sort(all_signals, [](auto const& a, auto const& b) -> bool {
+        return a.confidence > b.confidence;
+    });
 
     // Limit to max signals if specified
     if (max_signals_ && all_signals.size() > static_cast<size_t>(*max_signals_)) {
@@ -982,8 +982,140 @@ auto ReportBuilder::generate() const -> std::string {
 
 // StrategyExecutor implementation
 auto StrategyExecutor::execute() -> Result<std::vector<std::string>> {
+    // Validate prerequisites
+    if (!context_) {
+        return makeError<std::vector<std::string>>(ErrorCode::InvalidParameter,
+                                                   "StrategyExecutor: Context not set");
+    }
+    if (!schwab_client_) {
+        return makeError<std::vector<std::string>>(ErrorCode::InvalidParameter,
+                                                   "StrategyExecutor: SchwabClient not set");
+    }
+    if (!risk_manager_) {
+        return makeError<std::vector<std::string>>(ErrorCode::InvalidParameter,
+                                                   "StrategyExecutor: RiskManager not set");
+    }
+
+    // 1. Generate signals from all strategies
+    auto signals = manager_.generateSignals(*context_);
+
+    utils::Logger::getInstance().info("Generated {} signals from strategies", signals.size());
+
+    // 2. Filter signals by confidence threshold
+    if (min_confidence_) {
+        auto it = std::remove_if(signals.begin(), signals.end(),
+                                 [min_conf = *min_confidence_](auto const& s) -> bool {
+                                     return s.confidence < min_conf;
+                                 });
+        signals.erase(it, signals.end());
+        utils::Logger::getInstance().info("After confidence filter: {} signals", signals.size());
+    }
+
+    // 3. Filter to only actionable signals
+    auto it = std::remove_if(signals.begin(), signals.end(),
+                             [](auto const& s) -> bool { return !s.isActionable(); });
+    signals.erase(it, signals.end());
+
+    utils::Logger::getInstance().info("Actionable signals: {}", signals.size());
+
+    // 4. Limit number of signals if specified
+    if (max_signals_ && signals.size() > static_cast<size_t>(*max_signals_)) {
+        signals.resize(*max_signals_);
+        utils::Logger::getInstance().info("Limited to {} signals", signals.size());
+    }
+
+    // 5. Execute each signal (with risk checks)
     std::vector<std::string> order_ids;
-    order_ids.push_back("ORDER_001_STUB");
+    order_ids.reserve(signals.size());
+
+    for (auto const& signal : signals) {
+        // Pre-trade risk check using RiskManager::assessTrade
+        double entry_price = context_->current_quotes.contains(signal.symbol)
+                                 ? context_->current_quotes[signal.symbol].last
+                                 : 100.0;
+
+        double stop_price = entry_price * 0.90; // 10% stop loss
+        double target_price = entry_price * (1.0 + signal.expected_return / entry_price);
+        double position_size = signal.max_risk / (entry_price * 0.10); // Size for 10% risk
+
+        auto risk_assessment =
+            risk_manager_->assessTrade(signal.symbol, position_size, entry_price, stop_price,
+                                       target_price, signal.win_probability);
+
+        if (!risk_assessment || !risk_assessment->approved) {
+            std::string reason =
+                risk_assessment ? risk_assessment->rejection_reason : "Assessment failed";
+            utils::Logger::getInstance().warn("Signal rejected by risk manager: {} - {}",
+                                              signal.symbol, reason);
+            continue;
+        }
+
+        // Convert signal to order
+        Order order;
+        order.symbol = signal.symbol;
+        order.type = OrderType::Limit;
+        order.duration = OrderDuration::Day;
+
+        // Determine quantity and price from signal
+        if (signal.option_contract) {
+            // Options order
+            order.quantity =
+                static_cast<Quantity>(signal.max_risk / 100.0); // 1 contract = $100 risk approx
+            if (signal.option_contract->type == OptionType::Call ||
+                signal.option_contract->type == OptionType::Put) {
+                // Get current quote for option
+                auto quote_result = schwab_client_->marketData().getQuote(signal.symbol);
+                if (quote_result) {
+                    order.limit_price = quote_result->ask; // Buy at ask
+                } else {
+                    utils::Logger::getInstance().error("Failed to get quote for {}: {}",
+                                                       signal.symbol, quote_result.error().message);
+                    continue;
+                }
+            }
+        } else {
+            // Stock order
+            order.quantity = static_cast<Quantity>(signal.max_risk /
+                                                   context_->current_quotes[signal.symbol].last);
+            order.limit_price = context_->current_quotes[signal.symbol].ask;
+        }
+
+        // Validate order quantity
+        if (order.quantity <= 0) {
+            utils::Logger::getInstance().warn("Invalid order quantity for {}: {}", signal.symbol,
+                                              order.quantity);
+            continue;
+        }
+
+        // Place order via Schwab API
+        utils::Logger::getInstance().info(
+            "Placing order: {} {} @ ${:.2f} (Strategy: {}, Confidence: {:.1f}%)", order.quantity,
+            order.symbol, order.limit_price, signal.strategy_name, signal.confidence * 100.0);
+
+        auto order_result = schwab_client_->orders().placeOrder(order);
+
+        if (order_result) {
+            std::string order_id = *order_result;
+            order_ids.push_back(order_id);
+
+            utils::Logger::getInstance().info("✓ Order placed successfully: {} (ID: {})",
+                                              signal.symbol, order_id);
+
+            // Log trade decision for explainability
+            utils::Logger::getInstance().info("  Rationale: {}", signal.rationale);
+            utils::Logger::getInstance().info(
+                "  Expected Return: ${:.2f}, Max Risk: ${:.2f}, Win Prob: {:.1f}%",
+                signal.expected_return, signal.max_risk, signal.win_probability * 100.0);
+
+        } else {
+            utils::Logger::getInstance().error("✗ Order failed for {}: {}", signal.symbol,
+                                               order_result.error().message);
+        }
+    }
+
+    utils::Logger::getInstance().info("Execution complete: {}/{} orders placed successfully",
+                                      order_ids.size(), signals.size());
+
     return order_ids;
 }
 
