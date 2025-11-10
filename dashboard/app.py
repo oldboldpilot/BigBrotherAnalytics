@@ -10,6 +10,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from pathlib import Path
+import sys
+
+# Add scripts directory to path for health check imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 # Page configuration
 st.set_page_config(
@@ -168,7 +172,7 @@ def main():
         st.markdown("### Navigation")
         view = st.radio(
             "Select View",
-            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History"]
+            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "Alerts", "System Health"]
         )
 
         st.divider()
@@ -190,6 +194,10 @@ def main():
         show_employment_signals()
     elif view == "Trade History":
         show_trade_history()
+    elif view == "Alerts":
+        show_alerts()
+    elif view == "System Health":
+        show_system_health()
 
     # Auto-refresh
     if auto_refresh:
@@ -716,6 +724,527 @@ def show_trade_history():
             )])
             fig.update_layout(title="Strategy Distribution")
             st.plotly_chart(fig, use_container_width=True)
+
+def show_alerts():
+    """Display alert history and statistics"""
+    st.header("🔔 Alert History")
+
+    conn = get_db_connection()
+
+    # Check if alerts table exists
+    tables = conn.execute("SHOW TABLES").fetchall()
+    table_names = [t[0] for t in tables]
+
+    if 'alerts' not in table_names:
+        st.warning("⚠️ Alerts table not found in database. Run setup_alerts_database.py to create it.")
+        st.code("uv run python scripts/monitoring/setup_alerts_database.py")
+        return
+
+    # Alert statistics
+    st.subheader("Alert Statistics")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    # Total alerts
+    total_alerts = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+    with col1:
+        st.metric("Total Alerts", f"{total_alerts:,}")
+
+    # Unacknowledged alerts
+    unack_alerts = conn.execute("""
+        SELECT COUNT(*) FROM alerts
+        WHERE acknowledged = false
+          AND severity IN ('ERROR', 'CRITICAL')
+          AND timestamp >= CURRENT_TIMESTAMP - INTERVAL 48 HOURS
+    """).fetchone()[0]
+    with col2:
+        st.metric("Unacknowledged", f"{unack_alerts:,}", delta=None if unack_alerts == 0 else f"-{unack_alerts}")
+
+    # Alerts today
+    today_alerts = conn.execute("""
+        SELECT COUNT(*) FROM alerts
+        WHERE DATE(timestamp) = CURRENT_DATE
+    """).fetchone()[0]
+    with col3:
+        st.metric("Today", f"{today_alerts:,}")
+
+    # Critical alerts (last 7 days)
+    critical_alerts = conn.execute("""
+        SELECT COUNT(*) FROM alerts
+        WHERE severity = 'CRITICAL'
+          AND timestamp >= CURRENT_DATE - INTERVAL 7 DAYS
+    """).fetchone()[0]
+    with col4:
+        st.metric("Critical (7d)", f"{critical_alerts:,}")
+
+    st.divider()
+
+    # Filters
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        severity_filter = st.multiselect(
+            "Severity",
+            options=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            default=['WARNING', 'ERROR', 'CRITICAL']
+        )
+
+    with col2:
+        type_filter = st.multiselect(
+            "Alert Type",
+            options=['trading', 'data', 'system', 'performance'],
+            default=['trading', 'data', 'system', 'performance']
+        )
+
+    with col3:
+        days_back = st.selectbox(
+            "Time Period",
+            options=[1, 7, 30, 90],
+            index=1,
+            format_func=lambda x: f"Last {x} days"
+        )
+
+    # Load alerts with filters
+    severity_list = "', '".join(severity_filter)
+    type_list = "', '".join(type_filter)
+
+    query = f"""
+        SELECT
+            id,
+            alert_type,
+            alert_subtype,
+            severity,
+            message,
+            context,
+            timestamp,
+            sent,
+            acknowledged,
+            acknowledged_by,
+            acknowledged_at
+        FROM alerts
+        WHERE severity IN ('{severity_list}')
+          AND alert_type IN ('{type_list}')
+          AND timestamp >= CURRENT_DATE - INTERVAL {days_back} DAYS
+        ORDER BY timestamp DESC
+        LIMIT 200
+    """
+
+    df = conn.execute(query).df()
+
+    if df.empty:
+        st.info("No alerts found matching the selected filters.")
+        return
+
+    # Alert timeline
+    st.subheader("Alert Timeline")
+
+    # Group by date and severity
+    timeline_df = df.copy()
+    timeline_df['date'] = pd.to_datetime(timeline_df['timestamp']).dt.date
+
+    timeline_pivot = timeline_df.groupby(['date', 'severity']).size().reset_index(name='count')
+
+    fig = px.bar(
+        timeline_pivot,
+        x='date',
+        y='count',
+        color='severity',
+        title='Alerts Over Time',
+        color_discrete_map={
+            'INFO': '#2196F3',
+            'WARNING': '#FF9800',
+            'ERROR': '#F44336',
+            'CRITICAL': '#D32F2F'
+        }
+    )
+    fig.update_layout(xaxis_title="Date", yaxis_title="Alert Count")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Alert type distribution
+    col1, col2 = st.columns(2)
+
+    with col1:
+        type_counts = df['alert_type'].value_counts()
+        fig = go.Figure(data=[go.Pie(
+            labels=type_counts.index,
+            values=type_counts.values,
+            hole=0.3
+        )])
+        fig.update_layout(title='Alerts by Type')
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        severity_counts = df['severity'].value_counts()
+        fig = go.Figure(data=[go.Pie(
+            labels=severity_counts.index,
+            values=severity_counts.values,
+            hole=0.3,
+            marker=dict(colors=['#2196F3', '#FF9800', '#F44336', '#D32F2F'])
+        )])
+        fig.update_layout(title='Alerts by Severity')
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # Recent alerts table
+    st.subheader("Recent Alerts")
+
+    # Format for display
+    display_df = df[['timestamp', 'severity', 'alert_type', 'alert_subtype', 'message', 'sent', 'acknowledged']].copy()
+    display_df['timestamp'] = pd.to_datetime(display_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Add color coding to severity
+    def color_severity(val):
+        colors = {
+            'INFO': 'background-color: #E3F2FD',
+            'WARNING': 'background-color: #FFF3E0',
+            'ERROR': 'background-color: #FFEBEE',
+            'CRITICAL': 'background-color: #FFCDD2'
+        }
+        return colors.get(val, '')
+
+    # Show with pagination
+    page_size = 25
+    total_pages = len(display_df) // page_size + (1 if len(display_df) % page_size > 0 else 0)
+
+    page = st.number_input('Page', min_value=1, max_value=total_pages, value=1) - 1
+    start_idx = page * page_size
+    end_idx = start_idx + page_size
+
+    st.dataframe(
+        display_df.iloc[start_idx:end_idx].style.applymap(
+            color_severity,
+            subset=['severity']
+        ),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "timestamp": "Time",
+            "severity": "Severity",
+            "alert_type": "Type",
+            "alert_subtype": "Subtype",
+            "message": "Message",
+            "sent": st.column_config.CheckboxColumn("Sent"),
+            "acknowledged": st.column_config.CheckboxColumn("Ack'd")
+        }
+    )
+
+    st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_df))} of {len(display_df)} alerts")
+
+    # Alert details expander
+    st.divider()
+    with st.expander("📋 View Alert Details"):
+        alert_id = st.number_input("Alert ID", min_value=1, max_value=int(df['id'].max()) if not df.empty else 1, value=1)
+
+        alert_detail = conn.execute(f"""
+            SELECT * FROM alerts WHERE id = {alert_id}
+        """).fetchone()
+
+        if alert_detail:
+            st.json({
+                'id': alert_detail[0],
+                'type': alert_detail[1],
+                'subtype': alert_detail[2],
+                'severity': alert_detail[3],
+                'message': alert_detail[4],
+                'context': alert_detail[5],
+                'timestamp': str(alert_detail[6]),
+                'source': alert_detail[7],
+                'sent': alert_detail[8],
+                'acknowledged': alert_detail[10]
+            })
+        else:
+            st.warning(f"Alert ID {alert_id} not found")
+
+def show_system_health():
+    """Display Component 5: System Health"""
+    st.header("🏥 System Health Monitor")
+
+    st.markdown("""
+    Real-time monitoring of all system components including API connectivity,
+    database health, data freshness, and system resources.
+    """)
+
+    # Add refresh button
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.rerun()
+
+    # Run health check
+    try:
+        from monitoring.health_check import check_system_health, STATUS_HEALTHY, STATUS_DEGRADED, STATUS_DOWN, STATUS_STALE, STATUS_WARNING, STATUS_NO_DATA, STATUS_RUNNING, STATUS_NOT_RUNNING, STATUS_LOW, STATUS_HIGH
+
+        health = check_system_health()
+
+        # Status emoji mapping
+        status_emoji = {
+            STATUS_HEALTHY: "✅",
+            STATUS_DEGRADED: "⚠️",
+            STATUS_DOWN: "❌",
+            STATUS_STALE: "🕒",
+            STATUS_WARNING: "⚠️",
+            STATUS_NO_DATA: "❓",
+            STATUS_RUNNING: "✅",
+            STATUS_NOT_RUNNING: "⭕",
+            STATUS_LOW: "⚠️",
+            STATUS_HIGH: "⚠️"
+        }
+
+        # Overall status
+        st.subheader("Overall System Status")
+        overall_status = health['overall_status']
+
+        # Color coding
+        status_color = {
+            STATUS_HEALTHY: "green",
+            STATUS_DEGRADED: "orange",
+            STATUS_DOWN: "red",
+            STATUS_WARNING: "orange"
+        }
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "System Status",
+                f"{status_emoji.get(overall_status, '❓')} {overall_status}",
+                delta=None
+            )
+
+        with col2:
+            st.metric(
+                "Last Check",
+                datetime.fromisoformat(health['timestamp']).strftime("%H:%M:%S")
+            )
+
+        with col3:
+            # Count healthy vs unhealthy components
+            components = health['components']
+            healthy_count = sum(1 for c in components.values() if c.get('status') == STATUS_HEALTHY)
+            total_count = len(components)
+            st.metric(
+                "Healthy Components",
+                f"{healthy_count}/{total_count}"
+            )
+
+        st.divider()
+
+        # Component details in tabs
+        tab1, tab2, tab3 = st.tabs(["🌐 APIs & Data", "💾 System Resources", "📊 Detailed Status"])
+
+        with tab1:
+            st.subheader("APIs and Data Services")
+
+            # Schwab API
+            api = components.get('schwab_api', {})
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.metric("Schwab API", f"{status_emoji.get(api.get('status'), '❓')} {api.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'message' in api:
+                    st.info(api['message'])
+                if 'error' in api:
+                    st.error(api['error'])
+
+            st.markdown("---")
+
+            # Database
+            db = components.get('database', {})
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.metric("Database", f"{status_emoji.get(db.get('status'), '❓')} {db.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'size_mb' in db:
+                    st.info(f"Size: {db['size_mb']} MB | Tables: {db.get('tables', 0)}")
+                    if 'record_counts' in db:
+                        st.caption("Record Counts: " + ", ".join([f"{k}: {v:,}" for k, v in db['record_counts'].items()]))
+                if 'error' in db:
+                    st.error(db['error'])
+
+            st.markdown("---")
+
+            # Signal Generation
+            signals = components.get('signal_generation', {})
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.metric("Signal Generation", f"{status_emoji.get(signals.get('status'), '❓')} {signals.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'last_signal_time' in signals and signals['last_signal_time']:
+                    age_hours = signals.get('age_hours', 0)
+                    age_days = signals.get('age_days', 0)
+                    st.info(f"Last signal: {age_hours:.1f} hours ago ({age_days:.1f} days)")
+                if 'message' in signals:
+                    st.warning(signals['message'])
+
+            st.markdown("---")
+
+            # Data Freshness
+            st.subheader("Data Freshness")
+            data_fresh = components.get('data_freshness', {})
+
+            if 'overall_status' in data_fresh:
+                st.metric("Overall Data Status",
+                         f"{status_emoji.get(data_fresh['overall_status'], '❓')} {data_fresh['overall_status']}")
+
+            # Display each data type
+            for data_type in ['employment_data', 'jobless_claims', 'stock_prices']:
+                if data_type in data_fresh:
+                    data_info = data_fresh[data_type]
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        st.caption(data_type.replace('_', ' ').title())
+
+                    with col2:
+                        st.caption(f"{status_emoji.get(data_info.get('status'), '❓')} {data_info.get('status', 'UNKNOWN')}")
+
+                    with col3:
+                        if data_info.get('last_update'):
+                            st.caption(f"{data_info.get('age_days', 0)} days old")
+                        else:
+                            st.caption("No data")
+
+        with tab2:
+            st.subheader("System Resources")
+
+            # Disk Space
+            disk = components.get('disk_space', {})
+            st.markdown("#### Disk Space")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Status", f"{status_emoji.get(disk.get('status'), '❓')} {disk.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'total_gb' in disk:
+                    st.metric("Total", f"{disk['total_gb']} GB")
+            with col3:
+                if 'used_gb' in disk:
+                    st.metric("Used", f"{disk['used_gb']} GB")
+            with col4:
+                if 'free_gb' in disk:
+                    st.metric("Free", f"{disk['free_gb']} GB")
+
+            if 'percent_used' in disk:
+                st.progress(disk['percent_used'] / 100, text=f"Disk Usage: {disk['percent_used']}%")
+
+            st.markdown("---")
+
+            # Memory
+            mem = components.get('memory', {})
+            st.markdown("#### Memory")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Status", f"{status_emoji.get(mem.get('status'), '❓')} {mem.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'total_gb' in mem:
+                    st.metric("Total", f"{mem['total_gb']} GB")
+            with col3:
+                if 'used_gb' in mem:
+                    st.metric("Used", f"{mem['used_gb']} GB")
+            with col4:
+                if 'available_gb' in mem:
+                    st.metric("Available", f"{mem['available_gb']} GB")
+
+            if 'percent_used' in mem:
+                st.progress(mem['percent_used'] / 100, text=f"Memory Usage: {mem['percent_used']}%")
+
+            st.markdown("---")
+
+            # CPU
+            cpu = components.get('cpu', {})
+            st.markdown("#### CPU")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Status", f"{status_emoji.get(cpu.get('status'), '❓')} {cpu.get('status', 'UNKNOWN')}")
+            with col2:
+                if 'percent_used' in cpu:
+                    st.metric("Usage", f"{cpu['percent_used']}%")
+            with col3:
+                if 'cpu_count' in cpu:
+                    st.metric("CPU Count", cpu['cpu_count'])
+
+            if 'percent_used' in cpu:
+                st.progress(cpu['percent_used'] / 100, text=f"CPU Usage: {cpu['percent_used']}%")
+
+            st.markdown("---")
+
+            # Processes
+            proc = components.get('process', {})
+            st.markdown("#### BigBrother Processes")
+
+            status = proc.get('status', 'UNKNOWN')
+            st.metric("Process Status", f"{status_emoji.get(status, '❓')} {status}")
+
+            if 'processes' in proc and proc['processes']:
+                st.caption(f"Running processes: {proc['process_count']}")
+
+                # Display process table
+                proc_data = []
+                for p in proc['processes']:
+                    proc_data.append({
+                        "PID": p['pid'],
+                        "Name": p['name'],
+                        "CPU %": f"{p['cpu_percent']}%",
+                        "Memory (MB)": f"{p['memory_mb']:.2f}"
+                    })
+
+                st.dataframe(pd.DataFrame(proc_data), use_container_width=True, hide_index=True)
+            elif 'message' in proc:
+                st.info(proc['message'])
+
+        with tab3:
+            st.subheader("Detailed Component Status")
+
+            # Display all components in a table
+            status_data = []
+            for component_name, component_data in components.items():
+                status = component_data.get('status', 'UNKNOWN')
+                status_data.append({
+                    "Component": component_name.replace('_', ' ').title(),
+                    "Status": f"{status_emoji.get(status, '❓')} {status}",
+                    "Details": component_data.get('message', component_data.get('error', 'OK'))
+                })
+
+            st.dataframe(pd.DataFrame(status_data), use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+
+            # Raw JSON data (expandable)
+            with st.expander("View Raw Health Data (JSON)"):
+                st.json(health)
+
+        # Alert indicators
+        st.divider()
+
+        # Count issues
+        critical_issues = []
+        warnings = []
+
+        for component_name, component_data in components.items():
+            status = component_data.get('status')
+            if status == STATUS_DOWN:
+                critical_issues.append(f"{component_name}: DOWN")
+            elif status in [STATUS_DEGRADED, STATUS_WARNING, STATUS_STALE]:
+                warnings.append(f"{component_name}: {status}")
+
+        if critical_issues:
+            st.error(f"🚨 Critical Issues ({len(critical_issues)}): " + ", ".join(critical_issues))
+
+        if warnings:
+            st.warning(f"⚠️ Warnings ({len(warnings)}): " + ", ".join(warnings))
+
+        if not critical_issues and not warnings:
+            st.success("✅ All systems operational!")
+
+    except ImportError as e:
+        st.error("❌ Health check module not found. Please ensure scripts/monitoring/health_check.py exists.")
+        st.exception(e)
+    except Exception as e:
+        st.error("❌ Error running health check")
+        st.exception(e)
 
 if __name__ == "__main__":
     main()

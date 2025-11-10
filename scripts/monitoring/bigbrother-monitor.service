@@ -1,0 +1,17 @@
+[Unit]
+Description=BigBrother Analytics Health Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=muyiwa
+WorkingDirectory=/home/muyiwa/Development/BigBrotherAnalytics
+Environment="PATH=/home/muyiwa/Development/BigBrotherAnalytics/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/muyiwa/Development/BigBrotherAnalytics/.venv/bin/python /home/muyiwa/Development/BigBrotherAnalytics/scripts/monitoring/monitor_health.py --alerts --interval 300
+Restart=on-failure
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -194,7 +194,7 @@ def generate_employment_signals(db_path: str = DB_PATH) -> List[Dict]:
             'signal_strength': float  # -1.0 to +1.0
         }
     """
-    conn = duckdb.connect(db_path)
+    conn = duckdb.connect(db_path, read_only=True)
     signals = []
 
     for series_id, sector_codes in BLS_TO_SECTOR_MAP.items():
@@ -319,7 +319,7 @@ def generate_rotation_signals(db_path: str = DB_PATH) -> List[Dict]:
             'target_allocation': float
         }
     """
-    conn = duckdb.connect(db_path)
+    conn = duckdb.connect(db_path, read_only=True)
     signals = []
 
     # Calculate employment scores for each sector using comprehensive statistics

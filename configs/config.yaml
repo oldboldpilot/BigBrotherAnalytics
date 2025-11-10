@@ -137,3 +137,68 @@ alerts:
   high_latency: true
   email_alerts: false # Requires email config
   log_alerts: true
+  circuit_breaker_open: true # Alert when circuit opens
+
+# Circuit Breaker Configuration
+circuit_breakers:
+  # Schwab API Circuit Breakers
+  schwab_market_data:
+    enabled: true
+    failure_threshold: 5 # Open after 5 consecutive failures
+    timeout_seconds: 60 # Try HALF_OPEN after 60 seconds
+    half_open_timeout_seconds: 30 # Stay in HALF_OPEN for 30 seconds
+    half_open_max_calls: 3 # Allow 3 calls in HALF_OPEN state
+    enable_logging: true
+
+  schwab_orders:
+    enabled: true
+    failure_threshold: 3 # More sensitive for critical orders
+    timeout_seconds: 120 # Longer timeout for orders
+    half_open_timeout_seconds: 60
+    half_open_max_calls: 1 # Only 1 test call in HALF_OPEN
+    enable_logging: true
+
+  schwab_account:
+    enabled: true
+    failure_threshold: 4
+    timeout_seconds: 90
+    half_open_timeout_seconds: 45
+    half_open_max_calls: 2
+    enable_logging: true
+
+  # Database Circuit Breaker
+  database:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    half_open_timeout_seconds: 30
+    half_open_max_calls: 3
+    enable_logging: true
+    max_queued_writes: 1000 # Max writes to queue when circuit open
+
+  # External API Circuit Breakers
+  fred_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    half_open_timeout_seconds: 30
+    half_open_max_calls: 3
+    enable_logging: true
+    cache_max_age_hours: 24 # Use cached data up to 24 hours old
+
+  bls_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    half_open_timeout_seconds: 30
+    half_open_max_calls: 3
+    enable_logging: true
+    cache_max_age_hours: 24
+
+  yahoo_finance:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    half_open_timeout_seconds: 30
+    half_open_max_calls: 3
+    enable_logging: true
