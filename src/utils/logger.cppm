@@ -157,39 +157,46 @@ public:
 
     /**
      * Logging methods with std::format support
-     * Automatically captures source location
+     * Use string literals and char-based formatting only
      */
+    // Template methods for formatted logging
     template <typename... Args>
-    auto trace(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::TRACE, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto trace(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::TRACE, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-    auto debug(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::DEBUG, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto debug(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::DEBUG, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-    auto info(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::INFO, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto info(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::INFO, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-    auto warn(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::WARN, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto warn(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::WARN, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-    auto error(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::ERROR, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto error(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::ERROR, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-    auto critical(std::format_string<Args...> fmt, Args&&... args) -> void {
-        logFormatted(LogLevel::CRITICAL, std::format(fmt, std::forward<Args>(args)...));
+        requires (sizeof...(Args) > 0)
+    auto critical(std::string_view fmt_str, Args&&... args) -> void {
+        logFormatted(LogLevel::CRITICAL, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
-    // Overloads for string literals (no formatting)
+    // Non-template overloads for plain strings (no formatting)
     auto trace(std::string_view msg) -> void { logFormatted(LogLevel::TRACE, std::string(msg)); }
     auto debug(std::string_view msg) -> void { logFormatted(LogLevel::DEBUG, std::string(msg)); }
     auto info(std::string_view msg) -> void { logFormatted(LogLevel::INFO, std::string(msg)); }
