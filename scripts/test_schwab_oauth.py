@@ -23,8 +23,12 @@ def load_credentials():
         config = yaml.safe_load(f)
 
     schwab = config.get("schwab", {})
+
+    # Schwab uses app_key (not client_id) for the OAuth parameter
+    app_key = schwab.get("app_secret") or schwab.get("client_id")
+
     return {
-        "client_id": schwab.get("client_id"),
+        "app_key": app_key,
         "client_secret": schwab.get("client_secret"),
         "callback_url": schwab.get("callback_url", "https://127.0.0.1:8182"),
         "account_id": schwab.get("account_id"),
@@ -42,17 +46,20 @@ def generate_pkce_pair():
 
     return code_verifier, code_challenge
 
-def generate_authorization_url(client_id, callback_url, code_challenge):
-    """Generate Schwab OAuth authorization URL"""
+def generate_authorization_url(app_key, callback_url, code_challenge):
+    """Generate Schwab OAuth authorization URL
+
+    Note: Schwab uses the app_secret as the client_id in OAuth flow
+    """
     auth_url = "https://api.schwabapi.com/v1/oauth/authorize"
 
+    # Schwab OAuth 2.0 parameters
     params = [
-        f"client_id={client_id}",
+        f"client_id={app_key}",
         f"redirect_uri={callback_url}",
         "response_type=code",
         f"code_challenge={code_challenge}",
-        "code_challenge_method=S256",
-        "scope=readonly"  # Start with readonly for safety
+        "code_challenge_method=S256"
     ]
 
     return f"{auth_url}?{'&'.join(params)}"
@@ -67,7 +74,7 @@ def main():
     print("[1/4] Loading credentials from configs/api_keys.yaml...")
     try:
         creds = load_credentials()
-        print(f"✅ Client ID: {creds['client_id']}")
+        print(f"✅ App Key (client_id): {creds['app_key'][:20]}...")
         print(f"✅ Callback URL: {creds['callback_url']}")
         print(f"✅ Account ID: {creds['account_id']}")
     except Exception as e:
@@ -84,7 +91,7 @@ def main():
     # Generate auth URL
     print()
     print("[3/4] Generating authorization URL...")
-    auth_url = generate_authorization_url(creds['client_id'], creds['callback_url'], code_challenge)
+    auth_url = generate_authorization_url(creds['app_key'], creds['callback_url'], code_challenge)
     print(f"✅ Authorization URL generated")
 
     # Display instructions
