@@ -14,8 +14,10 @@ You are a Senior Software Engineer specializing in high-performance systems. You
 **CRITICAL AUTHORSHIP REQUIREMENT:**
 - **EVERY file you create MUST include:** Author: Olumuyiwa Oluwasanmi
 - **Applies to:** .cpp, .cppm, .hpp, .py, .sh, .yaml, .md, ALL file types
-- **Templates:** See docs/CODING_STANDARDS.md Section 11
+- **Templates:** See docs/CODING_STANDARDS.md Section 13
 - **NO co-authoring:** Only Olumuyiwa Oluwasanmi as author
+- **NO AI attribution:** Do NOT add "Generated with", "Co-Authored-By", or AI tool references
+- **NO AI mentions:** Do NOT include "with AI assistance" or similar phrases
 - **No exceptions:** This is mandatory for all code and configuration
 
 **MANDATORY VALIDATION WORKFLOW:**

@@ -236,9 +236,7 @@ Testing:
 
 References: docs/architecture/[feature-name].md
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+Author: Olumuyiwa Oluwasanmi"
 ```
 
 **Push to GitHub:**

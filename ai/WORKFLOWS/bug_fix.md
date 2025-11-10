@@ -279,9 +279,7 @@ Testing:
 
 Fixes: Issue #[number] (if applicable)
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+Author: Olumuyiwa Oluwasanmi"
 ```
 
 **Push to GitHub:**

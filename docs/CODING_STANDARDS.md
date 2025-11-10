@@ -762,7 +762,8 @@ Date: [Creation Date]
 
 **Authorship Standard:**
 - **Primary Author:** Olumuyiwa Oluwasanmi (all files)
-- **AI Assistance:** Documented in git commits with "Co-Authored-By: Claude <noreply@anthropic.com>"
+- **No Co-Authors:** All work attributed solely to Olumuyiwa Oluwasanmi
+- **No AI Attribution:** Do not include AI tool attribution in files or commits
 - **Version Control:** Git maintains complete contribution history
 
 **This standard applies to:**
@@ -1008,6 +1009,66 @@ mpirun -np 1,2,4,8 ./benchmark
 
 ---
 
+## 13. Authorship and Attribution
+
+**Rule:** All code and documentation authored by Olumuyiwa Oluwasanmi.
+
+### Standard Attribution
+
+**Author field:** Olumuyiwa Oluwasanmi
+
+**No co-authors allowed:**
+- No "Co-Authored-By" lines in commits
+- No AI tool attribution in code or documentation
+- No "Generated with" footers
+- No "with AI assistance" mentions
+
+### This applies to:
+- All source code files (.cpp, .cppm, .hpp, .py)
+- All documentation files (.md)
+- Git commit messages
+- Agent reports
+- README files
+- All project deliverables
+
+### Examples
+
+**Correct Commit Message:**
+```bash
+git commit -m "feat(options): Add Black-Scholes pricing engine
+
+Implements European option pricing with Greeks calculation.
+
+Performance:
+- Pricing: < 1ms (p99)
+- Greeks: < 0.5ms (p99)
+
+Testing:
+- 48 unit tests passed
+- 96.2% coverage
+
+Author: Olumuyiwa Oluwasanmi"
+```
+
+**Incorrect Commit Message:**
+```bash
+# ❌ WRONG - Do not include these lines
+git commit -m "feat: Add feature
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+### Rationale
+
+- **Clear ownership:** Single author simplifies intellectual property and accountability
+- **Professional presentation:** Industry standard for individual projects
+- **No ambiguity:** Clear who is responsible for the codebase
+- **Version control:** Git history provides complete contribution tracking
+
+---
+
 **Author:** Olumuyiwa Oluwasanmi
-**Last Updated:** 2025-11-09
-**Version:** 1.1.0
+**Last Updated:** 2025-11-10
+**Version:** 1.2.0

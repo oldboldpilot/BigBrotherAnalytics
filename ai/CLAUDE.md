@@ -103,8 +103,10 @@
 **CRITICAL: Authorship Standard**
 - **ALL files created/modified MUST include:** Author: Olumuyiwa Oluwasanmi
 - Include author in file headers for: .cpp, .cppm, .hpp, .py, .sh, .yaml, .md
-- See `docs/CODING_STANDARDS.md` Section 11 for templates
+- See `docs/CODING_STANDARDS.md` Section 13 for complete authorship rules
 - **NO co-authoring** - Only Olumuyiwa Oluwasanmi as author
+- **NO AI attribution** - Do not add "Generated with", "Co-Authored-By", or any AI tool references
+- **NO AI assistance mentions** - Do not include "with AI assistance" or similar phrases
 
 **CRITICAL: Code Quality Enforcement**
 - **ALWAYS run validation before committing:** `./scripts/validate_code.sh`
