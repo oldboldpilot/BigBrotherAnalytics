@@ -422,22 +422,61 @@ def check_jobless_claims_spike(db_path: str = DB_PATH) -> Optional[Dict]:
     """
     Check for jobless claims spike (>10% increase).
 
-    Note: Current schema doesn't have jobless claims data.
-    This is a placeholder for future implementation when weekly claims data is added.
+    Queries jobless_claims table for recession warning signals.
 
     Returns:
         Signal dictionary if spike detected, None otherwise
     """
-    # TODO: Implement when jobless claims data is available in database
-    # For now, return None as we don't have this data yet
+    conn = duckdb.connect(db_path, read_only=True)
 
-    # Future implementation would:
-    # 1. Query latest weekly jobless claims from economic_data table
-    # 2. Calculate 4-week moving average
-    # 3. Check if current week > 1.10 * moving average
-    # 4. Return RecessionWarning signal if spike detected
+    try:
+        # Query latest jobless claims data with spike detection
+        query = """
+            SELECT
+                report_date,
+                initial_claims,
+                four_week_avg,
+                spike_detected,
+                CASE
+                    WHEN four_week_avg > 0
+                    THEN ((initial_claims - four_week_avg) / four_week_avg * 100.0)
+                    ELSE 0.0
+                END as pct_increase
+            FROM jobless_claims
+            WHERE spike_detected = TRUE
+            ORDER BY report_date DESC
+            LIMIT 1
+        """
 
-    return None
+        result = conn.execute(query).fetchone()
+
+        if not result:
+            # No spike detected
+            return None
+
+        report_date, initial_claims, four_week_avg, spike_detected, pct_increase = result
+
+        # Build recession warning signal
+        signal = {
+            'type': 'JoblessClaimsSpike',
+            'sector_code': 0,  # Market-wide signal
+            'sector_name': 'Market-Wide',
+            'confidence': 0.85,  # High confidence for official BLS data
+            'employment_change': -pct_increase,  # Negative change (claims going up)
+            'rationale': f'Initial jobless claims spiked {pct_increase:.1f}% above 4-week average on {report_date}. Claims: {initial_claims:,}, 4-week avg: {four_week_avg:,}. Indicates potential recession risk.',
+            'timestamp': int(datetime.now().timestamp()),
+            'bullish': False,
+            'bearish': True,
+            'signal_strength': -0.80  # Strong bearish signal
+        }
+
+        return signal
+
+    except Exception as e:
+        print(f"Error checking jobless claims: {e}", file=sys.stderr)
+        return None
+    finally:
+        conn.close()
 
 
 def main():

@@ -16,8 +16,11 @@
  * Tagged: PYTHON_BINDINGS
  */
 
-#include "duckdb_fluent.hpp"
+// CRITICAL: Include duckdb.hpp BEFORE duckdb_fluent.hpp to avoid incomplete type errors
+// duckdb.hpp must be included first so that QueryNode is fully defined before
+// unique_ptr tries to instantiate its destructor
 #include <duckdb.hpp>
+#include "duckdb_fluent.hpp"
 #include <memory>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>

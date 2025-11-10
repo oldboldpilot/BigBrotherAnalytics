@@ -695,10 +695,12 @@ set_target_properties(bigbrother_risk PROPERTIES
 )
 
 # DuckDB Python Bindings - CRITICAL (Tagged: PYTHON_BINDINGS)
-pybind11_add_module(bigbrother_duckdb src/python_bindings/duckdb_bindings.cpp)
-target_link_libraries(bigbrother_duckdb PRIVATE utils)
-target_link_libraries(bigbrother_duckdb PRIVATE ${DUCKDB_LIB})
-set_target_properties(bigbrother_duckdb PROPERTIES
-    OUTPUT_NAME "bigbrother_duckdb"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
-)
+# Temporarily disabled due to DuckDB header incomplete type issue
+# TODO: Fix DuckDB SelectStatement/QueryNode incomplete type in duckdb.hpp
+# pybind11_add_module(bigbrother_duckdb src/python_bindings/duckdb_bindings.cpp)
+# target_link_libraries(bigbrother_duckdb PRIVATE utils)
+# target_link_libraries(bigbrother_duckdb PRIVATE ${DUCKDB_LIB})
+# set_target_properties(bigbrother_duckdb PROPERTIES
+#     OUTPUT_NAME "bigbrother_duckdb"
+#     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+# )

@@ -60,22 +60,22 @@ export namespace bigbrother::utils {
 /**
  * Log Severity Levels
  */
-enum class LogLevel : std::uint8_t { 
-    TRACE = 0, 
-    DEBUG = 1, 
-    INFO = 2, 
-    WARN = 3, 
-    ERROR = 4, 
-    CRITICAL = 5 
+enum class LogLevel : std::uint8_t {
+    TRACE = 0,
+    DEBUG = 1,
+    INFO = 2,
+    WARN = 3,
+    ERROR = 4,
+    CRITICAL = 5
 };
 
 /**
  * Log Output Format
  */
 enum class LogFormat {
-    TEXT,      // Human-readable text format
-    JSON,      // JSON structured logging
-    COMPACT    // Minimal text format
+    TEXT,   // Human-readable text format
+    JSON,   // JSON structured logging
+    COMPACT // Minimal text format
 };
 
 /**
@@ -108,14 +108,14 @@ struct LoggerConfig {
  *   logger.initialize(LoggerConfig{});
  *   logger.info("Application started");
  *   logger.error("Error code: {}, message: {}", 404, "Not found");
- *   
+ *
  * Format string examples:
  *   logger.info("Price: {:.2f}", 123.456);  // Price: 123.46
  *   logger.debug("Hex: {:#x}", 255);        // Hex: 0xff
  *   logger.warn("Vector: {}", vec);         // Vector: [1, 2, 3]
  */
 class Logger {
-public:
+  public:
     /**
      * Get singleton instance
      */
@@ -135,8 +135,7 @@ public:
     /**
      * Initialize with simple parameters (backward compatibility)
      */
-    auto initialize(std::string const& log_file_path,
-                    LogLevel level = LogLevel::INFO,
+    auto initialize(std::string const& log_file_path, LogLevel level = LogLevel::INFO,
                     bool console_output = true) -> void;
 
     /**
@@ -161,37 +160,37 @@ public:
      */
     // Template methods for formatted logging
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto trace(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::TRACE, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto debug(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::DEBUG, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto info(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::INFO, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto warn(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::WARN, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto error(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::ERROR, std::vformat(fmt_str, std::make_format_args(args...)));
     }
 
     template <typename... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     auto critical(std::string_view fmt_str, Args&&... args) -> void {
         logFormatted(LogLevel::CRITICAL, std::vformat(fmt_str, std::make_format_args(args...)));
     }
@@ -202,7 +201,9 @@ public:
     auto info(std::string_view msg) -> void { logFormatted(LogLevel::INFO, std::string(msg)); }
     auto warn(std::string_view msg) -> void { logFormatted(LogLevel::WARN, std::string(msg)); }
     auto error(std::string_view msg) -> void { logFormatted(LogLevel::ERROR, std::string(msg)); }
-    auto critical(std::string_view msg) -> void { logFormatted(LogLevel::CRITICAL, std::string(msg)); }
+    auto critical(std::string_view msg) -> void {
+        logFormatted(LogLevel::CRITICAL, std::string(msg));
+    }
 
     /**
      * Flush log buffer to disk
@@ -214,7 +215,7 @@ public:
      */
     auto rotate() -> void;
 
-private:
+  private:
     Logger();
     ~Logger();
 
@@ -244,11 +245,8 @@ namespace bigbrother::utils {
  * Provides thread-safe logging to file and console.
  */
 class Logger::Impl {
-public:
-    Impl()
-        : current_level{LogLevel::INFO},
-          console_enabled{true},
-          initialized{false} {}
+  public:
+    Impl() : current_level{LogLevel::INFO}, console_enabled{true}, initialized{false} {}
 
     auto initialize(std::string const& log_file_path, LogLevel level, bool console) -> void {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -290,14 +288,13 @@ public:
         // Get current time with milliseconds
         auto now = std::chrono::system_clock::now();
         auto time = std::chrono::system_clock::to_time_t(now);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now.time_since_epoch()) %
-                  1000;
+        auto ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
         // Format log entry
         std::ostringstream ss;
-        ss << std::put_time(std::localtime(&time), "[%Y-%m-%d %H:%M:%S") << '.'
-           << std::setfill('0') << std::setw(3) << ms.count() << "] "
+        ss << std::put_time(std::localtime(&time), "[%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0')
+           << std::setw(3) << ms.count() << "] "
            << "[" << levelToString(level) << "] "
            << "[" << loc.file_name() << ":" << loc.line() << "] " << msg << std::endl;
 
@@ -322,23 +319,23 @@ public:
         }
     }
 
-private:
+  private:
     [[nodiscard]] static auto levelToString(LogLevel level) -> std::string {
         switch (level) {
-        case LogLevel::TRACE:
-            return "TRACE";
-        case LogLevel::DEBUG:
-            return "DEBUG";
-        case LogLevel::INFO:
-            return "INFO";
-        case LogLevel::WARN:
-            return "WARN";
-        case LogLevel::ERROR:
-            return "ERROR";
-        case LogLevel::CRITICAL:
-            return "CRITICAL";
-        default:
-            return "UNKNOWN";
+            case LogLevel::TRACE:
+                return "TRACE";
+            case LogLevel::DEBUG:
+                return "DEBUG";
+            case LogLevel::INFO:
+                return "INFO";
+            case LogLevel::WARN:
+                return "WARN";
+            case LogLevel::ERROR:
+                return "ERROR";
+            case LogLevel::CRITICAL:
+                return "CRITICAL";
+            default:
+                return "UNKNOWN";
         }
     }
 
@@ -364,8 +361,8 @@ Logger::~Logger() {
     return instance;
 }
 
-auto Logger::initialize(std::string const& log_file_path, LogLevel level,
-                        bool console_output) -> void {
+auto Logger::initialize(std::string const& log_file_path, LogLevel level, bool console_output)
+    -> void {
     pImpl->initialize(log_file_path, level, console_output);
 }
 

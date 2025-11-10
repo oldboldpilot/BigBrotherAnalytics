@@ -54,7 +54,7 @@ auto writeCallback(void* contents, size_t size, size_t nmemb, void* userp) -> si
 auto makeHttpGetRequest(std::string const& url, std::string const& access_token)
     -> Result<HttpResponse> {
     CURL* curl = curl_easy_init();
-    if (!curl) {
+    if (curl == nullptr) {
         return std::unexpected("Failed to initialize CURL");
     }
 
