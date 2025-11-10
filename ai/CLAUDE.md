@@ -37,19 +37,24 @@
 - **Playbook:** `playbooks/complete-tier1-setup.yml` - Environment setup (DuckDB, no PostgreSQL)
 - **Architecture:** `docs/architecture/*` - Detailed system designs
 
-## Current Status (as of 2025-11-06)
+## Current Status (as of 2025-11-09)
 
 **Completed:**
 - ✅ Planning phase complete (architecture, PRD, database strategy)
 - ✅ DuckDB-first decision made and documented
 - ✅ Ansible playbook updated for DuckDB-only Tier 1
 - ✅ All documentation updated to reflect DuckDB-first approach
+- ✅ Trading engine and Schwab API stack now support fractional share quantities end-to-end
+- ✅ Build configuration updated with `_LIBCPP_NO_ABI_TAG` to resolve libc++ abi_tag conflicts
+- ✅ DuckDB core trading tables (`positions`, `positions_history`) created with DOUBLE quantity columns
 
 **Next Steps:**
 - [ ] Run ansible playbook to set up Tier 1 environment
 - [ ] Implement C++23 core components (options pricing, correlation engine)
 - [ ] Build Python ML pipeline with DuckDB
 - [ ] Validate with 10 years of free historical data
+- [ ] Address outstanding clang-tidy issues in legacy Schwab API implementation files before next build
+- [ ] Expand database migration scripts to cover fractional share support where applicable
 
 ## AI Orchestration System
 
@@ -174,6 +179,8 @@ private:
 ./scripts/validate_code.sh
 
 # 3. Build (clang-tidy runs AUTOMATICALLY before build)
+#    NOTE: CMake defines `_LIBCPP_NO_ABI_TAG` to avoid libc++ abi_tag redeclaration errors.
+#    Keep custom libc++ module path synchronized with this flag when precompiling `std`.
 cd build && ninja
 # CMake runs scripts/run_clang_tidy.sh automatically
 # Build is BLOCKED if clang-tidy finds errors

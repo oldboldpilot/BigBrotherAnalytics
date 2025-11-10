@@ -1,3 +1,6 @@
+# BigBrotherAnalytics - Build Configuration
+# Author: Olumuyiwa Oluwasanmi
+
 cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
 
 # ============================================================================
@@ -13,6 +16,10 @@ project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+
+# libc++ adds abi_tag attributes by default; disable to avoid duplicate attribute
+# emissions when Clang builds std headers alongside modules.
+add_compile_definitions(_LIBCPP_NO_ABI_TAG)
 
 # ============================================================================
 # Pre-Build Quality Check: Run clang-tidy
@@ -70,6 +77,7 @@ add_custom_command(
             -stdlib=libc++
             -nostdinc++
             -isystem /opt/libc++_modules/include/c++/v1
+        -D_LIBCPP_NO_ABI_TAG
             --precompile
             /opt/libc++_modules/share/libc++/v1/std.cppm
             -o ${CMAKE_BINARY_DIR}/modules/std.pcm
@@ -85,8 +93,60 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Find required packages
 find_package(OpenMP REQUIRED)
-find_package(MPI)
+
+# MPI Configuration - System-installed OpenMPI 5.0.7
+# Note: MPI wrappers use GCC, but we need to use Clang, so we specify paths directly
+set(MPI_CXX_INCLUDE_DIRS "/usr/lib/x86_64-linux-gnu/openmpi/include;/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi" CACHE STRING "MPI include directories")
+set(MPI_CXX_LIBRARIES "/usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so" CACHE FILEPATH "MPI libraries")
+set(MPI_CXX_FOUND TRUE CACHE BOOL "MPI found")
+set(MPI_FOUND TRUE CACHE BOOL "MPI found")
+
+# Create imported target for MPI (if not already created by find_package)
+if(NOT TARGET MPI::MPI_CXX)
+    add_library(MPI::MPI_CXX INTERFACE IMPORTED)
+    set_target_properties(MPI::MPI_CXX PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_DIRS}"
+        INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}"
+    )
+    message(STATUS "MPI manually configured for Clang compatibility")
+    message(STATUS "  MPI Include: ${MPI_CXX_INCLUDE_DIRS}")
+    message(STATUS "  MPI Library: ${MPI_CXX_LIBRARIES}")
+endif()
+
 find_package(Threads REQUIRED)
+
+# Berkeley Labs PGAS Components (UPC++, GASNet, OpenSHMEM)
+# Installed via ansible playbook to /opt/berkeley/
+# Currently optional - not required for Tier 1 POC
+set(BERKELEY_PREFIX "/opt/berkeley" CACHE PATH "Berkeley Labs components installation prefix")
+set(GASNET_HOME "${BERKELEY_PREFIX}/gasnet" CACHE PATH "GASNet-EX installation directory")
+set(UPCXX_HOME "${BERKELEY_PREFIX}/upcxx" CACHE PATH "UPC++ installation directory")
+set(OPENSHMEM_HOME "${BERKELEY_PREFIX}/openshmem" CACHE PATH "OpenSHMEM installation directory")
+
+# Check if Berkeley components are installed
+if(EXISTS "${UPCXX_HOME}/bin/upcxx")
+    message(STATUS "UPC++ found at ${UPCXX_HOME}")
+    set(UPCXX_FOUND TRUE)
+else()
+    message(STATUS "UPC++ not found (optional for Tier 1)")
+    set(UPCXX_FOUND FALSE)
+endif()
+
+if(EXISTS "${GASNET_HOME}/bin/gasnetrun_mpi")
+    message(STATUS "GASNet-EX found at ${GASNET_HOME}")
+    set(GASNET_FOUND TRUE)
+else()
+    message(STATUS "GASNet-EX not found (optional for Tier 1)")
+    set(GASNET_FOUND FALSE)
+endif()
+
+if(EXISTS "${OPENSHMEM_HOME}/bin/oshcc")
+    message(STATUS "OpenSHMEM found at ${OPENSHMEM_HOME}")
+    set(OPENSHMEM_FOUND TRUE)
+else()
+    message(STATUS "OpenSHMEM not found (optional for Tier 1)")
+    set(OPENSHMEM_FOUND FALSE)
+endif()
 
 # Find CURL for HTTP requests
 find_package(CURL REQUIRED)

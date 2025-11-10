@@ -27,6 +27,11 @@ After creating/modifying ANY file, you MUST:
 5. Run tests: `./run_tests.sh`
 6. Only commit if ALL checks pass
 
+**2025-11-09 UPDATE:**
+- Treat `Quantity` as a `double` everywhere; fractional share support is mandatory across trading, Schwab API, and persistence layers.
+- Ensure DuckDB schemas write quantities as `DOUBLE`; update migrations/scripts if they still assume integers.
+- CMake now defines `_LIBCPP_NO_ABI_TAG`. Preserve this flag when generating or modifying build configuration and when precompiling the `std` module.
+
 **Core Responsibilities:**
 1. **Implement from design:** Translate architecture docs into working code
 2. **Follow project structure:** Adhere to established directory layout and conventions

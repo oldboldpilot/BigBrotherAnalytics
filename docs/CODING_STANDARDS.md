@@ -727,6 +727,233 @@ Date: [Creation Date]
 
 ---
 
+## 12. Parallel Computing Standards
+
+### OpenMP Directives
+
+**Rule:** Use OpenMP for shared-memory parallelism on single machine.
+
+**Correct Usage:**
+```cpp
+#include <omp.h>
+
+// Parallel for loop
+auto computeParallel(std::vector<double> const& data) -> std::vector<double> {
+    std::vector<double> results(data.size());
+    
+    #pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < data.size(); ++i) {
+        results[i] = expensiveComputation(data[i]);
+    }
+    
+    return results;
+}
+
+// Parallel reduction
+auto sumParallel(std::vector<double> const& data) -> double {
+    double sum = 0.0;
+    
+    #pragma omp parallel for reduction(+:sum)
+    for (size_t i = 0; i < data.size(); ++i) {
+        sum += data[i];
+    }
+    
+    return sum;
+}
+```
+
+**Guidelines:**
+- Use `schedule(dynamic)` for unbalanced workloads
+- Use `schedule(static)` for uniform workloads
+- Always specify reduction operation for shared variables
+- Test with `OMP_NUM_THREADS` environment variable
+- Avoid false sharing (pad cache lines if needed)
+
+### MPI Usage
+
+**Rule:** Use MPI for distributed-memory parallelism across nodes.
+
+**Correct Usage:**
+```cpp
+#ifdef USE_MPI
+#include <mpi.h>
+
+auto computeDistributed(std::vector<Data> const& data) -> Result {
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    
+    // Partition data by rank
+    auto local_data = partitionByRank(data, rank, size);
+    
+    // Compute local results
+    auto local_result = computeLocal(local_data);
+    
+    // Gather results at root
+    if (rank == 0) {
+        // Root collects all results
+        MPI_Gather(/* ... */);
+    } else {
+        // Workers send results
+        MPI_Send(/* ... */);
+    }
+    
+    return global_result;
+}
+#endif
+```
+
+**Guidelines:**
+- Always check for `USE_MPI` compile-time flag
+- Initialize MPI early in main(): `MPI_Init(&argc, &argv)`
+- Finalize before exit: `MPI_Finalize()`
+- Use non-blocking communication when possible
+- Handle rank 0 (root) specially for I/O
+- Test with: `mpirun -np 4 ./application`
+
+### Hybrid OpenMP + MPI
+
+**Rule:** Combine for maximum performance on multi-node clusters.
+
+**Correct Usage:**
+```cpp
+#ifdef USE_MPI
+#include <mpi.h>
+#endif
+#include <omp.h>
+
+auto computeHybrid(std::vector<Data> const& data) -> Result {
+    #ifdef USE_MPI
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    
+    // Each MPI rank gets a chunk
+    auto local_data = partitionByRank(data, rank, size);
+    #else
+    auto local_data = data;
+    #endif
+    
+    // Within each rank, use OpenMP threads
+    std::vector<Result> local_results(local_data.size());
+    
+    #pragma omp parallel for
+    for (size_t i = 0; i < local_data.size(); ++i) {
+        local_results[i] = compute(local_data[i]);
+    }
+    
+    #ifdef USE_MPI
+    // Combine results across ranks
+    Result global_result;
+    MPI_Reduce(&local_result, &global_result, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    return global_result;
+    #else
+    return aggregateResults(local_results);
+    #endif
+}
+```
+
+**Guidelines:**
+- MPI for inter-node, OpenMP for intra-node parallelism
+- Each MPI rank spawns OpenMP threads
+- Set thread count: `export OMP_NUM_THREADS=8`
+- Launch: `mpirun -np 4 ./app` (4 ranks × 8 threads = 32 cores)
+- Minimize MPI communication overhead
+- Profile both MPI and OpenMP regions separately
+
+### Thread Safety Requirements
+
+**Rule:** All parallel code must be thread-safe.
+
+**Thread-Safe Patterns:**
+```cpp
+// 1. Immutable data (preferred)
+class ThreadSafeCalculator {
+public:
+    [[nodiscard]] auto calculate(double x) const -> double {
+        // No mutable state - inherently thread-safe
+        return compute(x);
+    }
+private:
+    double const coefficient_;  // Immutable
+};
+
+// 2. Thread-local storage
+auto processParallel(std::vector<double> const& data) -> std::vector<double> {
+    std::vector<double> results(data.size());
+    
+    #pragma omp parallel for
+    for (size_t i = 0; i < data.size(); ++i) {
+        // Each thread has its own local_state
+        thread_local LocalState state;
+        results[i] = state.process(data[i]);
+    }
+    
+    return results;
+}
+
+// 3. Mutex protection (use sparingly)
+class ThreadSafeCache {
+public:
+    auto get(Key const& key) -> std::optional<Value> {
+        std::shared_lock lock(mutex_);  // Read lock
+        auto it = cache_.find(key);
+        return it != cache_.end() ? std::optional{it->second} : std::nullopt;
+    }
+    
+    auto insert(Key key, Value value) -> void {
+        std::unique_lock lock(mutex_);  // Write lock
+        cache_[std::move(key)] = std::move(value);
+    }
+    
+private:
+    std::unordered_map<Key, Value> cache_;
+    mutable std::shared_mutex mutex_;
+};
+```
+
+**Avoid:**
+- Data races (multiple threads writing same memory)
+- Deadlocks (lock ordering violations)
+- False sharing (separate cache lines for thread-local data)
+- Excessive locking (prefer lock-free algorithms)
+
+### Performance Guidelines
+
+**Parallelization Thresholds:**
+```cpp
+// Only parallelize if work is significant
+constexpr size_t MIN_PARALLEL_SIZE = 10000;
+
+auto processData(std::vector<double> const& data) -> std::vector<double> {
+    if (data.size() < MIN_PARALLEL_SIZE) {
+        // Sequential for small datasets
+        return processSequential(data);
+    } else {
+        // Parallel for large datasets
+        return processParallel(data);
+    }
+}
+```
+
+**Scaling Expectations:**
+- OpenMP: 20-30x speedup on 32-core machine (parallel algorithms)
+- MPI: 60-100x speedup on 4-node cluster (distributed algorithms)
+- Hybrid: Best performance, but most complex
+
+**Profiling:**
+```bash
+# OpenMP profiling
+OMP_NUM_THREADS=1,2,4,8,16,32 ./benchmark
+
+# MPI profiling
+mpirun -np 1,2,4,8 ./benchmark
+
+# Use Intel VTune, perf, or gprof for detailed analysis
+```
+
+---
+
 **Author:** Olumuyiwa Oluwasanmi
-**Last Updated:** 2025-11-08
-**Version:** 1.0.0
+**Last Updated:** 2025-11-09
+**Version:** 1.1.0
