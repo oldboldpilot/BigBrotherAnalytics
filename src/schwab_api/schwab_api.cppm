@@ -1988,7 +1988,7 @@ class OrderManager {
         // Get all positions
         auto positions_result = account_mgr_->getPositions();
         if (!positions_result) {
-            Logger::getInstance().error("Failed to fetch positions: {}", positions_result.error());
+            Logger::getInstance().error("Failed to fetch positions: {}", positions_result.error().message);
             return false; // Fail open - allow trade if we can't verify
         }
 

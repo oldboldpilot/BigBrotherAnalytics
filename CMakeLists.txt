@@ -199,11 +199,8 @@ find_package(yaml-cpp)
 # ============================================================================
 
 # Utils Library (C++23 modules ENABLED)
-add_library(utils SHARED
-    src/utils/logger.cpp
-    # config.cpp removed - template specializations conflict with module interface
-    # database.cpp removed - stub implementation in database.cppm module
-)
+# All implementation moved to .cppm modules
+add_library(utils SHARED)
 
 # C++23 modules with trailing return syntax and fluent APIs
 # All modules converted following C++ Core Guidelines
