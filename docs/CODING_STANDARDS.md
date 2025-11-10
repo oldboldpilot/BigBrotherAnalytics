@@ -1,19 +1,73 @@
-# BigBrotherAnalytics C++ Coding Standards
+# BigBrotherAnalytics Coding Standards
 
 **Author:** Olumuyiwa Oluwasanmi
-**Date:** 2025-11-08
-**Version:** 1.0.0
+**Date:** 2025-11-10
+**Version:** 1.1.0
 
 This document defines the coding standards enforced by automated CI/CD checks.
 
 ## Overview
 
-BigBrotherAnalytics follows modern C++23 best practices with emphasis on:
+BigBrotherAnalytics follows modern C++23 and Python best practices with emphasis on:
+
+**C++ Standards:**
 - **Trailing return type syntax** for all functions
 - **C++ Core Guidelines** compliance
 - **Fluent API patterns** for usability
 - **Module-based architecture** (C++23 modules)
 - **Performance and safety** balance
+
+**Python Standards:**
+- **uv package manager** for all Python operations (REQUIRED)
+- **Type hints** for all function signatures
+- **Modern async/await** patterns for I/O operations
+- **Pydantic** for data validation
+- **Black + Ruff** for formatting and linting
+
+---
+
+## 0. Python Package Management (CRITICAL)
+
+**Rule:** ALWAYS use `uv` for Python operations. Never use `pip`, `python`, or `python3` directly.
+
+### ✅ Correct:
+```bash
+# Install packages
+uv add requests pandas numpy
+
+# Run scripts
+uv run python scripts/fetch_data.py
+
+# Run tests
+uv run pytest tests/
+
+# Sync dependencies
+uv sync
+
+# Create virtual environment (handled automatically by uv)
+# No manual venv creation needed
+```
+
+### ❌ Incorrect:
+```bash
+pip install requests              # DON'T USE
+python script.py                  # DON'T USE
+python3 -m pytest                 # DON'T USE
+pip3 install --upgrade package    # DON'T USE
+```
+
+**Rationale:**
+- **10-100x faster** than pip
+- **Deterministic** dependency resolution
+- **Reproducible** builds across all machines
+- **Zero configuration** - project already set up
+- **Built-in virtual environment** management
+- **Consistent** with project standards
+
+**Configuration:**
+- pyproject.toml already configured
+- All dependencies managed via uv
+- No manual pip usage required
 
 ---
 
