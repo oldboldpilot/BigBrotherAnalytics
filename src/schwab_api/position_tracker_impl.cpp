@@ -11,13 +11,20 @@
  * Date: 2025-11-09
  */
 
-#include "position_tracker.hpp"
 #include "account_manager.hpp"
 #include "account_types.hpp"
-#include <spdlog/spdlog.h>
-#include <chrono>
-#include <thread>
+#include "position_tracker.hpp"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <condition_variable>
+#include <mutex>
+#include <optional>
+#include <spdlog/spdlog.h>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace bigbrother::schwab {
 
@@ -26,17 +33,12 @@ namespace bigbrother::schwab {
 // ============================================================================
 
 class PositionTrackerImpl {
-public:
-    explicit PositionTrackerImpl(
-        std::shared_ptr<AccountManager> account_mgr,
-        std::string db_path,
-        int refresh_interval_seconds = 30
-    ) : account_mgr_{std::move(account_mgr)},
-        db_path_{std::move(db_path)},
-        refresh_interval_{refresh_interval_seconds},
-        running_{false},
-        paused_{false},
-        update_count_{0} {
+  public:
+    explicit PositionTrackerImpl(std::shared_ptr<AccountManager> account_mgr, std::string db_path,
+                                 int refresh_interval_seconds = 30)
+        : account_mgr_{std::move(account_mgr)}, db_path_{std::move(db_path)},
+          refresh_interval_{refresh_interval_seconds}, running_{false}, paused_{false},
+          update_count_{0} {
 
         // Open DuckDB connection
         db_ = std::make_unique<duckdb::DuckDB>(db_path_);
@@ -45,9 +47,13 @@ public:
         spdlog::info("PositionTracker initialized (refresh interval: {}s)", refresh_interval_);
     }
 
-    ~PositionTrackerImpl() {
-        stop();
-    }
+    ~PositionTrackerImpl() { stop(); }
+
+    // Rule of Five: Explicitly delete copy operations, default move operations
+    PositionTrackerImpl(PositionTrackerImpl const&) = delete;
+    auto operator=(PositionTrackerImpl const&) -> PositionTrackerImpl& = delete;
+    PositionTrackerImpl(PositionTrackerImpl&&) noexcept = default;
+    auto operator=(PositionTrackerImpl&&) noexcept -> PositionTrackerImpl& = default;
 
     // ========================================================================
     // Control Methods
@@ -69,13 +75,14 @@ public:
         spdlog::info("Starting PositionTracker for account: {}", account_id_);
 
         // Start background thread
-        tracking_thread_ = std::thread([this]() { trackingLoop(); });
+        tracking_thread_ = std::thread([this]() -> void { trackingLoop(); });
     }
 
     auto stop() -> void {
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            if (!running_) return;
+            if (!running_)
+                return;
 
             spdlog::info("Stopping PositionTracker (total updates: {})", update_count_.load());
             running_ = false;
@@ -115,13 +122,12 @@ public:
         return cached_positions_;
     }
 
-    [[nodiscard]] auto getPosition(std::string const& symbol) const
-        -> std::optional<Position> {
+    [[nodiscard]] auto getPosition(std::string const& symbol) const -> std::optional<Position> {
 
         std::lock_guard<std::mutex> lock(mutex_);
 
         auto it = std::find_if(cached_positions_.begin(), cached_positions_.end(),
-            [&symbol](auto const& pos) { return pos.symbol == symbol; });
+                               [&symbol](auto const& pos) -> bool { return pos.symbol == symbol; });
 
         if (it != cached_positions_.end()) {
             return *it;
@@ -135,22 +141,16 @@ public:
         return cached_positions_.size();
     }
 
-    [[nodiscard]] auto isRunning() const noexcept -> bool {
-        return running_;
-    }
+    [[nodiscard]] auto isRunning() const noexcept -> bool { return running_; }
 
-    [[nodiscard]] auto isPaused() const noexcept -> bool {
-        return paused_;
-    }
+    [[nodiscard]] auto isPaused() const noexcept -> bool { return paused_; }
 
     [[nodiscard]] auto getLastUpdateTime() const noexcept -> Timestamp {
         std::lock_guard<std::mutex> lock(mutex_);
         return last_update_timestamp_;
     }
 
-    [[nodiscard]] auto getUpdateCount() const noexcept -> int {
-        return update_count_;
-    }
+    [[nodiscard]] auto getUpdateCount() const noexcept -> int { return update_count_; }
 
     // ========================================================================
     // Portfolio Analytics
@@ -179,7 +179,8 @@ public:
     }
 
     [[nodiscard]] auto calculatePortfolioHeat(double total_equity) const -> double {
-        if (total_equity <= 0.0) return 0.0;
+        if (total_equity <= 0.0)
+            return 0.0;
 
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -191,7 +192,7 @@ public:
         return (total_position_value / total_equity) * 100.0;
     }
 
-private:
+  private:
     // ========================================================================
     // Tracking Loop (Runs in background thread)
     // ========================================================================
@@ -205,15 +206,13 @@ private:
         while (running_) {
             // Wait for refresh interval or stop signal
             std::unique_lock<std::mutex> lock(mutex_);
-            auto wait_result = cv_.wait_for(
-                lock,
-                std::chrono::seconds(refresh_interval_),
-                [this]() { return !running_ || !paused_; }
-            );
+            cv_.wait_for(lock, std::chrono::seconds(refresh_interval_),
+                         [this]() -> bool { return !running_ || !paused_; });
 
             lock.unlock();
 
-            if (!running_) break;
+            if (!running_)
+                break;
 
             if (!paused_) {
                 updatePositions();
@@ -230,7 +229,8 @@ private:
     auto updatePositions() -> void {
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        spdlog::debug("Fetching positions from Schwab API (update #{})", update_count_ + 1);
+        spdlog::debug("Fetching positions from Schwab API (update #{})",
+                      update_count_.load(std::memory_order_relaxed) + 1);
 
         // Fetch current positions from Schwab API
         auto positions_result = account_mgr_->getPositions(account_id_);
@@ -257,18 +257,13 @@ private:
         persistPositionHistory(new_positions);
 
         auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end_time - start_time
-        );
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        update_count_++;
+        auto const current_update = update_count_.fetch_add(1, std::memory_order_relaxed) + 1;
 
-        spdlog::info(
-            "Position update #{} complete: {} positions (took {}ms)",
-            update_count_.load(),
-            new_positions.size(),
-            duration.count()
-        );
+        spdlog::info("Position update #{} complete: {} positions (took {}ms)", current_update,
+                     new_positions.size(), duration.count());
 
         // Log P/L summary
         logPnLSummary(new_positions);
@@ -295,8 +290,8 @@ private:
         // Detect NEW positions (OPENED)
         for (auto const& [symbol, pos] : new_map) {
             if (old_map.find(symbol) == old_map.end()) {
-                spdlog::info("NEW POSITION OPENED: {} ({} shares @ ${:.2f})",
-                           symbol, pos.quantity, pos.average_cost);
+                spdlog::info("NEW POSITION OPENED: {} ({} shares @ ${:.2f})", symbol, pos.quantity,
+                             pos.average_cost);
                 recordPositionChange("OPENED", pos, std::nullopt);
             }
         }
@@ -304,8 +299,7 @@ private:
         // Detect CLOSED positions
         for (auto const& [symbol, pos] : old_map) {
             if (new_map.find(symbol) == new_map.end()) {
-                spdlog::warn("POSITION CLOSED: {} (was {} shares)",
-                           symbol, pos.quantity);
+                spdlog::warn("POSITION CLOSED: {} (was {} shares)", symbol, pos.quantity);
                 recordPositionChange("CLOSED", pos, std::nullopt);
             }
         }
@@ -315,14 +309,13 @@ private:
             if (old_map.find(symbol) != old_map.end()) {
                 auto const& old_pos = old_map[symbol];
 
-                if (new_pos.quantity != old_pos.quantity) {
-                    std::string change_type = (new_pos.quantity > old_pos.quantity)
-                        ? "INCREASED" : "DECREASED";
+                if (std::abs(new_pos.quantity - old_pos.quantity) > quantity_epsilon) {
+                    std::string change_type =
+                        (new_pos.quantity > old_pos.quantity) ? "INCREASED" : "DECREASED";
 
-                    spdlog::info("POSITION {}: {} ({} -> {} shares, change: {})",
-                               change_type, symbol,
-                               old_pos.quantity, new_pos.quantity,
-                               new_pos.quantity - old_pos.quantity);
+                    spdlog::info("POSITION {}: {} ({} -> {} shares, change: {})", change_type,
+                                 symbol, old_pos.quantity, new_pos.quantity,
+                                 new_pos.quantity - old_pos.quantity);
 
                     recordPositionChange(change_type, new_pos, old_pos);
                 }
@@ -330,11 +323,8 @@ private:
         }
     }
 
-    auto recordPositionChange(
-        std::string const& change_type,
-        Position const& new_pos,
-        std::optional<Position> const& old_pos
-    ) -> void {
+    auto recordPositionChange(std::string const& change_type, Position const& new_pos,
+                              std::optional<Position> const& old_pos) -> void {
         try {
             std::string query = R"(
                 INSERT INTO position_changes (
@@ -347,16 +337,9 @@ private:
 
             auto stmt = conn_->Prepare(query);
             stmt->Execute(
-                new_pos.account_id,
-                new_pos.symbol,
-                change_type,
-                old_pos ? old_pos->quantity : 0,
-                new_pos.quantity,
-                new_pos.quantity - (old_pos ? old_pos->quantity : 0),
-                old_pos ? old_pos->average_cost : 0.0,
-                new_pos.average_cost,
-                new_pos.current_price
-            );
+                new_pos.account_id, new_pos.symbol, change_type, old_pos ? old_pos->quantity : 0.0,
+                new_pos.quantity, new_pos.quantity - (old_pos ? old_pos->quantity : 0.0),
+                old_pos ? old_pos->average_cost : 0.0, new_pos.average_cost, new_pos.current_price);
 
         } catch (std::exception const& e) {
             spdlog::error("Failed to record position change: {}", e.what());
@@ -373,9 +356,7 @@ private:
             conn_->Query("BEGIN TRANSACTION");
 
             // Delete existing positions for this account
-            auto delete_stmt = conn_->Prepare(
-                "DELETE FROM positions WHERE account_id = ?"
-            );
+            auto delete_stmt = conn_->Prepare("DELETE FROM positions WHERE account_id = ?");
             delete_stmt->Execute(account_id_);
 
             // Insert current positions
@@ -408,14 +389,12 @@ private:
         )";
 
         auto stmt = conn_->Prepare(query);
-        stmt->Execute(
-            pos.account_id, pos.symbol, pos.asset_type, pos.cusip,
-            pos.quantity, pos.long_quantity, pos.short_quantity,
-            pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
-            pos.unrealized_pnl, pos.unrealized_pnl_percent,
-            pos.day_pnl, pos.day_pnl_percent, pos.previous_close,
-            pos.is_bot_managed, pos.managed_by, pos.opened_by, pos.bot_strategy, pos.opened_at
-        );
+        stmt->Execute(pos.account_id, pos.symbol, pos.asset_type, pos.cusip, pos.quantity,
+                      pos.long_quantity, pos.short_quantity, pos.average_cost, pos.current_price,
+                      pos.market_value, pos.cost_basis, pos.unrealized_pnl,
+                      pos.unrealized_pnl_percent, pos.day_pnl, pos.day_pnl_percent,
+                      pos.previous_close, pos.is_bot_managed, pos.managed_by, pos.opened_by,
+                      pos.bot_strategy, pos.opened_at);
     }
 
     auto persistPositionHistory(std::vector<Position> const& positions) -> void {
@@ -431,11 +410,9 @@ private:
                 )";
 
                 auto stmt = conn_->Prepare(query);
-                stmt->Execute(
-                    pos.account_id, pos.symbol, pos.asset_type, pos.quantity,
-                    pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
-                    pos.unrealized_pnl, pos.unrealized_pnl_percent, pos.day_pnl
-                );
+                stmt->Execute(pos.account_id, pos.symbol, pos.asset_type, pos.quantity,
+                              pos.average_cost, pos.current_price, pos.market_value, pos.cost_basis,
+                              pos.unrealized_pnl, pos.unrealized_pnl_percent, pos.day_pnl);
             }
         } catch (std::exception const& e) {
             spdlog::error("Failed to persist position history: {}", e.what());
@@ -474,13 +451,13 @@ private:
         }
 
         spdlog::info("=== PORTFOLIO SUMMARY ===");
-        spdlog::info("  Positions: {} (Manual: {}, Bot: {})",
-                   positions.size(), manual_count, bot_count);
-        spdlog::info("  Market Value: ${:,.2f}", total_market_value);
-        spdlog::info("  Cost Basis: ${:,.2f}", total_cost_basis);
-        spdlog::info("  Unrealized P/L: ${:,.2f} ({:.2f}%)",
-                   total_unrealized_pnl, total_pnl_percent);
-        spdlog::info("  Day P/L: ${:,.2f}", total_day_pnl);
+        spdlog::info("  Positions: {} (Manual: {}, Bot: {})", positions.size(), manual_count,
+                     bot_count);
+        spdlog::info("  Market Value: ${:.2f}", total_market_value);
+        spdlog::info("  Cost Basis: ${:.2f}", total_cost_basis);
+        spdlog::info("  Unrealized P/L: ${:.2f} ({:.2f}%)", total_unrealized_pnl,
+                     total_pnl_percent);
+        spdlog::info("  Day P/L: ${:.2f}", total_day_pnl);
         spdlog::info("========================");
     }
 

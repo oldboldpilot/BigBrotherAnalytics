@@ -13,7 +13,10 @@
 
 #include "account_manager.hpp"
 #include "account_types.hpp"
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <curl/curl.h>
 #include <duckdb.hpp>
 #include <format>
@@ -126,17 +129,19 @@ auto parsePositionFromJson(json const& data, std::string const& account_id) -> R
         }
 
         // Position quantities
-        pos.long_quantity = data.value("longQuantity", 0LL);
-        pos.short_quantity = data.value("shortQuantity", 0LL);
+        pos.long_quantity = data.value("longQuantity", 0.0);
+        pos.short_quantity = data.value("shortQuantity", 0.0);
         pos.quantity = pos.long_quantity - pos.short_quantity;
 
         // Pricing
         pos.average_cost = data.value("averagePrice", 0.0);
-        pos.current_price = data.value("marketValue", 0.0) /
-                            static_cast<double>(std::max(1LL, std::abs(pos.quantity)));
+        auto const market_value = data.value("marketValue", 0.0);
+        auto const quantity_abs = std::max(quantity_epsilon, std::abs(pos.quantity));
+        pos.current_price =
+            (quantity_abs <= quantity_epsilon) ? pos.average_cost : market_value / quantity_abs;
 
-        pos.market_value = data.value("marketValue", 0.0);
-        pos.cost_basis = static_cast<double>(std::abs(pos.quantity)) * pos.average_cost;
+        pos.market_value = market_value;
+        pos.cost_basis = std::abs(pos.quantity) * pos.average_cost;
 
         // P/L calculations
         pos.unrealized_pnl = pos.market_value - pos.cost_basis;
@@ -229,7 +234,7 @@ auto parseTransactionFromJson(json const& data, std::string const& account_id)
             }
 
             txn.instruction = static_cast<TransactionInstruction>(item.value("instruction", 0));
-            txn.quantity = item.value("amount", 0LL);
+            txn.quantity = item.value("amount", 0.0);
             txn.price = item.value("price", 0.0);
         }
 
@@ -268,6 +273,14 @@ class AccountManagerImpl {
 
         spdlog::info("AccountManager initialized with database: {}", db_path_);
     }
+
+    ~AccountManagerImpl() = default;
+
+    // Rule of Five: Explicitly delete copy operations, default move operations
+    AccountManagerImpl(AccountManagerImpl const&) = delete;
+    auto operator=(AccountManagerImpl const&) -> AccountManagerImpl& = delete;
+    AccountManagerImpl(AccountManagerImpl&&) noexcept = default;
+    auto operator=(AccountManagerImpl&&) noexcept -> AccountManagerImpl& = default;
 
     // ========================================================================
     // Account Information

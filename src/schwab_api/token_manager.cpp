@@ -9,18 +9,18 @@
 // Global module fragment
 module;
 
+#include <atomic>
 #include <curl/curl.h>
 #include <duckdb.hpp>
-#include <mutex>
 #include <fstream>
-#include <sstream>
-#include <iostream>
-#include <thread>
-#include <atomic>
-#include <random>
 #include <iomanip>
-#include <openssl/sha.h>
+#include <iostream>
+#include <mutex>
 #include <openssl/evp.h>
+#include <openssl/sha.h>
+#include <random>
+#include <sstream>
+#include <thread>
 
 // Module implementation unit declaration
 module bigbrother.schwab_api;
@@ -30,7 +30,7 @@ import bigbrother.utils.timer;
 
 // JSON parsing
 #ifdef HAS_NLOHMANN_JSON
-#include <nlohmann/json.hpp>
+    #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 #endif
 
@@ -48,7 +48,8 @@ namespace bigbrother::schwab {
  * 3. Use access token for API calls (30-min lifetime)
  * 4. Refresh access token using refresh token (7-day lifetime)
  *
- * Reference: https://developer.schwab.com/products/trader-api--individual/details/documentation/Retail%20Trader%20API%20Production
+ * Reference:
+ * https://developer.schwab.com/products/trader-api--individual/details/documentation/Retail%20Trader%20API%20Production
  */
 
 namespace {
@@ -74,12 +75,7 @@ constexpr char const* OAUTH_TABLE_SCHEMA = R"(
 )";
 
 // CURL callback for writing response data
-auto curlWriteCallback(
-    void* contents,
-    size_t size,
-    size_t nmemb,
-    std::string* output
-) -> size_t {
+auto curlWriteCallback(void* contents, size_t size, size_t nmemb, std::string* output) -> size_t {
     size_t const total_size = size * nmemb;
     output->append(static_cast<char*>(contents), total_size);
     return total_size;
@@ -92,8 +88,8 @@ auto urlEncode(std::string const& value) -> std::string {
     escaped << std::hex;
 
     for (char c : value) {
-        if (std::isalnum(static_cast<unsigned char>(c)) ||
-            c == '-' || c == '_' || c == '.' || c == '~') {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' ||
+            c == '~') {
             escaped << c;
         } else {
             escaped << std::uppercase;
@@ -160,7 +156,7 @@ auto generateRandomString(size_t length) -> std::string {
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 65);  // charset length - 1
+    std::uniform_int_distribution<> dis(0, 65); // charset length - 1
 
     std::string result;
     result.reserve(length);
@@ -194,34 +190,24 @@ auto generateCodeChallenge(std::string const& verifier) -> std::string {
 
 [[nodiscard]] auto OAuth2Config::validate() const noexcept -> Result<void> {
     if (client_id.empty()) {
-        return makeError<void>(
-            ErrorCode::InvalidParameter,
-            "Client ID is required"
-        );
+        return makeError<void>(ErrorCode::InvalidParameter, "Client ID is required");
     }
 
     if (client_secret.empty()) {
-        return makeError<void>(
-            ErrorCode::InvalidParameter,
-            "Client secret is required"
-        );
+        return makeError<void>(ErrorCode::InvalidParameter, "Client secret is required");
     }
 
     if (redirect_uri.empty()) {
-        return makeError<void>(
-            ErrorCode::InvalidParameter,
-            "Redirect URI is required"
-        );
+        return makeError<void>(ErrorCode::InvalidParameter, "Redirect URI is required");
     }
 
     return {};
 }
 
 class TokenManager::Impl {
-public:
+  public:
     explicit Impl(OAuth2Config config)
-        : config_{std::move(config)},
-          refresh_thread_running_{false},
+        : config_{std::move(config)}, refresh_thread_running_{false},
           db_path_{"data/bigbrother.duckdb"} {
 
         // Initialize CURL
@@ -235,6 +221,12 @@ public:
         stopRefreshThread();
         curl_global_cleanup();
     }
+
+    // Rule of Five: Explicitly delete copy operations, explicitly define move operations
+    Impl(Impl const&) = delete;
+    auto operator=(Impl const&) -> Impl& = delete;
+    Impl(Impl&&) noexcept;
+    auto operator=(Impl&&) noexcept -> Impl&;
 
     auto initializeDatabase() -> void {
         try {
@@ -266,10 +258,8 @@ public:
         }
 
         if (config_.access_token.empty()) {
-            return makeError<std::string>(
-                ErrorCode::AuthenticationError,
-                "No access token available. Please authenticate first."
-            );
+            return makeError<std::string>(ErrorCode::AuthenticationError,
+                                          "No access token available. Please authenticate first.");
         }
 
         return config_.access_token;
@@ -284,28 +274,21 @@ public:
         PROFILE_SCOPE("TokenManager::refreshAccessToken");
 
         if (config_.refresh_token.empty()) {
-            return makeError<void>(
-                ErrorCode::AuthenticationError,
-                "No refresh token available"
-            );
+            return makeError<void>(ErrorCode::AuthenticationError, "No refresh token available");
         }
 
         // Prepare refresh request
         auto* curl = curl_easy_init();
         if (!curl) {
-            return makeError<void>(
-                ErrorCode::NetworkError,
-                "Failed to initialize CURL"
-            );
+            return makeError<void>(ErrorCode::NetworkError, "Failed to initialize CURL");
         }
 
         std::string response;
 
         // Build POST data
-        std::string post_data = "grant_type=refresh_token&refresh_token=" +
-                               config_.refresh_token +
-                               "&client_id=" + config_.client_id +
-                               "&client_secret=" + config_.client_secret;
+        std::string post_data = "grant_type=refresh_token&refresh_token=" + config_.refresh_token +
+                                "&client_id=" + config_.client_id +
+                                "&client_secret=" + config_.client_secret;
 
         // Set CURL options
         curl_easy_setopt(curl, CURLOPT_URL, TOKEN_URL);
@@ -326,10 +309,8 @@ public:
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
-            return makeError<void>(
-                ErrorCode::NetworkError,
-                std::string("CURL error: ") + curl_easy_strerror(res)
-            );
+            return makeError<void>(ErrorCode::NetworkError,
+                                   std::string("CURL error: ") + curl_easy_strerror(res));
         }
 
 #ifdef HAS_NLOHMANN_JSON
@@ -341,10 +322,8 @@ public:
             if (json_response.contains("error")) {
                 std::string const error = json_response["error"];
                 std::string const error_desc = json_response.value("error_description", "");
-                return makeError<void>(
-                    ErrorCode::AuthenticationError,
-                    "OAuth error: " + error + " - " + error_desc
-                );
+                return makeError<void>(ErrorCode::AuthenticationError,
+                                       "OAuth error: " + error + " - " + error_desc);
             }
 
             // Extract new tokens
@@ -352,32 +331,28 @@ public:
             config_.refresh_token = json_response.value("refresh_token", config_.refresh_token);
 
             // Calculate expiry time
-            int const expires_in = json_response.value("expires_in", 1800);  // Default 30 min
-            config_.token_expiry = std::chrono::system_clock::now() +
-                                  std::chrono::seconds(expires_in);
+            int const expires_in = json_response.value("expires_in", 1800); // Default 30 min
+            config_.token_expiry =
+                std::chrono::system_clock::now() + std::chrono::seconds(expires_in);
 
             LOG_INFO("Access token refreshed successfully (expires in {} seconds)", expires_in);
 
             // Save refreshed tokens to DuckDB
             auto save_result = saveTokensToDB();
             if (!save_result) {
-                LOG_WARN("Failed to save refreshed tokens to database: {}", save_result.error().message);
+                LOG_WARN("Failed to save refreshed tokens to database: {}",
+                         save_result.error().message);
             }
 
             return {};
 
         } catch (json::exception const& e) {
-            return makeError<void>(
-                ErrorCode::UnknownError,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<void>(ErrorCode::UnknownError,
+                                   std::string("JSON parse error: ") + e.what());
         }
 #else
         LOG_ERROR("JSON library not available, cannot parse token response");
-        return makeError<void>(
-            ErrorCode::UnknownError,
-            "JSON library not available"
-        );
+        return makeError<void>(ErrorCode::UnknownError, "JSON library not available");
 #endif
     }
 
@@ -394,13 +369,10 @@ public:
         LOG_INFO("Generated PKCE code challenge: {}", code_challenge_);
 
         // Build authorization URL with PKCE
-        std::string auth_url = std::string(AUTH_URL) +
-                              "?client_id=" + urlEncode(config_.client_id) +
-                              "&redirect_uri=" + urlEncode(config_.redirect_uri) +
-                              "&response_type=code" +
-                              "&scope=api" +
-                              "&code_challenge=" + code_challenge_ +
-                              "&code_challenge_method=S256";
+        std::string auth_url =
+            std::string(AUTH_URL) + "?client_id=" + urlEncode(config_.client_id) +
+            "&redirect_uri=" + urlEncode(config_.redirect_uri) + "&response_type=code" +
+            "&scope=api" + "&code_challenge=" + code_challenge_ + "&code_challenge_method=S256";
 
         LOG_INFO("Authorization URL generated (with PKCE S256)");
 
@@ -415,8 +387,7 @@ public:
         if (code_verifier_.empty()) {
             return makeError<void>(
                 ErrorCode::AuthenticationError,
-                "PKCE code verifier not found. Call getAuthorizationUrl() first."
-            );
+                "PKCE code verifier not found. Call getAuthorizationUrl() first.");
         }
 
         auto* curl = curl_easy_init();
@@ -428,10 +399,10 @@ public:
 
         // Build POST data for auth code exchange (with PKCE verifier)
         std::string post_data = "grant_type=authorization_code&code=" + urlEncode(auth_code) +
-                               "&redirect_uri=" + urlEncode(config_.redirect_uri) +
-                               "&client_id=" + urlEncode(config_.client_id) +
-                               "&client_secret=" + urlEncode(config_.client_secret) +
-                               "&code_verifier=" + code_verifier_;
+                                "&redirect_uri=" + urlEncode(config_.redirect_uri) +
+                                "&client_id=" + urlEncode(config_.client_id) +
+                                "&client_secret=" + urlEncode(config_.client_secret) +
+                                "&code_verifier=" + code_verifier_;
 
         // Set CURL options
         curl_easy_setopt(curl, CURLOPT_URL, TOKEN_URL);
@@ -456,17 +427,13 @@ public:
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
-            return makeError<void>(
-                ErrorCode::NetworkError,
-                std::string("CURL error: ") + curl_easy_strerror(res)
-            );
+            return makeError<void>(ErrorCode::NetworkError,
+                                   std::string("CURL error: ") + curl_easy_strerror(res));
         }
 
         if (http_code != 200) {
-            return makeError<void>(
-                ErrorCode::AuthenticationError,
-                "HTTP error " + std::to_string(http_code) + ": " + response
-            );
+            return makeError<void>(ErrorCode::AuthenticationError,
+                                   "HTTP error " + std::to_string(http_code) + ": " + response);
         }
 
 #ifdef HAS_NLOHMANN_JSON
@@ -474,20 +441,19 @@ public:
             auto const json_response = json::parse(response);
 
             if (json_response.contains("error")) {
-                return makeError<void>(
-                    ErrorCode::AuthenticationError,
-                    "OAuth error: " + json_response["error"].get<std::string>()
-                );
+                return makeError<void>(ErrorCode::AuthenticationError,
+                                       "OAuth error: " + json_response["error"].get<std::string>());
             }
 
             config_.access_token = json_response["access_token"];
             config_.refresh_token = json_response["refresh_token"];
 
             int const expires_in = json_response.value("expires_in", 1800);
-            config_.token_expiry = std::chrono::system_clock::now() +
-                                  std::chrono::seconds(expires_in);
+            config_.token_expiry =
+                std::chrono::system_clock::now() + std::chrono::seconds(expires_in);
 
-            LOG_INFO("Successfully exchanged auth code for tokens (expires in {} seconds)", expires_in);
+            LOG_INFO("Successfully exchanged auth code for tokens (expires in {} seconds)",
+                     expires_in);
 
             // Save tokens to DuckDB
             auto save_result = saveTokensToDB();
@@ -501,10 +467,8 @@ public:
             return {};
 
         } catch (json::exception const& e) {
-            return makeError<void>(
-                ErrorCode::UnknownError,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<void>(ErrorCode::UnknownError,
+                                   std::string("JSON parse error: ") + e.what());
         }
 #else
         return makeError<void>(ErrorCode::UnknownError, "JSON library not available");
@@ -513,7 +477,7 @@ public:
 
     auto startRefreshThread() -> void {
         if (refresh_thread_running_.exchange(true)) {
-            return;  // Already running
+            return; // Already running
         }
 
         refresh_thread_ = std::thread([this]() {
@@ -562,10 +526,8 @@ public:
 
         std::ofstream file{file_path};
         if (!file.is_open()) {
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                "Failed to open file for writing: " + file_path
-            );
+            return makeError<void>(ErrorCode::DatabaseError,
+                                   "Failed to open file for writing: " + file_path);
         }
 
         file << j.dump(4);
@@ -581,10 +543,7 @@ public:
         std::lock_guard lock{mutex_};
 
         if (!conn_) {
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                "DuckDB connection not initialized"
-            );
+            return makeError<void>(ErrorCode::DatabaseError, "DuckDB connection not initialized");
         }
 
         try {
@@ -594,8 +553,8 @@ public:
             expiry_oss << std::put_time(std::gmtime(&expiry_time), "%Y-%m-%d %H:%M:%S");
 
             // Delete existing tokens for this client_id
-            std::string delete_query = "DELETE FROM oauth_tokens WHERE client_id = '" +
-                                      config_.client_id + "'";
+            std::string delete_query =
+                "DELETE FROM oauth_tokens WHERE client_id = '" + config_.client_id + "'";
             auto delete_result = conn_->Query(delete_query);
             if (delete_result->HasError()) {
                 LOG_WARN("Failed to delete old tokens: {}", delete_result->GetError());
@@ -604,32 +563,29 @@ public:
             // Insert new tokens
             std::ostringstream insert_query;
             insert_query << "INSERT INTO oauth_tokens ("
-                        << "client_id, access_token, refresh_token, token_type, "
-                        << "expires_at, code_verifier, code_challenge) VALUES ("
-                        << "'" << config_.client_id << "', "
-                        << "'" << config_.access_token << "', "
-                        << "'" << config_.refresh_token << "', "
-                        << "'Bearer', "
-                        << "TIMESTAMP '" << expiry_oss.str() << "', "
-                        << "'" << code_verifier_ << "', "
-                        << "'" << code_challenge_ << "')";
+                         << "client_id, access_token, refresh_token, token_type, "
+                         << "expires_at, code_verifier, code_challenge) VALUES ("
+                         << "'" << config_.client_id << "', "
+                         << "'" << config_.access_token << "', "
+                         << "'" << config_.refresh_token << "', "
+                         << "'Bearer', "
+                         << "TIMESTAMP '" << expiry_oss.str() << "', "
+                         << "'" << code_verifier_ << "', "
+                         << "'" << code_challenge_ << "')";
 
             auto insert_result = conn_->Query(insert_query.str());
             if (insert_result->HasError()) {
-                return makeError<void>(
-                    ErrorCode::DatabaseError,
-                    "Failed to save tokens to DuckDB: " + insert_result->GetError()
-                );
+                return makeError<void>(ErrorCode::DatabaseError,
+                                       "Failed to save tokens to DuckDB: " +
+                                           insert_result->GetError());
             }
 
             LOG_INFO("Tokens saved to DuckDB successfully");
             return {};
 
         } catch (std::exception const& e) {
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                std::string("DuckDB save error: ") + e.what()
-            );
+            return makeError<void>(ErrorCode::DatabaseError,
+                                   std::string("DuckDB save error: ") + e.what());
         }
     }
 
@@ -637,32 +593,27 @@ public:
         std::lock_guard lock{mutex_};
 
         if (!conn_) {
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                "DuckDB connection not initialized"
-            );
+            return makeError<void>(ErrorCode::DatabaseError, "DuckDB connection not initialized");
         }
 
         try {
             std::string query = "SELECT access_token, refresh_token, expires_at, "
-                              "code_verifier, code_challenge FROM oauth_tokens "
-                              "WHERE client_id = '" + config_.client_id + "' "
-                              "ORDER BY created_at DESC LIMIT 1";
+                                "code_verifier, code_challenge FROM oauth_tokens "
+                                "WHERE client_id = '" +
+                                config_.client_id +
+                                "' "
+                                "ORDER BY created_at DESC LIMIT 1";
 
             auto result = conn_->Query(query);
 
             if (result->HasError()) {
-                return makeError<void>(
-                    ErrorCode::DatabaseError,
-                    "Failed to load tokens: " + result->GetError()
-                );
+                return makeError<void>(ErrorCode::DatabaseError,
+                                       "Failed to load tokens: " + result->GetError());
             }
 
             if (result->RowCount() == 0) {
-                return makeError<void>(
-                    ErrorCode::DatabaseError,
-                    "No tokens found for client_id: " + config_.client_id
-                );
+                return makeError<void>(ErrorCode::DatabaseError,
+                                       "No tokens found for client_id: " + config_.client_id);
             }
 
             // Extract tokens from first row
@@ -694,16 +645,11 @@ public:
                 return {};
             }
 
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                "Failed to parse token data"
-            );
+            return makeError<void>(ErrorCode::DatabaseError, "Failed to parse token data");
 
         } catch (std::exception const& e) {
-            return makeError<void>(
-                ErrorCode::DatabaseError,
-                std::string("DuckDB load error: ") + e.what()
-            );
+            return makeError<void>(ErrorCode::DatabaseError,
+                                   std::string("DuckDB load error: ") + e.what());
         }
     }
 
@@ -739,26 +685,21 @@ auto TokenManager::operator=(TokenManager&&) noexcept -> TokenManager& = default
     return pImpl_->refreshAccessToken();
 }
 
-[[nodiscard]] auto TokenManager::exchangeAuthCode(std::string const& auth_code)
-    -> Result<void> {
+[[nodiscard]] auto TokenManager::exchangeAuthCode(std::string const& auth_code) -> Result<void> {
     return pImpl_->exchangeAuthCode(auth_code);
 }
 
-[[nodiscard]] auto TokenManager::saveTokens(std::string const& file_path) const
-    -> Result<void> {
+[[nodiscard]] auto TokenManager::saveTokens(std::string const& file_path) const -> Result<void> {
     return pImpl_->saveTokens(file_path);
 }
 
-[[nodiscard]] auto TokenManager::loadTokens(std::string const& file_path)
-    -> Result<OAuth2Config> {
+[[nodiscard]] auto TokenManager::loadTokens(std::string const& file_path) -> Result<OAuth2Config> {
 
 #ifdef HAS_NLOHMANN_JSON
     std::ifstream file{file_path};
     if (!file.is_open()) {
-        return makeError<OAuth2Config>(
-            ErrorCode::DatabaseError,
-            "Failed to open tokens file: " + file_path
-        );
+        return makeError<OAuth2Config>(ErrorCode::DatabaseError,
+                                       "Failed to open tokens file: " + file_path);
     }
 
     try {
@@ -779,10 +720,8 @@ auto TokenManager::operator=(TokenManager&&) noexcept -> TokenManager& = default
         return config;
 
     } catch (json::exception const& e) {
-        return makeError<OAuth2Config>(
-            ErrorCode::UnknownError,
-            std::string("JSON parse error: ") + e.what()
-        );
+        return makeError<OAuth2Config>(ErrorCode::UnknownError,
+                                       std::string("JSON parse error: ") + e.what());
     }
 #else
     return makeError<OAuth2Config>(ErrorCode::UnknownError, "JSON library not available");
@@ -801,17 +740,13 @@ auto TokenManager::operator=(TokenManager&&) noexcept -> TokenManager& = default
     return pImpl_->loadTokensFromDB();
 }
 
-[[nodiscard]] auto TokenManager::initialOAuthFlow(
-    std::string const& client_id,
-    std::string const& redirect_uri
-) -> Result<OAuth2Config> {
+[[nodiscard]] auto TokenManager::initialOAuthFlow(std::string const& client_id,
+                                                  std::string const& redirect_uri)
+    -> Result<OAuth2Config> {
 
     // Generate authorization URL
-    std::string auth_url = std::string(AUTH_URL) +
-                          "?client_id=" + client_id +
-                          "&redirect_uri=" + redirect_uri +
-                          "&response_type=code" +
-                          "&scope=api";
+    std::string auth_url = std::string(AUTH_URL) + "?client_id=" + client_id +
+                           "&redirect_uri=" + redirect_uri + "&response_type=code" + "&scope=api";
 
     LOG_INFO("=================================================================");
     LOG_INFO("SCHWAB API INITIAL AUTHENTICATION");
@@ -838,5 +773,12 @@ auto TokenManager::operator=(TokenManager&&) noexcept -> TokenManager& = default
 
     return config;
 }
+
+// ============================================================================
+// TokenManager::Impl Move Operations (defined here for complete DuckDB types)
+// ============================================================================
+
+TokenManager::Impl::Impl(Impl&&) noexcept = default;
+auto TokenManager::Impl::operator=(Impl&&) noexcept -> Impl& = default;
 
 } // namespace bigbrother::schwab

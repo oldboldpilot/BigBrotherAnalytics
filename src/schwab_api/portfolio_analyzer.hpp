@@ -15,12 +15,12 @@
 #pragma once
 
 #include "account_types.hpp"
-#include <vector>
-#include <unordered_map>
-#include <string>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <numeric>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace bigbrother::schwab {
 
@@ -40,16 +40,16 @@ struct SectorExposure {
  * Risk metrics
  */
 struct RiskMetrics {
-    double portfolio_heat{0.0};           // Total risk as % of capital
-    double value_at_risk_95{0.0};         // VaR at 95% confidence
-    double expected_shortfall{0.0};       // Conditional VaR
-    double portfolio_beta{0.0};           // Market beta
-    double portfolio_volatility{0.0};     // Portfolio volatility
-    double sharpe_ratio{0.0};             // Risk-adjusted return
-    double sortino_ratio{0.0};            // Downside risk-adjusted return
-    double max_drawdown{0.0};             // Maximum drawdown
-    double concentration_risk{0.0};       // Herfindahl index
-    int positions_at_risk{0};             // Positions with stop-loss approaching
+    double portfolio_heat{0.0};       // Total risk as % of capital
+    double value_at_risk_95{0.0};     // VaR at 95% confidence
+    double expected_shortfall{0.0};   // Conditional VaR
+    double portfolio_beta{0.0};       // Market beta
+    double portfolio_volatility{0.0}; // Portfolio volatility
+    double sharpe_ratio{0.0};         // Risk-adjusted return
+    double sortino_ratio{0.0};        // Downside risk-adjusted return
+    double max_drawdown{0.0};         // Maximum drawdown
+    double concentration_risk{0.0};   // Herfindahl index
+    int positions_at_risk{0};         // Positions with stop-loss approaching
 };
 
 /**
@@ -64,8 +64,8 @@ struct PerformanceMetrics {
     double month_pnl{0.0};
     double ytd_pnl{0.0};
     double annualized_return{0.0};
-    double win_rate{0.0};                 // % of winning trades
-    double profit_factor{0.0};            // Gross profit / gross loss
+    double win_rate{0.0};      // % of winning trades
+    double profit_factor{0.0}; // Gross profit / gross loss
     double avg_win{0.0};
     double avg_loss{0.0};
     double largest_win{0.0};
@@ -76,7 +76,7 @@ struct PerformanceMetrics {
  * Portfolio Analyzer - Advanced portfolio analytics
  */
 class PortfolioAnalyzer {
-public:
+  public:
     PortfolioAnalyzer() = default;
 
     // ========================================================================
@@ -86,10 +86,8 @@ public:
     /**
      * Calculate comprehensive portfolio summary
      */
-    [[nodiscard]] auto analyzePortfolio(
-        std::vector<Position> const& positions,
-        Balance const& balance
-    ) const -> PortfolioSummary {
+    [[nodiscard]] auto analyzePortfolio(std::vector<Position> const& positions,
+                                        Balance const& balance) const -> PortfolioSummary {
 
         PortfolioSummary summary;
         summary.total_equity = balance.total_equity;
@@ -105,7 +103,8 @@ public:
         summary.portfolio_concentration = 0.0;
 
         for (auto const& pos : positions) {
-            if (pos.quantity == 0) continue;
+            if (std::abs(pos.quantity) <= quantity_epsilon)
+                continue;
 
             summary.position_count++;
             summary.total_market_value += pos.market_value;
@@ -122,9 +121,8 @@ public:
             // Calculate position weight
             if (balance.total_equity > 0.0) {
                 double weight = (std::abs(pos.market_value) / balance.total_equity) * 100.0;
-                summary.largest_position_percent = std::max(
-                    summary.largest_position_percent, weight
-                );
+                summary.largest_position_percent =
+                    std::max(summary.largest_position_percent, weight);
 
                 // Herfindahl index
                 double weight_fraction = weight / 100.0;
@@ -139,8 +137,7 @@ public:
         }
 
         if (balance.total_equity > 0.0) {
-            summary.total_day_pnl_percent =
-                (summary.total_day_pnl / balance.total_equity) * 100.0;
+            summary.total_day_pnl_percent = (summary.total_day_pnl / balance.total_equity) * 100.0;
         }
 
         summary.updated_at = getCurrentTimestamp();
@@ -152,16 +149,16 @@ public:
      * Calculate sector exposure
      * Requires sector mapping (symbol -> sector)
      */
-    [[nodiscard]] auto calculateSectorExposure(
-        std::vector<Position> const& positions,
-        std::unordered_map<std::string, std::string> const& sector_map,
-        double total_equity
-    ) const -> std::vector<SectorExposure> {
+    [[nodiscard]] auto
+    calculateSectorExposure(std::vector<Position> const& positions,
+                            std::unordered_map<std::string, std::string> const& sector_map,
+                            double total_equity) const -> std::vector<SectorExposure> {
 
         std::unordered_map<std::string, SectorExposure> sector_data;
 
         for (auto const& pos : positions) {
-            if (pos.quantity == 0) continue;
+            if (std::abs(pos.quantity) <= quantity_epsilon)
+                continue;
 
             // Get sector for symbol
             std::string sector = "Unknown";
@@ -183,23 +180,20 @@ public:
 
         for (auto& [sector, exposure] : sector_data) {
             if (total_equity > 0.0) {
-                exposure.percent_of_portfolio =
-                    (exposure.market_value / total_equity) * 100.0;
+                exposure.percent_of_portfolio = (exposure.market_value / total_equity) * 100.0;
             }
 
             if (exposure.market_value > 0.0) {
-                exposure.avg_pnl_percent =
-                    (exposure.total_pnl / exposure.market_value) * 100.0;
+                exposure.avg_pnl_percent = (exposure.total_pnl / exposure.market_value) * 100.0;
             }
 
             exposures.push_back(exposure);
         }
 
         // Sort by market value descending
-        std::sort(exposures.begin(), exposures.end(),
-            [](auto const& a, auto const& b) {
-                return a.market_value > b.market_value;
-            });
+        std::sort(exposures.begin(), exposures.end(), [](auto const& a, auto const& b) -> bool {
+            return a.market_value > b.market_value;
+        });
 
         return exposures;
     }
@@ -207,10 +201,8 @@ public:
     /**
      * Calculate risk metrics
      */
-    [[nodiscard]] auto calculateRiskMetrics(
-        std::vector<Position> const& positions,
-        Balance const& balance
-    ) const -> RiskMetrics {
+    [[nodiscard]] auto calculateRiskMetrics(std::vector<Position> const& positions,
+                                            Balance const& balance) const -> RiskMetrics {
 
         RiskMetrics metrics;
 
@@ -230,7 +222,8 @@ public:
         double max_position_percent = 0.0;
 
         for (auto const& pos : positions) {
-            if (pos.quantity == 0) continue;
+            if (std::abs(pos.quantity) <= quantity_epsilon)
+                continue;
 
             double weight = std::abs(pos.market_value) / balance.total_equity;
             metrics.concentration_risk += weight * weight;
@@ -248,8 +241,8 @@ public:
         }
 
         if (!returns.empty()) {
-            double avg_return = std::accumulate(returns.begin(), returns.end(), 0.0)
-                              / returns.size();
+            double avg_return =
+                std::accumulate(returns.begin(), returns.end(), 0.0) / returns.size();
 
             double variance = 0.0;
             for (auto const& ret : returns) {
@@ -270,8 +263,8 @@ public:
         }
 
         // Count positions at risk (losing > 5%)
-        metrics.positions_at_risk = std::count_if(positions.begin(), positions.end(),
-            [](auto const& pos) {
+        metrics.positions_at_risk =
+            std::count_if(positions.begin(), positions.end(), [](auto const& pos) -> bool {
                 return pos.unrealized_pnl_percent < -5.0;
             });
 
@@ -284,11 +277,10 @@ public:
     /**
      * Calculate performance metrics
      */
-    [[nodiscard]] auto calculatePerformanceMetrics(
-        std::vector<Position> const& positions,
-        std::vector<Transaction> const& transactions,
-        Balance const& balance
-    ) const -> PerformanceMetrics {
+    [[nodiscard]] auto calculatePerformanceMetrics(std::vector<Position> const& positions,
+                                                   std::vector<Transaction> const& transactions,
+                                                   Balance const& balance) const
+        -> PerformanceMetrics {
 
         PerformanceMetrics metrics;
 
@@ -311,7 +303,8 @@ public:
         std::vector<double> losses;
 
         for (auto const& txn : transactions) {
-            if (!txn.isTradeTransaction()) continue;
+            if (!txn.isTradeTransaction())
+                continue;
 
             // Simplified P/L calculation
             double pnl = txn.net_amount;
@@ -355,17 +348,14 @@ public:
     /**
      * Find largest positions
      */
-    [[nodiscard]] auto getLargestPositions(
-        std::vector<Position> const& positions,
-        int limit = 10
-    ) const -> std::vector<Position> {
+    [[nodiscard]] auto getLargestPositions(std::vector<Position> const& positions,
+                                           int limit = 10) const -> std::vector<Position> {
 
         auto sorted = positions;
 
-        std::sort(sorted.begin(), sorted.end(),
-            [](auto const& a, auto const& b) {
-                return std::abs(a.market_value) > std::abs(b.market_value);
-            });
+        std::sort(sorted.begin(), sorted.end(), [](auto const& a, auto const& b) -> bool {
+            return std::abs(a.market_value) > std::abs(b.market_value);
+        });
 
         if (sorted.size() > static_cast<size_t>(limit)) {
             sorted.resize(limit);
@@ -377,17 +367,14 @@ public:
     /**
      * Find top performers (by P/L)
      */
-    [[nodiscard]] auto getTopPerformers(
-        std::vector<Position> const& positions,
-        int limit = 10
-    ) const -> std::vector<Position> {
+    [[nodiscard]] auto getTopPerformers(std::vector<Position> const& positions,
+                                        int limit = 10) const -> std::vector<Position> {
 
         auto sorted = positions;
 
-        std::sort(sorted.begin(), sorted.end(),
-            [](auto const& a, auto const& b) {
-                return a.unrealized_pnl > b.unrealized_pnl;
-            });
+        std::sort(sorted.begin(), sorted.end(), [](auto const& a, auto const& b) -> bool {
+            return a.unrealized_pnl > b.unrealized_pnl;
+        });
 
         if (sorted.size() > static_cast<size_t>(limit)) {
             sorted.resize(limit);
@@ -399,17 +386,14 @@ public:
     /**
      * Find worst performers (by P/L)
      */
-    [[nodiscard]] auto getWorstPerformers(
-        std::vector<Position> const& positions,
-        int limit = 10
-    ) const -> std::vector<Position> {
+    [[nodiscard]] auto getWorstPerformers(std::vector<Position> const& positions,
+                                          int limit = 10) const -> std::vector<Position> {
 
         auto sorted = positions;
 
-        std::sort(sorted.begin(), sorted.end(),
-            [](auto const& a, auto const& b) {
-                return a.unrealized_pnl < b.unrealized_pnl;
-            });
+        std::sort(sorted.begin(), sorted.end(), [](auto const& a, auto const& b) -> bool {
+            return a.unrealized_pnl < b.unrealized_pnl;
+        });
 
         if (sorted.size() > static_cast<size_t>(limit)) {
             sorted.resize(limit);
@@ -421,14 +405,13 @@ public:
     /**
      * Check position concentration risk
      */
-    [[nodiscard]] auto hasConcentrationRisk(
-        std::vector<Position> const& positions,
-        double total_equity,
-        double threshold_percent = 20.0
-    ) const -> bool {
+    [[nodiscard]] auto hasConcentrationRisk(std::vector<Position> const& positions,
+                                            double total_equity,
+                                            double threshold_percent = 20.0) const -> bool {
 
         for (auto const& pos : positions) {
-            if (total_equity <= 0.0) continue;
+            if (total_equity <= 0.0)
+                continue;
 
             double weight = (std::abs(pos.market_value) / total_equity) * 100.0;
             if (weight > threshold_percent) {
@@ -439,7 +422,7 @@ public:
         return false;
     }
 
-private:
+  private:
     [[nodiscard]] auto getCurrentTimestamp() const noexcept -> Timestamp {
         auto now = std::chrono::system_clock::now();
         auto duration = now.time_since_epoch();

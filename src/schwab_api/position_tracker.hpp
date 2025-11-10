@@ -18,6 +18,7 @@
 #include "account_types.hpp"
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <duckdb.hpp>
 #include <memory>
@@ -270,7 +271,7 @@ class PositionTracker {
             if (old_map.find(symbol) != old_map.end()) {
                 auto const& old_pos = old_map[symbol];
 
-                if (new_pos.quantity != old_pos.quantity) {
+                if (std::abs(new_pos.quantity - old_pos.quantity) > quantity_epsilon) {
                     std::string change_type =
                         (new_pos.quantity > old_pos.quantity) ? "INCREASED" : "DECREASED";
                     recordPositionChange(change_type, new_pos, old_pos);
@@ -294,8 +295,8 @@ class PositionTracker {
 
             auto stmt = conn_->Prepare(query);
             stmt->Execute(
-                new_pos.account_id, new_pos.symbol, change_type, old_pos ? old_pos->quantity : 0,
-                new_pos.quantity, new_pos.quantity - (old_pos ? old_pos->quantity : 0),
+                new_pos.account_id, new_pos.symbol, change_type, old_pos ? old_pos->quantity : 0.0,
+                new_pos.quantity, new_pos.quantity - (old_pos ? old_pos->quantity : 0.0),
                 old_pos ? old_pos->average_cost : 0.0, new_pos.average_cost, new_pos.current_price);
         } catch (...) {
             // Log error but continue

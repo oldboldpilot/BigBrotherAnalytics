@@ -1,20 +1,46 @@
 /**
  * BigBrotherAnalytics - Logger Module (C++23)
  *
- * Following Clang 21 module best practices:
- * https://releases.llvm.org/21.1.0/tools/clang/docs/StandardCPlusPlusModules.html
+ * Thread-safe logging with file and console output.
+ * Singleton pattern with pImpl for ABI stability.
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: November 10, 2025
+ *
+ * Following C++ Core Guidelines:
+ * - I.3: Avoid singletons (justified here for logging)
+ * - R.1: RAII for resource management
+ * - C.21: Define or delete all default operations
+ * - Trailing return type syntax throughout
+ *
+ * Performance: ~10-50μs per log call
+ * Thread-Safety: Full thread-safe via std::mutex
  */
 
-// Global module fragment - for standard library includes
+// ============================================================================
+// 1. GLOBAL MODULE FRAGMENT (Standard Library Only)
+// ============================================================================
 module;
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <memory>
+#include <mutex>
 #include <source_location>
+#include <sstream>
 #include <string>
 
-// Module declaration
+// ============================================================================
+// 2. MODULE DECLARATION
+// ============================================================================
 export module bigbrother.utils.logger;
 
+// ============================================================================
+// 3. EXPORTED INTERFACE (Public API)
+// ============================================================================
 export namespace bigbrother::utils {
 
 /**
@@ -31,10 +57,17 @@ enum class LogLevel { TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL };
  * - Perfect forwarding
  * - pImpl pattern for ABI stability
  *
- * Performance: ~10-50μs per log call
+ * Usage:
+ *   auto& logger = Logger::getInstance();
+ *   logger.initialize("logs/app.log", LogLevel::INFO, true);
+ *   logger.info("Application started");
+ *   logger.error("Error occurred: {}", error_msg);
  */
 class Logger {
-  public:
+public:
+    /**
+     * Get singleton instance
+     */
     [[nodiscard]] static auto getInstance() -> Logger&;
 
     // Non-copyable, non-movable (singleton)
@@ -45,14 +78,23 @@ class Logger {
 
     /**
      * Initialize logger with configuration
+     *
+     * @param log_file_path Path to log file (directory created if needed)
+     * @param level Minimum log level to output
+     * @param console_output Enable console output in addition to file
      */
     auto initialize(std::string const& log_file_path = "logs/bigbrother.log",
-                    LogLevel level = LogLevel::INFO, bool console_output = true) -> void;
+                    LogLevel level = LogLevel::INFO,
+                    bool console_output = true) -> void;
 
     /**
-     * Set/get log level
+     * Set minimum log level
      */
     auto setLevel(LogLevel level) -> void;
+
+    /**
+     * Get current log level
+     */
     [[nodiscard]] auto getLevel() const -> LogLevel;
 
     /**
@@ -94,9 +136,12 @@ class Logger {
      */
     auto flush() -> void;
 
-  private:
+private:
     Logger();
     ~Logger();
+
+    // Forward declaration for pImpl
+    class Impl;
 
     // Internal implementation
     auto logMessage(LogLevel level, std::string const& msg) -> void;
@@ -106,24 +151,169 @@ class Logger {
         if constexpr (sizeof...(Args) == 0) {
             logMessage(level, fmt);
         } else {
-            // Simplified - will enhance with std::format later
+            // Simplified - will enhance with std::format in C++23
             logMessage(level, fmt);
         }
     }
 
-    class Impl;
     std::unique_ptr<Impl> pImpl;
 };
 
 } // namespace bigbrother::utils
 
-// Macros must be defined in global module fragment to be usable in importing modules
+// ============================================================================
+// 4. PRIVATE IMPLEMENTATION
+// ============================================================================
 module :private;
 
-// Convenience macros for logging (usable in files that import this module)
-#define LOG_TRACE(...) ::bigbrother::utils::Logger::getInstance().trace(__VA_ARGS__)
-#define LOG_DEBUG(...) ::bigbrother::utils::Logger::getInstance().debug(__VA_ARGS__)
-#define LOG_INFO(...) ::bigbrother::utils::Logger::getInstance().info(__VA_ARGS__)
-#define LOG_WARN(...) ::bigbrother::utils::Logger::getInstance().warn(__VA_ARGS__)
-#define LOG_ERROR(...) ::bigbrother::utils::Logger::getInstance().error(__VA_ARGS__)
-#define LOG_CRITICAL(...) ::bigbrother::utils::Logger::getInstance().critical(__VA_ARGS__)
+namespace bigbrother::utils {
+
+/**
+ * Logger::Impl - Thread-Safe Implementation Details
+ *
+ * Hidden from users via pImpl pattern.
+ * Provides thread-safe logging to file and console.
+ */
+class Logger::Impl {
+public:
+    Impl()
+        : current_level{LogLevel::INFO},
+          console_enabled{true},
+          initialized{false} {}
+
+    auto initialize(std::string const& log_file_path, LogLevel level, bool console) -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        current_level = level;
+        console_enabled = console;
+
+        // Create log directory if it doesn't exist
+        std::filesystem::path log_path(log_file_path);
+        std::filesystem::create_directories(log_path.parent_path());
+
+        // Open log file
+        log_file.open(log_file_path, std::ios::app);
+        if (!log_file.is_open()) {
+            std::cerr << "Failed to open log file: " << log_file_path << std::endl;
+        } else {
+            initialized = true;
+            std::cout << "Logger initialized: " << log_file_path << std::endl;
+        }
+    }
+
+    auto setLevel(LogLevel level) -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+        current_level = level;
+    }
+
+    [[nodiscard]] auto getLevel() const -> LogLevel {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return current_level;
+    }
+
+    auto log(LogLevel level, std::string const& msg, std::source_location const& loc) -> void {
+        if (level < current_level) {
+            return; // Skip if level is below threshold
+        }
+
+        std::lock_guard<std::mutex> lock(mutex_); // Thread-safe logging
+
+        // Get current time with milliseconds
+        auto now = std::chrono::system_clock::now();
+        auto time = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      now.time_since_epoch()) %
+                  1000;
+
+        // Format log entry
+        std::ostringstream ss;
+        ss << std::put_time(std::localtime(&time), "[%Y-%m-%d %H:%M:%S") << '.'
+           << std::setfill('0') << std::setw(3) << ms.count() << "] "
+           << "[" << levelToString(level) << "] "
+           << "[" << loc.file_name() << ":" << loc.line() << "] " << msg << std::endl;
+
+        std::string log_entry = ss.str();
+
+        // Output to console
+        if (console_enabled) {
+            std::cout << log_entry;
+        }
+
+        // Output to file
+        if (log_file.is_open()) {
+            log_file << log_entry;
+            log_file.flush(); // Ensure immediate write
+        }
+    }
+
+    auto flush() -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (log_file.is_open()) {
+            log_file.flush();
+        }
+    }
+
+private:
+    [[nodiscard]] static auto levelToString(LogLevel level) -> std::string {
+        switch (level) {
+        case LogLevel::TRACE:
+            return "TRACE";
+        case LogLevel::DEBUG:
+            return "DEBUG";
+        case LogLevel::INFO:
+            return "INFO";
+        case LogLevel::WARN:
+            return "WARN";
+        case LogLevel::ERROR:
+            return "ERROR";
+        case LogLevel::CRITICAL:
+            return "CRITICAL";
+        default:
+            return "UNKNOWN";
+        }
+    }
+
+    LogLevel current_level;
+    bool console_enabled;
+    bool initialized;
+    std::ofstream log_file;
+    mutable std::mutex mutex_; // Thread-safety (mutable for const methods)
+};
+
+// ============================================================================
+// Logger Public Method Implementations
+// ============================================================================
+
+Logger::Logger() : pImpl{std::make_unique<Impl>()} {}
+
+Logger::~Logger() {
+    flush();
+}
+
+[[nodiscard]] auto Logger::getInstance() -> Logger& {
+    static Logger instance;
+    return instance;
+}
+
+auto Logger::initialize(std::string const& log_file_path, LogLevel level,
+                        bool console_output) -> void {
+    pImpl->initialize(log_file_path, level, console_output);
+}
+
+auto Logger::setLevel(LogLevel level) -> void {
+    pImpl->setLevel(level);
+}
+
+[[nodiscard]] auto Logger::getLevel() const -> LogLevel {
+    return pImpl->getLevel();
+}
+
+auto Logger::flush() -> void {
+    pImpl->flush();
+}
+
+auto Logger::logMessage(LogLevel level, std::string const& msg) -> void {
+    pImpl->log(level, msg, std::source_location::current());
+}
+
+} // namespace bigbrother::utils

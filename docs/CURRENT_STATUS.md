@@ -78,6 +78,11 @@
    - Ran clang-format on all modified files
    - Ran clang-tidy validation (our code has 0 errors)
    - Fixed C++23 module compliance issues
+
+3. **✅ Fractional Share Enablement**
+   - Updated `Quantity` core type to support fractional values throughout Schwab account, order, and strategy modules
+   - Migrated DuckDB schemas (`positions`, `positions_history`) and persistence logic to store decimal quantities
+   - Adjusted risk checks, order validation, and analytics to use tolerance-based comparisons for fractional positions
    - Added trailing return types throughout
 
 3. **✅ Pre-Existing Error Fixes**

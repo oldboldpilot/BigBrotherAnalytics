@@ -72,10 +72,18 @@ files_checked=0
 for file in $CPP_FILES; do
     echo "Checking: $file"
 
-    output=$(clang-tidy "$file" -p=./build -- -std=c++23 -I./src 2>&1 || true)
+    output=$(clang-tidy "$file" -p=./build -- \
+        -std=c++23 \
+        -I./src \
+        -isystem /usr/include \
+        -isystem /usr/local/include \
+        -isystem /usr/include/c++/15 \
+        -isystem /usr/lib/gcc/x86_64-linux-gnu/15/include \
+        --system-header-prefix=/usr/ \
+        2>&1 || true)
 
-    # Filter out module import errors (false positives before modules are built)
-    filtered_output=$(echo "$output" | grep -v "module.*not found" || true)
+    # Filter out module import errors and system header errors (false positives before modules are built)
+    filtered_output=$(echo "$output" | grep -v "module.*not found" | grep -v "stdlib.h.*not found" | grep -v "/usr/include" || true)
 
     file_errors=$(echo "$filtered_output" | grep -c "error:" || true)
     file_warnings=$(echo "$filtered_output" | grep -c "warning:" || true)

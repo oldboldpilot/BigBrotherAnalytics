@@ -95,6 +95,13 @@ FormatStyle: none
 # Exclude external libraries and third-party code from all checks
 SystemHeaders: false
 
+# Exclude external library paths from diagnostics
+ExtraArgs:
+  - '-isystem/usr/include'
+  - '-isystem/usr/local/include'
+  - '-isystem/usr/lib/gcc/x86_64-linux-gnu/15/include'
+  - '-isystem/usr/include/c++/15'
+
 CheckOptions:
   # C++ Core Guidelines specific
   - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor

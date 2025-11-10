@@ -41,8 +41,10 @@ import bigbrother.employment.signals;
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -113,7 +115,13 @@ class TradingEngine {
         auto const db_path = config_.get<std::string>("database.path", "data/bigbrother.duckdb");
 
         database_ = std::make_unique<utils::Database>(db_path);
-        utils::Logger::getInstance().info("Database initialized: {}", db_path);
+        if (auto connect_result = database_->connect(); !connect_result) {
+            utils::Logger::getInstance().error("Failed to connect to database {}: {}", db_path,
+                                               connect_result.error().message);
+            database_.reset();
+        } else {
+            utils::Logger::getInstance().info("Database connected: {}", db_path);
+        }
 
         // Get trading mode
         paper_trading_ = config_.get<bool>("trading.paper_trading", true);
@@ -312,17 +320,18 @@ class TradingEngine {
         context.current_time = utils::Timer::now();
 
         // Get account information from Schwab API
-        auto account_info_result = schwab_client_->account().getAccountInfo();
-        if (account_info_result) {
-            auto const& balance = account_info_result->balance;
+        auto balance_result = schwab_client_->account().getBalance();
+        if (balance_result) {
+            auto const& balance = *balance_result;
             context.account_value = balance.total_value;
             context.available_capital = balance.buying_power;
 
-            utils::Logger::getInstance().debug("Account: ${:.2f} total, ${:.2f} buying power",
-                                               balance.total_value, balance.buying_power);
+            utils::Logger::getInstance().debug(
+                "Account balance: ${:.2f} total, ${:.2f} buying power", balance.total_value,
+                balance.buying_power);
         } else {
-            utils::Logger::getInstance().error("Failed to get account info: {}",
-                                               account_info_result.error().message);
+            utils::Logger::getInstance().error("Failed to get account balance: {}",
+                                               balance_result.error().message);
             // Use safe defaults
             context.account_value = 30'000.0;
             context.available_capital = 20'000.0;
@@ -578,34 +587,65 @@ class TradingEngine {
         // Update positions in DuckDB for historical tracking
         if (database_) {
             try {
-                // Store positions snapshot in database
-                auto conn = database_->getConnection();
-
-                // Create table if not exists
-                conn->Query(R"(
+                std::string const create_table_sql = R"(
                     CREATE TABLE IF NOT EXISTS positions_history (
                         timestamp TIMESTAMP,
                         symbol VARCHAR,
-                        quantity INTEGER,
+                        quantity DOUBLE,
                         average_price DOUBLE,
                         current_price DOUBLE,
                         unrealized_pnl DOUBLE,
                         is_bot_managed BOOLEAN,
                         strategy VARCHAR
                     )
-                )");
+                )";
 
-                // Insert current positions
+                if (auto ensure_table = database_->execute(create_table_sql); !ensure_table) {
+                    utils::Logger::getInstance().error(
+                        "Failed to ensure positions_history table: {}",
+                        ensure_table.error().message);
+                    return;
+                }
+
+                auto escapeSqlString = [](std::string const& value) -> std::string {
+                    std::string escaped;
+                    escaped.reserve(value.size());
+                    for (auto const ch : value) {
+                        if (ch == '\'') {
+                            escaped += "''";
+                        } else {
+                            escaped.push_back(ch);
+                        }
+                    }
+                    return escaped;
+                };
+
                 for (auto const& pos : positions) {
-                    if (pos.is_bot_managed) {
-                        auto stmt = conn->Prepare(R"(
-                            INSERT INTO positions_history
-                            VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)
-                        )");
+                    if (!pos.is_bot_managed) {
+                        continue;
+                    }
 
-                        stmt->Execute(pos.symbol, static_cast<int>(pos.quantity), pos.average_price,
-                                      pos.current_price, pos.unrealized_pnl, pos.is_bot_managed,
-                                      pos.bot_strategy);
+                    auto const strategy =
+                        pos.bot_strategy.empty() ? std::string{"BOT"} : pos.bot_strategy;
+                    auto const escaped_symbol = escapeSqlString(pos.symbol);
+                    auto const escaped_strategy = escapeSqlString(strategy);
+
+                    std::ostringstream insert_sql;
+                    insert_sql.setf(std::ios::fixed);
+                    insert_sql.precision(4);
+                    insert_sql << "INSERT INTO positions_history (timestamp, symbol, quantity, "
+                                  "average_price, "
+                               << "current_price, unrealized_pnl, is_bot_managed, strategy) VALUES "
+                                  "(CURRENT_TIMESTAMP, '"
+                               << escaped_symbol << "', " << pos.quantity << ", "
+                               << pos.average_price << ", " << pos.current_price << ", "
+                               << pos.unrealized_pnl << ", " << (pos.is_bot_managed ? 1 : 0)
+                               << ", '" << escaped_strategy << "')";
+
+                    if (auto insert_result = database_->execute(insert_sql.str()); !insert_result) {
+                        utils::Logger::getInstance().error("Failed to persist position {}: {}",
+                                                           pos.symbol,
+                                                           insert_result.error().message);
                     }
                 }
 
@@ -638,7 +678,7 @@ class TradingEngine {
             }
 
             // Calculate position loss percentage
-            double position_value = static_cast<double>(position.quantity) * position.average_price;
+            double position_value = position.quantity * position.average_price;
             double loss_pct = 0.0;
 
             if (position_value > 0.0) {

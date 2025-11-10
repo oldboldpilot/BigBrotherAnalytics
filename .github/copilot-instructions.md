@@ -13,7 +13,7 @@ BigBrotherAnalytics is a **production-ready** AI-powered algorithmic trading pla
 - **Applies to:** Code, configs, docs, scripts, tests, CI/CD files
 - **Format:** See Section 11 in docs/CODING_STANDARDS.md
 - **NO co-authoring** - Only Olumuyiwa Oluwasanmi
-- **Git commits:** Include "Co-Authored-By: Claude <noreply@anthropic.com>"
+- **Git commits:** oldboldpilot"
 - **Enforcement:** Pre-commit hooks + CI/CD checks
 
 ## Current Status (November 10, 2025)

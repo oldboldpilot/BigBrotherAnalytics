@@ -167,7 +167,7 @@ struct StrategyContext {
     // Price Data & Positions
     std::unordered_map<std::string, Quote> current_quotes;
     std::unordered_map<std::string, OptionsChainData> options_chains;
-    std::vector<Position> current_positions;
+    std::vector<AccountPosition> current_positions;
     double account_value{0.0};
     double available_capital{0.0};
     Timestamp current_time{0};
@@ -326,7 +326,7 @@ class ContextBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto withPositions(std::vector<Position> positions) -> ContextBuilder& {
+    [[nodiscard]] auto withPositions(std::vector<AccountPosition> positions) -> ContextBuilder& {
         context_.current_positions = std::move(positions);
         return *this;
     }
@@ -353,7 +353,7 @@ class ContextBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto addPosition(Position position) -> ContextBuilder& {
+    [[nodiscard]] auto addPosition(AccountPosition position) -> ContextBuilder& {
         context_.current_positions.push_back(std::move(position));
         return *this;
     }
@@ -1081,7 +1081,7 @@ auto StrategyExecutor::execute() -> Result<std::vector<std::string>> {
         }
 
         // Validate order quantity
-        if (order.quantity <= 0) {
+        if (order.quantity <= quantity_epsilon) {
             utils::Logger::getInstance().warn("Invalid order quantity for {}: {}", signal.symbol,
                                               order.quantity);
             continue;

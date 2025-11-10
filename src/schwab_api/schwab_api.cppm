@@ -2,11 +2,12 @@
  * BigBrotherAnalytics - Schwab API Module (C++23)
  *
  * Complete Schwab Trading API client with fluent interface.
- * Consolidates: schwab_client, token_manager, market_data, options_chain, orders, account, websocket
+ * Consolidates: schwab_client, token_manager, market_data, options_chain, orders, account,
+ * websocket
  *
  * Following C++ Core Guidelines:
  * - R.1: RAII for resource management
- * - I.11: Never transfer ownership by raw pointer  
+ * - I.11: Never transfer ownership by raw pointer
  * - C.21: Rule of Five
  * - Trailing return syntax throughout
  * - Fluent API design
@@ -15,23 +16,23 @@
 // Global module fragment
 module;
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <chrono>
-#include <functional>
 #include <atomic>
-#include <mutex>
-#include <optional>
+#include <chrono>
+#include <condition_variable>
+#include <curl/curl.h>
 #include <expected>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include <optional>
+#include <queue>
+#include <string>
+#include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
-#include <queue>
-#include <thread>
-#include <condition_variable>
-#include <tuple>
-#include <curl/curl.h>
-#include <nlohmann/json.hpp>
+#include <vector>
 
 // Module declaration
 export module bigbrother.schwab_api;
@@ -110,25 +111,21 @@ struct Quote {
     Volume volume{0};
     Timestamp timestamp{0};
 
-    [[nodiscard]] constexpr auto midPrice() const noexcept -> Price {
-        return (bid + ask) / 2.0;
-    }
+    [[nodiscard]] constexpr auto midPrice() const noexcept -> Price { return (bid + ask) / 2.0; }
 
-    [[nodiscard]] constexpr auto spread() const noexcept -> Price {
-        return ask - bid;
-    }
+    [[nodiscard]] constexpr auto spread() const noexcept -> Price { return ask - bid; }
 };
 
 /**
  * Option Contract Specification
  */
 struct OptionContract {
-    std::string symbol;           // Option symbol (e.g., "SPY250117C00580000")
-    std::string underlying;       // Underlying symbol (e.g., "SPY")
+    std::string symbol;     // Option symbol (e.g., "SPY250117C00580000")
+    std::string underlying; // Underlying symbol (e.g., "SPY")
     OptionType type{OptionType::Call};
     Price strike{0.0};
     Timestamp expiration{0};
-    int contract_size{100};       // Shares per contract
+    int contract_size{100}; // Shares per contract
 };
 
 struct OptionsChainRequest {
@@ -142,11 +139,7 @@ struct OptionsChainRequest {
     std::string option_type{"S"};
 
     [[nodiscard]] static auto forSymbol(std::string symbol) -> OptionsChainRequest {
-        return {
-            .symbol = std::move(symbol),
-            .contract_type = "ALL",
-            .strategy = "SINGLE"
-        };
+        return {.symbol = std::move(symbol), .contract_type = "ALL", .strategy = "SINGLE"};
     }
 };
 
@@ -184,14 +177,11 @@ struct OHLCVBar {
     Volume volume{0};
 
     [[nodiscard]] constexpr auto isValid() const noexcept -> bool {
-        return open > 0.0 && high >= low && low > 0.0 &&
-               high >= open && high >= close &&
+        return open > 0.0 && high >= low && low > 0.0 && high >= open && high >= close &&
                low <= open && low <= close;
     }
 
-    [[nodiscard]] constexpr auto range() const noexcept -> Price {
-        return high - low;
-    }
+    [[nodiscard]] constexpr auto range() const noexcept -> Price { return high - low; }
 
     [[nodiscard]] constexpr auto typicalPrice() const noexcept -> Price {
         return (high + low + close) / 3.0;
@@ -204,17 +194,16 @@ struct OHLCVBar {
 struct HistoricalData {
     std::string symbol;
     std::vector<OHLCVBar> bars;
-    std::string period_type;      // day, month, year, ytd
-    std::string frequency_type;   // minute, daily, weekly, monthly
+    std::string period_type;    // day, month, year, ytd
+    std::string frequency_type; // minute, daily, weekly, monthly
     int frequency{0};
 
-    [[nodiscard]] auto isEmpty() const noexcept -> bool {
-        return bars.empty();
-    }
+    [[nodiscard]] auto isEmpty() const noexcept -> bool { return bars.empty(); }
 
     [[nodiscard]] auto getDateRange() const noexcept
         -> std::optional<std::pair<Timestamp, Timestamp>> {
-        if (bars.empty()) return std::nullopt;
+        if (bars.empty())
+            return std::nullopt;
         return std::make_pair(bars.front().timestamp, bars.back().timestamp);
     }
 };
@@ -231,31 +220,25 @@ struct Mover {
     Volume volume{0};
     double total_volume{0.0};
 
-    [[nodiscard]] constexpr auto isGainer() const noexcept -> bool {
-        return net_change > 0.0;
-    }
+    [[nodiscard]] constexpr auto isGainer() const noexcept -> bool { return net_change > 0.0; }
 
-    [[nodiscard]] constexpr auto isLoser() const noexcept -> bool {
-        return net_change < 0.0;
-    }
+    [[nodiscard]] constexpr auto isLoser() const noexcept -> bool { return net_change < 0.0; }
 };
 
 /**
  * Market Hours Information
  */
 struct MarketSession {
-    std::string start;  // ISO 8601 timestamp
-    std::string end;    // ISO 8601 timestamp
+    std::string start; // ISO 8601 timestamp
+    std::string end;   // ISO 8601 timestamp
 
-    [[nodiscard]] auto isValid() const noexcept -> bool {
-        return !start.empty() && !end.empty();
-    }
+    [[nodiscard]] auto isValid() const noexcept -> bool { return !start.empty() && !end.empty(); }
 };
 
 struct MarketHours {
-    std::string market;           // EQUITY, OPTION, FUTURE, etc.
-    std::string product;          // Product name
-    std::string date;             // Market date
+    std::string market;  // EQUITY, OPTION, FUTURE, etc.
+    std::string product; // Product name
+    std::string date;    // Market date
     bool is_open{false};
     std::optional<MarketSession> pre_market;
     std::optional<MarketSession> regular_market;
@@ -265,7 +248,7 @@ struct MarketHours {
 /**
  * Cache Entry with TTL
  */
-template<typename T>
+template <typename T>
 struct CacheEntry {
     T data;
     std::chrono::system_clock::time_point expiry;
@@ -279,36 +262,24 @@ struct CacheEntry {
 // Order Types
 // ============================================================================
 
-enum class OrderType {
-    Market,
-    Limit,
-    Stop,
-    StopLimit
-};
+enum class OrderType { Market, Limit, Stop, StopLimit };
 
 enum class OrderDuration {
     Day,
-    GTC,            // Good Till Canceled
-    GTD,            // Good Till Date
-    FOK,            // Fill Or Kill
-    IOC             // Immediate Or Cancel
+    GTC, // Good Till Canceled
+    GTD, // Good Till Date
+    FOK, // Fill Or Kill
+    IOC  // Immediate Or Cancel
 };
 
-enum class OrderStatus {
-    Pending,
-    Working,
-    Filled,
-    PartiallyFilled,
-    Canceled,
-    Rejected
-};
+enum class OrderStatus { Pending, Working, Filled, PartiallyFilled, Canceled, Rejected };
 
 struct Order {
     std::string order_id;
     std::string symbol;
     OrderType type{OrderType::Market};
     OrderDuration duration{OrderDuration::Day};
-    Quantity quantity{0};
+    Quantity quantity{0.0};
     Price limit_price{0.0};
     Price stop_price{0.0};
     OrderStatus status{OrderStatus::Pending};
@@ -330,7 +301,7 @@ struct AccountBalance {
     double buying_power{0.0};
     double margin_balance{0.0};
     double unsettled_cash{0.0};
-    
+
     [[nodiscard]] auto hasSufficientFunds(double required) const noexcept -> bool {
         return buying_power >= required;
     }
@@ -338,28 +309,26 @@ struct AccountBalance {
 
 struct AccountPosition {
     std::string symbol;
-    Quantity quantity{0};
+    Quantity quantity{0.0};
     Price average_price{0.0};
     Price current_price{0.0};
     double unrealized_pnl{0.0};
     double realized_pnl{0.0};
 
     // CRITICAL SAFETY FIELDS (TRADING_CONSTRAINTS.md)
-    bool is_bot_managed{false};        // TRUE if bot opened this position
-    std::string managed_by{"MANUAL"};  // "BOT" or "MANUAL"
-    std::string bot_strategy{};        // Strategy that opened this (if bot-managed)
+    bool is_bot_managed{false};       // TRUE if bot opened this position
+    std::string managed_by{"MANUAL"}; // "BOT" or "MANUAL"
+    std::string bot_strategy{};       // Strategy that opened this (if bot-managed)
     std::string account_id;
     Timestamp opened_at{0};
-    std::string opened_by{"MANUAL"};   // "BOT" or "MANUAL"
+    std::string opened_by{"MANUAL"}; // "BOT" or "MANUAL"
     Timestamp updated_at{0};
 
     [[nodiscard]] auto getCurrentValue() const noexcept -> double {
-        return static_cast<double>(quantity) * current_price;
+        return quantity * current_price;
     }
 
-    [[nodiscard]] auto canBotTrade() const noexcept -> bool {
-        return is_bot_managed;
-    }
+    [[nodiscard]] auto canBotTrade() const noexcept -> bool { return is_bot_managed; }
 };
 
 // ============================================================================
@@ -367,11 +336,10 @@ struct AccountPosition {
 // ============================================================================
 
 class RateLimiter {
-public:
+  public:
     explicit RateLimiter(int max_requests = MAX_REQUESTS_PER_MINUTE,
-                        int window_seconds = RATE_LIMIT_WINDOW_SECONDS)
-        : max_requests_{max_requests},
-          window_{std::chrono::seconds(window_seconds)} {}
+                         int window_seconds = RATE_LIMIT_WINDOW_SECONDS)
+        : max_requests_{max_requests}, window_{std::chrono::seconds(window_seconds)} {}
 
     RateLimiter(RateLimiter const&) = delete;
     auto operator=(RateLimiter const&) -> RateLimiter& = delete;
@@ -385,21 +353,17 @@ public:
         auto now = std::chrono::system_clock::now();
 
         // Remove expired timestamps
-        while (!timestamps_.empty() &&
-               (now - timestamps_.front()) > window_) {
+        while (!timestamps_.empty() && (now - timestamps_.front()) > window_) {
             timestamps_.pop();
         }
 
         // Check if we can proceed
         if (timestamps_.size() >= static_cast<size_t>(max_requests_)) {
             auto wait_until = timestamps_.front() + window_;
-            auto wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                wait_until - now);
+            auto wait_duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(wait_until - now);
 
-            Logger::getInstance().warn(
-                "Rate limit reached. Waiting {} ms",
-                wait_duration.count()
-            );
+            Logger::getInstance().warn("Rate limit reached. Waiting {} ms", wait_duration.count());
 
             cv_.wait_for(lock, wait_duration);
             now = std::chrono::system_clock::now();
@@ -414,7 +378,7 @@ public:
         return max_requests_ - static_cast<int>(timestamps_.size());
     }
 
-private:
+  private:
     int max_requests_;
     std::chrono::seconds window_;
     std::queue<std::chrono::system_clock::time_point> timestamps_;
@@ -427,22 +391,17 @@ private:
 // ============================================================================
 
 class HttpClient {
-public:
-    HttpClient() {
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-    }
+  public:
+    HttpClient() { curl_global_init(CURL_GLOBAL_DEFAULT); }
 
     HttpClient(HttpClient const&) = delete;
     auto operator=(HttpClient const&) -> HttpClient& = delete;
     HttpClient(HttpClient&&) noexcept = delete;
     auto operator=(HttpClient&&) noexcept -> HttpClient& = delete;
 
-    ~HttpClient() {
-        curl_global_cleanup();
-    }
+    ~HttpClient() { curl_global_cleanup(); }
 
-    [[nodiscard]] auto get(std::string const& url,
-                          std::vector<std::string> const& headers = {})
+    [[nodiscard]] auto get(std::string const& url, std::vector<std::string> const& headers = {})
         -> Result<std::string> {
 
         for (int attempt = 0; attempt < MAX_RETRY_ATTEMPTS; ++attempt) {
@@ -459,32 +418,24 @@ public:
 
             // Exponential backoff
             int backoff_ms = INITIAL_BACKOFF_MS * (1 << attempt);
-            Logger::getInstance().warn(
-                "Request failed (attempt {}/{}), retrying in {} ms: {}",
-                attempt + 1, MAX_RETRY_ATTEMPTS, backoff_ms,
-                result.error().message
-            );
+            Logger::getInstance().warn("Request failed (attempt {}/{}), retrying in {} ms: {}",
+                                       attempt + 1, MAX_RETRY_ATTEMPTS, backoff_ms,
+                                       result.error().message);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
         }
 
-        return makeError<std::string>(
-            ErrorCode::NetworkError,
-            "Max retry attempts exceeded"
-        );
+        return makeError<std::string>(ErrorCode::NetworkError, "Max retry attempts exceeded");
     }
 
-private:
+  private:
     [[nodiscard]] auto performRequest(std::string const& url,
                                       std::vector<std::string> const& headers)
         -> Result<std::string> {
 
         CURL* curl = curl_easy_init();
         if (!curl) {
-            return makeError<std::string>(
-                ErrorCode::NetworkError,
-                "Failed to initialize CURL"
-            );
+            return makeError<std::string>(ErrorCode::NetworkError, "Failed to initialize CURL");
         }
 
         std::string response_data;
@@ -520,24 +471,19 @@ private:
 
         // Check for errors
         if (res != CURLE_OK) {
-            return makeError<std::string>(
-                ErrorCode::NetworkError,
-                std::string("CURL error: ") + curl_easy_strerror(res)
-            );
+            return makeError<std::string>(ErrorCode::NetworkError,
+                                          std::string("CURL error: ") + curl_easy_strerror(res));
         }
 
         if (response_code >= 400) {
-            return makeError<std::string>(
-                mapHttpErrorCode(response_code),
-                "HTTP error: " + std::to_string(response_code)
-            );
+            return makeError<std::string>(mapHttpErrorCode(response_code),
+                                          "HTTP error: " + std::to_string(response_code));
         }
 
         return response_data;
     }
 
-    static auto writeCallback(void* contents, size_t size, size_t nmemb,
-                             void* userp) -> size_t {
+    static auto writeCallback(void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
         auto* str = static_cast<std::string*>(userp);
         auto* data = static_cast<char*>(contents);
         str->append(data, size * nmemb);
@@ -546,9 +492,9 @@ private:
 
     [[nodiscard]] static auto isRetryableError(Error const& error) noexcept -> bool {
         return error.code == ErrorCode::NetworkError ||
-               (error.message.find("429") != std::string::npos) ||  // Rate limit
-               (error.message.find("503") != std::string::npos) ||  // Service unavailable
-               (error.message.find("504") != std::string::npos);    // Gateway timeout
+               (error.message.find("429") != std::string::npos) || // Rate limit
+               (error.message.find("503") != std::string::npos) || // Service unavailable
+               (error.message.find("504") != std::string::npos);   // Gateway timeout
     }
 
     [[nodiscard]] static auto mapHttpErrorCode(long code) noexcept -> ErrorCode {
@@ -567,7 +513,7 @@ private:
 // ============================================================================
 
 class CacheManager {
-public:
+  public:
     CacheManager() = default;
 
     CacheManager(CacheManager const&) = delete;
@@ -576,25 +522,23 @@ public:
     auto operator=(CacheManager&&) noexcept -> CacheManager& = delete;
     ~CacheManager() = default;
 
-    template<typename T>
+    template <typename T>
     auto set(std::string const& key, T const& data, int ttl_seconds) -> void {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto expiry = std::chrono::system_clock::now() +
-                     std::chrono::seconds(ttl_seconds);
+        auto expiry = std::chrono::system_clock::now() + std::chrono::seconds(ttl_seconds);
 
         // Note: In production, serialize to DuckDB
         // For now, use in-memory cache
         Logger::getInstance().debug("Caching key: {} (TTL: {}s)", key, ttl_seconds);
     }
 
-    template<typename T>
-    [[nodiscard]] auto get(std::string const& key)
-        -> std::optional<T> {
+    template <typename T>
+    [[nodiscard]] auto get(std::string const& key) -> std::optional<T> {
         std::lock_guard<std::mutex> lock(mutex_);
 
         // Note: In production, deserialize from DuckDB
         Logger::getInstance().debug("Cache lookup: {}", key);
-        return std::nullopt;  // Cache miss for stub
+        return std::nullopt; // Cache miss for stub
     }
 
     auto clear() -> void {
@@ -602,7 +546,7 @@ public:
         Logger::getInstance().info("Cache cleared");
     }
 
-private:
+  private:
     mutable std::mutex mutex_;
 };
 
@@ -611,9 +555,8 @@ private:
 // ============================================================================
 
 class TokenManager {
-public:
-    explicit TokenManager(OAuth2Config config)
-        : config_{std::move(config)}, refreshing_{false} {}
+  public:
+    explicit TokenManager(OAuth2Config config) : config_{std::move(config)}, refreshing_{false} {}
 
     // C.21: Rule of Five - deleted due to mutex member
     TokenManager(TokenManager const&) = delete;
@@ -625,14 +568,14 @@ public:
     // Fluent API
     [[nodiscard]] auto getAccessToken() -> Result<std::string> {
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         if (config_.isAccessTokenExpired()) {
             auto refresh_result = refreshAccessToken();
             if (!refresh_result) {
                 return std::unexpected(refresh_result.error());
             }
         }
-        
+
         return config_.access_token;
     }
 
@@ -644,7 +587,7 @@ public:
         // Stub: In production, make HTTP request to Schwab token endpoint
         Logger::getInstance().info("Refreshing access token");
         config_.token_expiry = std::chrono::system_clock::now() + std::chrono::minutes(30);
-        
+
         refreshing_ = false;
         return {};
     }
@@ -655,7 +598,7 @@ public:
         return *this;
     }
 
-private:
+  private:
     OAuth2Config config_;
     std::atomic<bool> refreshing_;
     mutable std::mutex mutex_;
@@ -666,12 +609,11 @@ private:
 // ============================================================================
 
 class MarketDataClient {
-public:
+  public:
     explicit MarketDataClient(std::shared_ptr<TokenManager> token_mgr)
-        : token_mgr_{std::move(token_mgr)},
-          http_client_{std::make_unique<HttpClient>()},
-          rate_limiter_{std::make_unique<RateLimiter>()},
-          cache_{std::make_unique<CacheManager>()} {}
+        : token_mgr_{std::move(token_mgr)}, http_client_{std::make_unique<HttpClient>()},
+          rate_limiter_{std::make_unique<RateLimiter>()}, cache_{std::make_unique<CacheManager>()} {
+    }
 
     // C.21: Rule of Five
     MarketDataClient(MarketDataClient const&) = delete;
@@ -695,43 +637,42 @@ public:
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL
-        std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/quotes?symbols=" + symbol;
+        std::string url =
+            std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/quotes?symbols=" + symbol;
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
             auto json_data = json::parse(*response);
             auto quote = parseQuoteFromJson(json_data, symbol);
-            if (!quote) return std::unexpected(quote.error());
+            if (!quote)
+                return std::unexpected(quote.error());
 
             // Cache result
             cache_->set(cache_key, *quote, CACHE_TTL_QUOTE);
 
-            Logger::getInstance().info("Fetched quote for {}: ${:.2f}",
-                                     symbol, quote->last);
+            Logger::getInstance().info("Fetched quote for {}: ${:.2f}", symbol, quote->last);
             return *quote;
 
         } catch (json::exception const& e) {
-            return makeError<Quote>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<Quote>(ErrorCode::InvalidParameter,
+                                    std::string("JSON parse error: ") + e.what());
         }
     }
 
@@ -743,38 +684,38 @@ public:
         -> Result<std::vector<Quote>> {
 
         if (symbols.empty()) {
-            return makeError<std::vector<Quote>>(
-                ErrorCode::InvalidParameter,
-                "Symbol list is empty"
-            );
+            return makeError<std::vector<Quote>>(ErrorCode::InvalidParameter,
+                                                 "Symbol list is empty");
         }
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL with comma-separated symbols
         std::string symbol_list;
         for (size_t i = 0; i < symbols.size(); ++i) {
-            if (i > 0) symbol_list += ",";
+            if (i > 0)
+                symbol_list += ",";
             symbol_list += symbols[i];
         }
 
-        std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/quotes?symbols=" + symbol_list;
+        std::string url =
+            std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/quotes?symbols=" + symbol_list;
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
@@ -794,10 +735,8 @@ public:
             return quotes;
 
         } catch (json::exception const& e) {
-            return makeError<std::vector<Quote>>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<std::vector<Quote>>(ErrorCode::InvalidParameter,
+                                                 std::string("JSON parse error: ") + e.what());
         }
     }
 
@@ -812,24 +751,24 @@ public:
         auto cache_key = "chain:" + request.symbol;
         auto cached = cache_->get<OptionsChainData>(cache_key);
         if (cached) {
-            Logger::getInstance().debug("Cache hit for option chain: {}",
-                                       request.symbol);
+            Logger::getInstance().debug("Cache hit for option chain: {}", request.symbol);
             return *cached;
         }
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL with query parameters
-        std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/chains?symbol=" + request.symbol +
-                         "&contractType=" + request.contract_type +
-                         "&strategy=" + request.strategy;
+        std::string url =
+            std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/chains?symbol=" + request.symbol +
+            "&contractType=" + request.contract_type + "&strategy=" + request.strategy;
 
         if (request.strike_from > 0.0) {
             url += "&strikeFrom=" + std::to_string(request.strike_from);
@@ -842,32 +781,30 @@ public:
         }
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
             auto json_data = json::parse(*response);
             auto chain = parseOptionChainFromJson(json_data);
-            if (!chain) return std::unexpected(chain.error());
+            if (!chain)
+                return std::unexpected(chain.error());
 
             // Cache result
             cache_->set(cache_key, *chain, CACHE_TTL_OPTION_CHAIN);
 
-            Logger::getInstance().info("Fetched option chain for {}: {} contracts",
-                                     request.symbol, chain->getTotalContracts());
+            Logger::getInstance().info("Fetched option chain for {}: {} contracts", request.symbol,
+                                       chain->getTotalContracts());
             return *chain;
 
         } catch (json::exception const& e) {
-            return makeError<OptionsChainData>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<OptionsChainData>(ErrorCode::InvalidParameter,
+                                               std::string("JSON parse error: ") + e.what());
         }
     }
 
@@ -875,65 +812,61 @@ public:
      * Get Historical Price Data
      * GET /marketdata/v1/pricehistory
      */
-    [[nodiscard]] auto getHistoricalData(
-        std::string const& symbol,
-        std::string const& period_type = "day",
-        std::string const& frequency_type = "minute",
-        int frequency = 1
-    ) -> Result<HistoricalData> {
+    [[nodiscard]] auto getHistoricalData(std::string const& symbol,
+                                         std::string const& period_type = "day",
+                                         std::string const& frequency_type = "minute",
+                                         int frequency = 1) -> Result<HistoricalData> {
 
         // Check cache
-        auto cache_key = "history:" + symbol + ":" + period_type + ":" +
-                        frequency_type + ":" + std::to_string(frequency);
+        auto cache_key = "history:" + symbol + ":" + period_type + ":" + frequency_type + ":" +
+                         std::to_string(frequency);
         auto cached = cache_->get<HistoricalData>(cache_key);
         if (cached) {
-            Logger::getInstance().debug("Cache hit for historical data: {}",
-                                       symbol);
+            Logger::getInstance().debug("Cache hit for historical data: {}", symbol);
             return *cached;
         }
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL
         std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/pricehistory?symbol=" + symbol +
-                         "&periodType=" + period_type +
-                         "&frequencyType=" + frequency_type +
-                         "&frequency=" + std::to_string(frequency);
+                          "/marketdata/v1/pricehistory?symbol=" + symbol +
+                          "&periodType=" + period_type + "&frequencyType=" + frequency_type +
+                          "&frequency=" + std::to_string(frequency);
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
             auto json_data = json::parse(*response);
             auto history = parseHistoricalDataFromJson(json_data, symbol);
-            if (!history) return std::unexpected(history.error());
+            if (!history)
+                return std::unexpected(history.error());
 
             // Cache result
             cache_->set(cache_key, *history, CACHE_TTL_HISTORICAL);
 
-            Logger::getInstance().info("Fetched historical data for {}: {} bars",
-                                     symbol, history->bars.size());
+            Logger::getInstance().info("Fetched historical data for {}: {} bars", symbol,
+                                       history->bars.size());
             return *history;
 
         } catch (json::exception const& e) {
-            return makeError<HistoricalData>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<HistoricalData>(ErrorCode::InvalidParameter,
+                                             std::string("JSON parse error: ") + e.what());
         }
     }
 
@@ -941,11 +874,10 @@ public:
      * Get Market Movers
      * GET /marketdata/v1/movers/{index}
      */
-    [[nodiscard]] auto getMovers(
-        std::string const& index,  // $DJI, $COMPX, $SPX
-        std::string const& direction = "up",  // up, down
-        std::string const& change = "percent"  // value, percent
-    ) -> Result<std::vector<Mover>> {
+    [[nodiscard]] auto getMovers(std::string const& index,             // $DJI, $COMPX, $SPX
+                                 std::string const& direction = "up",  // up, down
+                                 std::string const& change = "percent" // value, percent
+                                 ) -> Result<std::vector<Mover>> {
 
         // Check cache
         auto cache_key = "movers:" + index + ":" + direction + ":" + change;
@@ -957,45 +889,42 @@ public:
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL
-        std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/movers/" + index +
-                         "?direction=" + direction +
-                         "&change=" + change;
+        std::string url = std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/movers/" + index +
+                          "?direction=" + direction + "&change=" + change;
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
             auto json_data = json::parse(*response);
             auto movers = parseMoversFromJson(json_data);
-            if (!movers) return std::unexpected(movers.error());
+            if (!movers)
+                return std::unexpected(movers.error());
 
             // Cache result
             cache_->set(cache_key, *movers, CACHE_TTL_MOVERS);
 
-            Logger::getInstance().info("Fetched {} movers for {}",
-                                     movers->size(), index);
+            Logger::getInstance().info("Fetched {} movers for {}", movers->size(), index);
             return *movers;
 
         } catch (json::exception const& e) {
-            return makeError<std::vector<Mover>>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+            return makeError<std::vector<Mover>>(ErrorCode::InvalidParameter,
+                                                 std::string("JSON parse error: ") + e.what());
         }
     }
 
@@ -1003,15 +932,16 @@ public:
      * Get Market Hours
      * GET /marketdata/v1/markets
      */
-    [[nodiscard]] auto getMarketHours(
-        std::vector<std::string> const& markets,  // equity, option, future, etc.
-        std::string const& date = ""  // YYYY-MM-DD or empty for today
-    ) -> Result<std::vector<MarketHours>> {
+    [[nodiscard]] auto
+    getMarketHours(std::vector<std::string> const& markets, // equity, option, future, etc.
+                   std::string const& date = ""             // YYYY-MM-DD or empty for today
+                   ) -> Result<std::vector<MarketHours>> {
 
         // Check cache
         std::string market_list;
         for (auto const& m : markets) {
-            if (!market_list.empty()) market_list += ",";
+            if (!market_list.empty())
+                market_list += ",";
             market_list += m;
         }
         auto cache_key = "hours:" + market_list + ":" + date;
@@ -1023,55 +953,52 @@ public:
 
         // Acquire rate limit permit
         auto permit = rate_limiter_->acquirePermit();
-        if (!permit) return std::unexpected(permit.error());
+        if (!permit)
+            return std::unexpected(permit.error());
 
         // Get access token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // Build URL
-        std::string url = std::string(SCHWAB_API_BASE_URL) +
-                         "/marketdata/v1/markets?markets=" + market_list;
+        std::string url =
+            std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/markets?markets=" + market_list;
         if (!date.empty()) {
             url += "&date=" + date;
         }
 
         // Make request
-        std::vector<std::string> headers = {
-            "Authorization: Bearer " + *token,
-            "Accept: application/json"
-        };
+        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                            "Accept: application/json"};
 
         auto response = http_client_->get(url, headers);
-        if (!response) return std::unexpected(response.error());
+        if (!response)
+            return std::unexpected(response.error());
 
         // Parse response
         try {
             auto json_data = json::parse(*response);
             auto hours = parseMarketHoursFromJson(json_data);
-            if (!hours) return std::unexpected(hours.error());
+            if (!hours)
+                return std::unexpected(hours.error());
 
             // Cache result
             cache_->set(cache_key, *hours, CACHE_TTL_MARKET_HOURS);
 
-            Logger::getInstance().info("Fetched market hours for {} markets",
-                                     hours->size());
+            Logger::getInstance().info("Fetched market hours for {} markets", hours->size());
             return *hours;
 
         } catch (json::exception const& e) {
             return makeError<std::vector<MarketHours>>(
-                ErrorCode::InvalidParameter,
-                std::string("JSON parse error: ") + e.what()
-            );
+                ErrorCode::InvalidParameter, std::string("JSON parse error: ") + e.what());
         }
     }
 
     /**
      * Clear cache
      */
-    auto clearCache() -> void {
-        cache_->clear();
-    }
+    auto clearCache() -> void { cache_->clear(); }
 
     /**
      * Get rate limit status
@@ -1080,7 +1007,7 @@ public:
         return rate_limiter_->getRemainingRequests();
     }
 
-private:
+  private:
     std::shared_ptr<TokenManager> token_mgr_;
     std::unique_ptr<HttpClient> http_client_;
     std::unique_ptr<RateLimiter> rate_limiter_;
@@ -1088,8 +1015,7 @@ private:
 
     // JSON Parsing Helper Functions
 
-    [[nodiscard]] auto parseQuoteFromJson(json const& data,
-                                          std::string const& symbol)
+    [[nodiscard]] auto parseQuoteFromJson(json const& data, std::string const& symbol)
         -> Result<Quote> {
         try {
             Quote quote;
@@ -1105,29 +1031,23 @@ private:
 
                 // Validate quote has valid data
                 if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
-                    return makeError<Quote>(
-                        ErrorCode::InvalidParameter,
-                        "Quote contains no valid price data for symbol: " + symbol
-                    );
+                    return makeError<Quote>(ErrorCode::InvalidParameter,
+                                            "Quote contains no valid price data for symbol: " +
+                                                symbol);
                 }
             } else {
-                return makeError<Quote>(
-                    ErrorCode::InvalidParameter,
-                    "Symbol not found in response: " + symbol
-                );
+                return makeError<Quote>(ErrorCode::InvalidParameter,
+                                        "Symbol not found in response: " + symbol);
             }
 
             return quote;
         } catch (json::exception const& e) {
-            return makeError<Quote>(
-                ErrorCode::InvalidParameter,
-                std::string("Failed to parse quote: ") + e.what()
-            );
+            return makeError<Quote>(ErrorCode::InvalidParameter,
+                                    std::string("Failed to parse quote: ") + e.what());
         }
     }
 
-    [[nodiscard]] auto parseOptionChainFromJson(json const& data)
-        -> Result<OptionsChainData> {
+    [[nodiscard]] auto parseOptionChainFromJson(json const& data) -> Result<OptionsChainData> {
         try {
             OptionsChainData chain;
             chain.symbol = data.value("symbol", "");
@@ -1147,7 +1067,8 @@ private:
                 for (auto const& [exp_date_key, strike_map] : call_map.items()) {
                     // exp_date_key format: "2025-01-17:7" (date:daysToExp)
                     for (auto const& [strike_str, contracts] : strike_map.items()) {
-                        if (!contracts.is_array() || contracts.empty()) continue;
+                        if (!contracts.is_array() || contracts.empty())
+                            continue;
 
                         for (auto const& contract_data : contracts) {
                             OptionQuote opt_quote;
@@ -1157,8 +1078,10 @@ private:
                             opt_quote.contract.underlying = chain.symbol;
                             opt_quote.contract.type = OptionType::Call;
                             opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
-                            opt_quote.contract.expiration = contract_data.value("expirationDate", 0L);
-                            opt_quote.contract.contract_size = contract_data.value("multiplier", 100);
+                            opt_quote.contract.expiration =
+                                contract_data.value("expirationDate", 0L);
+                            opt_quote.contract.contract_size =
+                                contract_data.value("multiplier", 100);
 
                             // Parse quote data
                             opt_quote.quote.symbol = opt_quote.contract.symbol;
@@ -1191,7 +1114,8 @@ private:
                 auto const& put_map = data["putExpDateMap"];
                 for (auto const& [exp_date_key, strike_map] : put_map.items()) {
                     for (auto const& [strike_str, contracts] : strike_map.items()) {
-                        if (!contracts.is_array() || contracts.empty()) continue;
+                        if (!contracts.is_array() || contracts.empty())
+                            continue;
 
                         for (auto const& contract_data : contracts) {
                             OptionQuote opt_quote;
@@ -1201,8 +1125,10 @@ private:
                             opt_quote.contract.underlying = chain.symbol;
                             opt_quote.contract.type = OptionType::Put;
                             opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
-                            opt_quote.contract.expiration = contract_data.value("expirationDate", 0L);
-                            opt_quote.contract.contract_size = contract_data.value("multiplier", 100);
+                            opt_quote.contract.expiration =
+                                contract_data.value("expirationDate", 0L);
+                            opt_quote.contract.contract_size =
+                                contract_data.value("multiplier", 100);
 
                             // Parse quote data
                             opt_quote.quote.symbol = opt_quote.contract.symbol;
@@ -1230,22 +1156,18 @@ private:
                 }
             }
 
-            Logger::getInstance().debug(
-                "Parsed option chain for {}: {} calls, {} puts",
-                chain.symbol, chain.calls.size(), chain.puts.size()
-            );
+            Logger::getInstance().debug("Parsed option chain for {}: {} calls, {} puts",
+                                        chain.symbol, chain.calls.size(), chain.puts.size());
 
             return chain;
         } catch (json::exception const& e) {
-            return makeError<OptionsChainData>(
-                ErrorCode::InvalidParameter,
-                std::string("Failed to parse option chain: ") + e.what()
-            );
+            return makeError<OptionsChainData>(ErrorCode::InvalidParameter,
+                                               std::string("Failed to parse option chain: ") +
+                                                   e.what());
         }
     }
 
-    [[nodiscard]] auto parseHistoricalDataFromJson(json const& data,
-                                                   std::string const& symbol)
+    [[nodiscard]] auto parseHistoricalDataFromJson(json const& data, std::string const& symbol)
         -> Result<HistoricalData> {
         try {
             HistoricalData history;
@@ -1269,15 +1191,13 @@ private:
 
             return history;
         } catch (json::exception const& e) {
-            return makeError<HistoricalData>(
-                ErrorCode::InvalidParameter,
-                std::string("Failed to parse historical data: ") + e.what()
-            );
+            return makeError<HistoricalData>(ErrorCode::InvalidParameter,
+                                             std::string("Failed to parse historical data: ") +
+                                                 e.what());
         }
     }
 
-    [[nodiscard]] auto parseMoversFromJson(json const& data)
-        -> Result<std::vector<Mover>> {
+    [[nodiscard]] auto parseMoversFromJson(json const& data) -> Result<std::vector<Mover>> {
         try {
             std::vector<Mover> movers;
 
@@ -1314,9 +1234,7 @@ private:
             return movers;
         } catch (json::exception const& e) {
             return makeError<std::vector<Mover>>(
-                ErrorCode::InvalidParameter,
-                std::string("Failed to parse movers: ") + e.what()
-            );
+                ErrorCode::InvalidParameter, std::string("Failed to parse movers: ") + e.what());
         }
     }
 
@@ -1327,7 +1245,8 @@ private:
 
             // Schwab API structure: { "equity": { "EQ": {...} }, "option": { "EQO": {...} } }
             for (auto const& [market_type, products] : data.items()) {
-                if (!products.is_object()) continue;
+                if (!products.is_object())
+                    continue;
 
                 for (auto const& [product_code, market_data] : products.items()) {
                     MarketHours mh;
@@ -1340,8 +1259,8 @@ private:
                         auto const& sessions = market_data["sessionHours"];
 
                         // Parse pre-market session (may be array with time ranges)
-                        if (sessions.contains("preMarket") && sessions["preMarket"].is_array()
-                            && !sessions["preMarket"].empty()) {
+                        if (sessions.contains("preMarket") && sessions["preMarket"].is_array() &&
+                            !sessions["preMarket"].empty()) {
                             auto const& pm_session = sessions["preMarket"][0];
                             MarketSession pm;
                             pm.start = pm_session.value("start", "");
@@ -1352,8 +1271,9 @@ private:
                         }
 
                         // Parse regular market session
-                        if (sessions.contains("regularMarket") && sessions["regularMarket"].is_array()
-                            && !sessions["regularMarket"].empty()) {
+                        if (sessions.contains("regularMarket") &&
+                            sessions["regularMarket"].is_array() &&
+                            !sessions["regularMarket"].empty()) {
                             auto const& rm_session = sessions["regularMarket"][0];
                             MarketSession rm;
                             rm.start = rm_session.value("start", "");
@@ -1364,8 +1284,8 @@ private:
                         }
 
                         // Parse post-market session
-                        if (sessions.contains("postMarket") && sessions["postMarket"].is_array()
-                            && !sessions["postMarket"].empty()) {
+                        if (sessions.contains("postMarket") && sessions["postMarket"].is_array() &&
+                            !sessions["postMarket"].empty()) {
                             auto const& post_session = sessions["postMarket"][0];
                             MarketSession post;
                             post.start = post_session.value("start", "");
@@ -1384,8 +1304,7 @@ private:
         } catch (json::exception const& e) {
             return makeError<std::vector<MarketHours>>(
                 ErrorCode::InvalidParameter,
-                std::string("Failed to parse market hours: ") + e.what()
-            );
+                std::string("Failed to parse market hours: ") + e.what());
         }
     }
 };
@@ -1395,11 +1314,9 @@ private:
 // ============================================================================
 
 class AccountManager {
-public:
-    explicit AccountManager(std::shared_ptr<TokenManager> token_mgr,
-                          std::string account_id = "")
-        : token_mgr_{std::move(token_mgr)},
-          account_id_{std::move(account_id)},
+  public:
+    explicit AccountManager(std::shared_ptr<TokenManager> token_mgr, std::string account_id = "")
+        : token_mgr_{std::move(token_mgr)}, account_id_{std::move(account_id)},
           db_initialized_{false} {}
 
     // C.21: Rule of Five - non-copyable, non-movable due to mutex
@@ -1436,7 +1353,7 @@ public:
 
         } catch (std::exception const& e) {
             return makeError<void>(ErrorCode::DatabaseError,
-                "Failed to initialize database: " + std::string(e.what()));
+                                   "Failed to initialize database: " + std::string(e.what()));
         }
     }
 
@@ -1461,7 +1378,7 @@ public:
     [[nodiscard]] auto classifyExistingPositions() -> Result<void> {
         if (!db_initialized_) {
             return makeError<void>(ErrorCode::OrderRejected,
-                "Database not initialized. Call initializeDatabase() first");
+                                   "Database not initialized. Call initializeDatabase() first");
         }
 
         Logger::getInstance().info("Classifying existing positions for account: {}", account_id_);
@@ -1493,8 +1410,7 @@ public:
 
                 Logger::getInstance().info(
                     "Classified {} as MANUAL position (pre-existing): {} shares @ ${:.2f}",
-                    manual_pos.symbol, manual_pos.quantity, manual_pos.average_price
-                );
+                    manual_pos.symbol, manual_pos.quantity, manual_pos.average_price);
 
                 manual_count++;
             } else {
@@ -1503,10 +1419,8 @@ public:
                     bot_managed_symbols_.insert(pos.symbol);
                     bot_count++;
 
-                    Logger::getInstance().info(
-                        "Classified {} as BOT-MANAGED position: {} shares",
-                        pos.symbol, pos.quantity
-                    );
+                    Logger::getInstance().info("Classified {} as BOT-MANAGED position: {} shares",
+                                               pos.symbol, pos.quantity);
                 } else {
                     manual_positions_[pos.symbol] = pos;
                     manual_count++;
@@ -1527,7 +1441,8 @@ public:
 
     [[nodiscard]] auto getBalance() -> Result<AccountBalance> {
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         Logger::getInstance().info("Fetching account balance");
 
@@ -1552,7 +1467,8 @@ public:
      */
     [[nodiscard]] auto getPositions() -> Result<std::vector<AccountPosition>> {
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         Logger::getInstance().info("Fetching positions for account: {}", account_id_);
 
@@ -1576,7 +1492,7 @@ public:
             if (manual_positions_.find(symbol) == manual_positions_.end()) {
                 AccountPosition bot_pos;
                 bot_pos.symbol = symbol;
-                bot_pos.quantity = 10;  // Stub data
+                bot_pos.quantity = 10; // Stub data
                 bot_pos.average_price = 100.0;
                 bot_pos.current_price = 105.0;
                 bot_pos.unrealized_pnl = 50.0;
@@ -1642,8 +1558,8 @@ public:
      * @param symbol Security symbol
      * @param strategy Strategy name that opened this position
      */
-    auto markPositionAsBotManaged(std::string const& symbol,
-                                 std::string const& strategy = "BOT") -> void {
+    auto markPositionAsBotManaged(std::string const& symbol, std::string const& strategy = "BOT")
+        -> void {
         std::lock_guard<std::mutex> lock(mutex_);
 
         bot_managed_symbols_.insert(symbol);
@@ -1656,10 +1572,8 @@ public:
             updatePositionManagementInDB(symbol, true, strategy);
         }
 
-        Logger::getInstance().info(
-            "Marked {} as BOT-MANAGED position (strategy: {})",
-            symbol, strategy
-        );
+        Logger::getInstance().info("Marked {} as BOT-MANAGED position (strategy: {})", symbol,
+                                   strategy);
     }
 
     /**
@@ -1705,15 +1619,13 @@ public:
      * @param symbol Security symbol
      * @return Result with error if trading is prohibited
      */
-    [[nodiscard]] auto validateCanTrade(std::string const& symbol) const
-        -> Result<void> {
+    [[nodiscard]] auto validateCanTrade(std::string const& symbol) const -> Result<void> {
 
         if (hasManualPosition(symbol)) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                "Cannot trade " + symbol + " - manual position exists. "
-                "Bot only trades NEW securities or bot-managed positions."
-            );
+            return makeError<void>(ErrorCode::OrderRejected,
+                                   "Cannot trade " + symbol +
+                                       " - manual position exists. "
+                                       "Bot only trades NEW securities or bot-managed positions.");
         }
 
         return {};
@@ -1726,8 +1638,7 @@ public:
     /**
      * Get position counts
      */
-    [[nodiscard]] auto getPositionStats() const noexcept
-        -> std::tuple<size_t, size_t, size_t> {
+    [[nodiscard]] auto getPositionStats() const noexcept -> std::tuple<size_t, size_t, size_t> {
 
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -1738,7 +1649,7 @@ public:
         return {total, manual, bot_managed};
     }
 
-private:
+  private:
     // ========================================================================
     // Database Operations
     // ========================================================================
@@ -1791,7 +1702,7 @@ private:
             // Return a stub bot-managed position
             AccountPosition pos;
             pos.symbol = symbol;
-            pos.quantity = 0;  // Would load from DB
+            pos.quantity = 0; // Would load from DB
             return pos;
         }
 
@@ -1821,18 +1732,15 @@ private:
     /**
      * Update position management flags in database
      */
-    auto updatePositionManagementInDB(std::string const& symbol,
-                                     bool is_bot_managed,
-                                     std::string const& strategy) -> void {
+    auto updatePositionManagementInDB(std::string const& symbol, bool is_bot_managed,
+                                      std::string const& strategy) -> void {
         // Stub: In production, UPDATE DuckDB
         // UPDATE positions
         // SET is_bot_managed = ?, managed_by = 'BOT', bot_strategy = ?
         // WHERE account_id = ? AND symbol = ?
 
-        Logger::getInstance().debug(
-            "Updated position management in DB: {} -> bot_managed={}",
-            symbol, is_bot_managed
-        );
+        Logger::getInstance().debug("Updated position management in DB: {} -> bot_managed={}",
+                                    symbol, is_bot_managed);
     }
 
     // ========================================================================
@@ -1849,8 +1757,9 @@ private:
 
     // Position tracking (in-memory cache)
     // In production, these would be backed by DuckDB
-    std::unordered_map<std::string, AccountPosition> manual_positions_;  // Manual positions (DO NOT TOUCH)
-    std::unordered_set<std::string> bot_managed_symbols_;               // Bot-managed symbols (can trade)
+    std::unordered_map<std::string, AccountPosition>
+        manual_positions_;                                // Manual positions (DO NOT TOUCH)
+    std::unordered_set<std::string> bot_managed_symbols_; // Bot-managed symbols (can trade)
 };
 
 // ============================================================================
@@ -1858,13 +1767,10 @@ private:
 // ============================================================================
 
 class OrderManager {
-public:
+  public:
     explicit OrderManager(std::shared_ptr<TokenManager> token_mgr)
-        : token_mgr_{std::move(token_mgr)},
-          order_counter_{0},
-          dry_run_mode_{false},
-          max_position_size_{10000},
-          max_positions_{10} {}
+        : token_mgr_{std::move(token_mgr)}, order_counter_{0}, dry_run_mode_{false},
+          max_position_size_{10000.0}, max_positions_{10} {}
 
     // C.21: Rule of Five - deleted due to mutex member
     OrderManager(OrderManager const&) = delete;
@@ -1880,7 +1786,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] auto setMaxPositionSize(int max_size) -> OrderManager& {
+    [[nodiscard]] auto setMaxPositionSize(double max_size) -> OrderManager& {
         max_position_size_ = max_size;
         return *this;
     }
@@ -1899,25 +1805,30 @@ public:
     [[nodiscard]] auto placeOrder(Order order) -> Result<std::string> {
         // 1. Validate authentication token
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         // 2. Validate order parameters
         auto validation_result = validateOrderParameters(order);
-        if (!validation_result) return std::unexpected(validation_result.error());
+        if (!validation_result)
+            return std::unexpected(validation_result.error());
 
         // 3. CRITICAL: Check if symbol is already held as MANUAL position
         auto manual_check_result = validateOrderAgainstManualPositions(order);
-        if (!manual_check_result) return std::unexpected(manual_check_result.error());
+        if (!manual_check_result)
+            return std::unexpected(manual_check_result.error());
 
         // 4. Check buying power (if BUY order)
-        if (order.quantity > 0) {  // BUY order
+        if (order.quantity > quantity_epsilon) { // BUY order
             auto buying_power_result = checkBuyingPower(order);
-            if (!buying_power_result) return std::unexpected(buying_power_result.error());
+            if (!buying_power_result)
+                return std::unexpected(buying_power_result.error());
         }
 
         // 5. Check position limits
         auto position_limit_result = checkPositionLimits();
-        if (!position_limit_result) return std::unexpected(position_limit_result.error());
+        if (!position_limit_result)
+            return std::unexpected(position_limit_result.error());
 
         // 6. Generate order ID
         order.order_id = "ORD" + std::to_string(++order_counter_);
@@ -1925,11 +1836,11 @@ public:
 
         // 7. Dry-run mode check
         if (dry_run_mode_) {
-            Logger::getInstance().warn(
-                "[DRY-RUN] Would place order: {} {} shares of {} @ ${:.2f} (type: {}, duration: {})",
-                order.order_id, order.quantity, order.symbol, order.limit_price,
-                orderTypeToString(order.type), orderDurationToString(order.duration)
-            );
+            Logger::getInstance().warn("[DRY-RUN] Would place order: {} {} shares of {} @ ${:.2f} "
+                                       "(type: {}, duration: {})",
+                                       order.order_id, order.quantity, order.symbol,
+                                       order.limit_price, orderTypeToString(order.type),
+                                       orderDurationToString(order.duration));
 
             // In dry-run, mark as pending but don't actually place
             order.status = OrderStatus::Pending;
@@ -1947,17 +1858,16 @@ public:
         // 9. Compliance logging
         logOrderCompliance(order, "PLACED");
 
-        Logger::getInstance().info(
-            "Placed order: {} {} shares of {} @ ${:.2f}",
-            order.order_id, order.quantity, order.symbol, order.limit_price
-        );
+        Logger::getInstance().info("Placed order: {} {} shares of {} @ ${:.2f}", order.order_id,
+                                   order.quantity, order.symbol, order.limit_price);
 
         return order.order_id;
     }
 
     [[nodiscard]] auto cancelOrder(std::string const& order_id) -> Result<void> {
         auto token = token_mgr_->getAccessToken();
-        if (!token) return std::unexpected(token.error());
+        if (!token)
+            return std::unexpected(token.error());
 
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = orders_.find(order_id);
@@ -1999,7 +1909,7 @@ public:
         return active_orders;
     }
 
-private:
+  private:
     // ========================================================================
     // Safety Check Methods
     // ========================================================================
@@ -2014,36 +1924,30 @@ private:
         }
 
         // Check quantity
-        if (order.quantity == 0) {
+        if (order.quantity <= quantity_epsilon) {
             return makeError<void>(ErrorCode::InvalidParameter, "Quantity cannot be zero");
         }
 
         // For limit orders, check price
         if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
             if (order.limit_price <= 0.0) {
-                return makeError<void>(
-                    ErrorCode::InvalidParameter,
-                    "Limit price must be positive for limit orders"
-                );
+                return makeError<void>(ErrorCode::InvalidParameter,
+                                       "Limit price must be positive for limit orders");
             }
         }
 
         // For stop orders, check stop price
         if (order.type == OrderType::Stop || order.type == OrderType::StopLimit) {
             if (order.stop_price <= 0.0) {
-                return makeError<void>(
-                    ErrorCode::InvalidParameter,
-                    "Stop price must be positive for stop orders"
-                );
+                return makeError<void>(ErrorCode::InvalidParameter,
+                                       "Stop price must be positive for stop orders");
             }
         }
 
         // Check position size limits
         if (std::abs(order.quantity) > max_position_size_) {
-            return makeError<void>(
-                ErrorCode::InvalidParameter,
-                "Order quantity exceeds maximum position size limit"
-            );
+            return makeError<void>(ErrorCode::InvalidParameter,
+                                   "Order quantity exceeds maximum position size limit");
         }
 
         return {};
@@ -2059,20 +1963,16 @@ private:
         if (!account_mgr_) {
             // If no account manager is set, we can't check - allow but warn
             Logger::getInstance().warn(
-                "No AccountManager set - cannot verify manual positions for {}",
-                order.symbol
-            );
+                "No AccountManager set - cannot verify manual positions for {}", order.symbol);
             return {};
         }
 
         // Check if this symbol is manually held
         if (isSymbolManuallyHeld(order.symbol)) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                "Cannot trade " + order.symbol + " - manual position exists. " +
-                "Bot only trades NEW securities or bot-managed positions. " +
-                "See TRADING_CONSTRAINTS.md for details."
-            );
+            return makeError<void>(ErrorCode::OrderRejected,
+                                   "Cannot trade " + order.symbol + " - manual position exists. " +
+                                       "Bot only trades NEW securities or bot-managed positions. " +
+                                       "See TRADING_CONSTRAINTS.md for details.");
         }
 
         return {};
@@ -2082,14 +1982,14 @@ private:
      * Check if symbol is held as a manual (non-bot-managed) position
      */
     [[nodiscard]] auto isSymbolManuallyHeld(std::string const& symbol) const -> bool {
-        if (!account_mgr_) return false;
+        if (!account_mgr_)
+            return false;
 
         // Get all positions
         auto positions_result = account_mgr_->getPositions();
         if (!positions_result) {
-            Logger::getInstance().error("Failed to fetch positions: {}",
-                positions_result.error());
-            return false;  // Fail open - allow trade if we can't verify
+            Logger::getInstance().error("Failed to fetch positions: {}", positions_result.error());
+            return false; // Fail open - allow trade if we can't verify
         }
 
         // Check each position
@@ -2098,15 +1998,13 @@ private:
                 // Found position - check if it's manual
                 // Note: AccountPosition doesn't have is_bot_managed flag in current impl
                 // For now, we assume all positions are manual unless we track them
-                Logger::getInstance().warn(
-                    "Position exists for {}: {} shares @ ${:.2f}",
-                    symbol, pos.quantity, pos.average_price
-                );
-                return true;  // Conservative: treat all existing positions as manual
+                Logger::getInstance().warn("Position exists for {}: {} shares @ ${:.2f}", symbol,
+                                           pos.quantity, pos.average_price);
+                return true; // Conservative: treat all existing positions as manual
             }
         }
 
-        return false;  // No position exists - safe to trade
+        return false; // No position exists - safe to trade
     }
 
     /**
@@ -2115,18 +2013,16 @@ private:
     [[nodiscard]] auto checkBuyingPower(Order const& order) const -> Result<void> {
         if (!account_mgr_) {
             Logger::getInstance().warn(
-                "No AccountManager set - cannot verify buying power for order"
-            );
-            return {};  // Allow if we can't verify
+                "No AccountManager set - cannot verify buying power for order");
+            return {}; // Allow if we can't verify
         }
 
         // Get account balance
         auto balance_result = account_mgr_->getBalance();
         if (!balance_result) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                std::string("Failed to retrieve account balance: ") + balance_result.error().message
-            );
+            return makeError<void>(ErrorCode::OrderRejected,
+                                   std::string("Failed to retrieve account balance: ") +
+                                       balance_result.error().message);
         }
 
         auto const& balance = *balance_result;
@@ -2137,28 +2033,23 @@ private:
             // For market orders, we need a price estimate
             // Conservative approach: assume we need quantity * estimated_price
             // This is a simplified check - real implementation would get current quote
-            estimated_cost = static_cast<double>(order.quantity) * 100.0;  // Placeholder
+            estimated_cost = order.quantity * 100.0; // Placeholder
             Logger::getInstance().warn(
-                "Market order - using conservative estimate for buying power check"
-            );
+                "Market order - using conservative estimate for buying power check");
         } else if (order.type == OrderType::Limit || order.type == OrderType::StopLimit) {
-            estimated_cost = static_cast<double>(order.quantity) * order.limit_price;
+            estimated_cost = order.quantity * order.limit_price;
         }
 
         // Check buying power
         if (!balance.hasSufficientFunds(estimated_cost)) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                "Insufficient buying power: need $" +
-                std::to_string(estimated_cost) + ", available $" +
-                std::to_string(balance.buying_power)
-            );
+            return makeError<void>(ErrorCode::OrderRejected,
+                                   "Insufficient buying power: need $" +
+                                       std::to_string(estimated_cost) + ", available $" +
+                                       std::to_string(balance.buying_power));
         }
 
-        Logger::getInstance().info(
-            "Buying power check passed: need ${:.2f}, have ${:.2f}",
-            estimated_cost, balance.buying_power
-        );
+        Logger::getInstance().info("Buying power check passed: need ${:.2f}, have ${:.2f}",
+                                   estimated_cost, balance.buying_power);
 
         return {};
     }
@@ -2168,24 +2059,21 @@ private:
      */
     [[nodiscard]] auto checkPositionLimits() const -> Result<void> {
         if (!account_mgr_) {
-            return {};  // Can't check without account manager
+            return {}; // Can't check without account manager
         }
 
         auto positions_result = account_mgr_->getPositions();
         if (!positions_result) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                std::string("Failed to retrieve positions: ") + positions_result.error().message
-            );
+            return makeError<void>(ErrorCode::OrderRejected,
+                                   std::string("Failed to retrieve positions: ") +
+                                       positions_result.error().message);
         }
 
         auto const& positions = *positions_result;
 
         if (static_cast<int>(positions.size()) >= max_positions_) {
-            return makeError<void>(
-                ErrorCode::OrderRejected,
-                "Maximum position limit reached: " + std::to_string(max_positions_)
-            );
+            return makeError<void>(ErrorCode::OrderRejected, "Maximum position limit reached: " +
+                                                                 std::to_string(max_positions_));
         }
 
         return {};
@@ -2198,10 +2086,8 @@ private:
         Logger::getInstance().info(
             "[COMPLIANCE] {} - Order: {}, Symbol: {}, Qty: {}, Type: {}, Price: ${:.2f}, "
             "Status: {}, Timestamp: {}",
-            action, order.order_id, order.symbol, order.quantity,
-            orderTypeToString(order.type), order.limit_price,
-            orderStatusToString(order.status), order.created_at
-        );
+            action, order.order_id, order.symbol, order.quantity, orderTypeToString(order.type),
+            order.limit_price, orderStatusToString(order.status), order.created_at);
     }
 
     // ========================================================================
@@ -2210,34 +2096,52 @@ private:
 
     [[nodiscard]] auto orderTypeToString(OrderType type) const -> std::string {
         switch (type) {
-            case OrderType::Market: return "MARKET";
-            case OrderType::Limit: return "LIMIT";
-            case OrderType::Stop: return "STOP";
-            case OrderType::StopLimit: return "STOP_LIMIT";
-            default: return "UNKNOWN";
+            case OrderType::Market:
+                return "MARKET";
+            case OrderType::Limit:
+                return "LIMIT";
+            case OrderType::Stop:
+                return "STOP";
+            case OrderType::StopLimit:
+                return "STOP_LIMIT";
+            default:
+                return "UNKNOWN";
         }
     }
 
     [[nodiscard]] auto orderDurationToString(OrderDuration duration) const -> std::string {
         switch (duration) {
-            case OrderDuration::Day: return "DAY";
-            case OrderDuration::GTC: return "GTC";
-            case OrderDuration::GTD: return "GTD";
-            case OrderDuration::FOK: return "FOK";
-            case OrderDuration::IOC: return "IOC";
-            default: return "UNKNOWN";
+            case OrderDuration::Day:
+                return "DAY";
+            case OrderDuration::GTC:
+                return "GTC";
+            case OrderDuration::GTD:
+                return "GTD";
+            case OrderDuration::FOK:
+                return "FOK";
+            case OrderDuration::IOC:
+                return "IOC";
+            default:
+                return "UNKNOWN";
         }
     }
 
     [[nodiscard]] auto orderStatusToString(OrderStatus status) const -> std::string {
         switch (status) {
-            case OrderStatus::Pending: return "PENDING";
-            case OrderStatus::Working: return "WORKING";
-            case OrderStatus::Filled: return "FILLED";
-            case OrderStatus::PartiallyFilled: return "PARTIALLY_FILLED";
-            case OrderStatus::Canceled: return "CANCELED";
-            case OrderStatus::Rejected: return "REJECTED";
-            default: return "UNKNOWN";
+            case OrderStatus::Pending:
+                return "PENDING";
+            case OrderStatus::Working:
+                return "WORKING";
+            case OrderStatus::Filled:
+                return "FILLED";
+            case OrderStatus::PartiallyFilled:
+                return "PARTIALLY_FILLED";
+            case OrderStatus::Canceled:
+                return "CANCELED";
+            case OrderStatus::Rejected:
+                return "REJECTED";
+            default:
+                return "UNKNOWN";
         }
     }
 
@@ -2252,7 +2156,7 @@ private:
 
     // Safety configuration
     std::atomic<bool> dry_run_mode_;
-    int max_position_size_;
+    double max_position_size_;
     int max_positions_;
 
     // Account manager for balance/position checks
@@ -2264,7 +2168,7 @@ private:
 // ============================================================================
 
 class WebSocketClient {
-public:
+  public:
     explicit WebSocketClient(std::shared_ptr<TokenManager> token_mgr)
         : token_mgr_{std::move(token_mgr)}, connected_{false} {}
 
@@ -2297,7 +2201,7 @@ public:
         return {};
     }
 
-private:
+  private:
     std::shared_ptr<TokenManager> token_mgr_;
     std::atomic<bool> connected_;
 };
@@ -2307,13 +2211,10 @@ private:
 // ============================================================================
 
 class SchwabClient {
-public:
+  public:
     explicit SchwabClient(OAuth2Config config)
-        : token_mgr_{std::make_shared<TokenManager>(std::move(config))},
-          market_data_{token_mgr_},
-          orders_{token_mgr_},
-          account_{token_mgr_},
-          websocket_{token_mgr_} {}
+        : token_mgr_{std::make_shared<TokenManager>(std::move(config))}, market_data_{token_mgr_},
+          orders_{token_mgr_}, account_{token_mgr_}, websocket_{token_mgr_} {}
 
     // C.21: Rule of Five
     // C.21: Rule of Five - deleted due to non-moveable members
@@ -2330,7 +2231,7 @@ public:
     [[nodiscard]] auto websocket() -> WebSocketClient& { return websocket_; }
     [[nodiscard]] auto tokens() -> TokenManager& { return *token_mgr_; }
 
-private:
+  private:
     std::shared_ptr<TokenManager> token_mgr_;
     MarketDataClient market_data_;
     OrderManager orders_;
@@ -2338,4 +2239,4 @@ private:
     WebSocketClient websocket_;
 };
 
-} // export namespace bigbrother::schwab
+} // namespace bigbrother::schwab
