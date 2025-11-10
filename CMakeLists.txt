@@ -14,8 +14,8 @@ project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # Use libc++ (LLVM's C++ standard library)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lc++abi")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lc++abi")
 
 # libc++ adds abi_tag attributes by default; disable to avoid duplicate attribute
 # emissions when Clang builds std headers alongside modules.
@@ -94,23 +94,31 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Find required packages
 find_package(OpenMP REQUIRED)
 
-# MPI Configuration - System-installed OpenMPI 5.0.7
-# Note: MPI wrappers use GCC, but we need to use Clang, so we specify paths directly
-set(MPI_CXX_INCLUDE_DIRS "/usr/lib/x86_64-linux-gnu/openmpi/include;/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi" CACHE STRING "MPI include directories")
-set(MPI_CXX_LIBRARIES "/usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so" CACHE FILEPATH "MPI libraries")
-set(MPI_CXX_FOUND TRUE CACHE BOOL "MPI found")
-set(MPI_FOUND TRUE CACHE BOOL "MPI found")
+# MPI Configuration - DISABLED FOR TIER 1
+# Note: MPI is only needed for correlation_engine with massive parallelization
+#       Not used in live trading or backtesting executables
+#       Will be enabled in Tier 2 for large-scale correlation analysis
+set(ENABLE_MPI OFF CACHE BOOL "Enable MPI support")
 
-# Create imported target for MPI (if not already created by find_package)
-if(NOT TARGET MPI::MPI_CXX)
-    add_library(MPI::MPI_CXX INTERFACE IMPORTED)
-    set_target_properties(MPI::MPI_CXX PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_DIRS}"
-        INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}"
-    )
-    message(STATUS "MPI manually configured for Clang compatibility")
-    message(STATUS "  MPI Include: ${MPI_CXX_INCLUDE_DIRS}")
-    message(STATUS "  MPI Library: ${MPI_CXX_LIBRARIES}")
+if(ENABLE_MPI)
+    # Use custom-built OpenMPI at /usr/local (built with Clang)
+    set(MPI_CXX_INCLUDE_DIRS "/usr/local/include" CACHE STRING "MPI include directories")
+    set(MPI_CXX_LIBRARIES "/usr/local/lib/libmpi.so" CACHE FILEPATH "MPI libraries")
+    set(MPI_CXX_FOUND TRUE CACHE BOOL "MPI found")
+    set(MPI_FOUND TRUE CACHE BOOL "MPI found")
+
+    if(NOT TARGET MPI::MPI_CXX)
+        add_library(MPI::MPI_CXX INTERFACE IMPORTED)
+        set_target_properties(MPI::MPI_CXX PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_DIRS}"
+            INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}"
+        )
+        message(STATUS "MPI enabled for correlation engine")
+        message(STATUS "  MPI Include: ${MPI_CXX_INCLUDE_DIRS}")
+        message(STATUS "  MPI Library: ${MPI_CXX_LIBRARIES}")
+    endif()
+else()
+    message(STATUS "MPI disabled (not needed for Tier 1 live trading)")
 endif()
 
 find_package(Threads REQUIRED)
@@ -453,6 +461,8 @@ target_link_libraries(bigbrother
     risk_management
     schwab_api
     explainability
+    c++
+    c++abi
 )
 
 # ============================================================================

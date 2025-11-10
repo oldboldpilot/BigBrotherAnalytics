@@ -385,4 +385,8 @@ auto Logger::logMessage(LogLevel level, std::string const& msg) -> void {
     pImpl->log(level, msg, std::source_location::current());
 }
 
+auto Logger::logFormatted(LogLevel level, std::string const& msg) -> void {
+    pImpl->log(level, msg, std::source_location::current());
+}
+
 } // namespace bigbrother::utils

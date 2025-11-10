@@ -11,15 +11,15 @@
  * Author: Olumuyiwa Oluwasanmi
  */
 
+#include <iostream>
+#include <string>
+#include <vector>
+
 import bigbrother.utils.logger;
 import bigbrother.utils.config;
 import bigbrother.utils.timer;
 import bigbrother.backtest_engine;
 import bigbrother.strategies;
-
-#include <iostream>
-#include <string>
-#include <vector>
 
 using namespace bigbrother;
 
