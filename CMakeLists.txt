@@ -475,6 +475,38 @@ target_link_libraries(risk_management
 )
 
 # ============================================================================
+# Trading Core - Platform-Agnostic Order Management (C++23 Modules)
+# ============================================================================
+
+add_library(trading_core SHARED)
+
+# C++23 modules for platform-agnostic trading
+target_sources(trading_core
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            # Module dependency chain:
+            # order_types (base types) -> platform_interface -> orders_manager
+            src/core/trading/order_types.cppm
+            src/core/trading/platform_interface.cppm
+            src/core/trading/orders_manager.cppm
+)
+target_compile_options(trading_core PRIVATE -fmodule-output)
+
+target_link_libraries(trading_core
+    PUBLIC
+    utils
+    duckdb_bridge
+    OpenMP::OpenMP_CXX
+    Threads::Threads
+    c++
+    c++abi
+)
+
+if(nlohmann_json_FOUND)
+    target_link_libraries(trading_core PUBLIC nlohmann_json::nlohmann_json)
+endif()
+
+# ============================================================================
 # Schwab API Client (C++23 Modules ENABLED)
 # ============================================================================
 
@@ -524,6 +556,7 @@ target_sources(schwab_api
             src/schwab_api/schwab_api.cppm
             src/schwab_api/account_manager.cppm
             src/schwab_api/orders_manager.cppm  # Uses duckdb_bridge for order logging
+            src/schwab_api/schwab_order_executor.cppm  # Schwab-specific TradingPlatformInterface implementation
             # src/schwab_api/position_tracker.cppm  # Uses duckdb_bridge - works in Python bindings
             # src/schwab_api/portfolio_analyzer.cppm  # No DB deps - works in Python bindings
 )
@@ -533,6 +566,7 @@ target_link_libraries(schwab_api
     PUBLIC
     utils
     options_pricing
+    trading_core  # Platform-agnostic order management
     duckdb_bridge
     CURL::libcurl
     OpenMP::OpenMP_CXX
@@ -710,6 +744,7 @@ install(TARGETS
     options_pricing
     trading_decision
     risk_management
+    trading_core
     schwab_api
     explainability
     LIBRARY DESTINATION lib
