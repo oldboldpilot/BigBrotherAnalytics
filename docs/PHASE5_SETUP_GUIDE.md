@@ -313,6 +313,28 @@ ls -la dashboard/app.py
    ./build/bigbrother
    ```
 
+**Every evening at market close:**
+
+6. **Run end-of-day shutdown**
+   ```bash
+   uv run python scripts/phase5_shutdown.py
+   ```
+   - Stops all trading processes gracefully
+   - Generates EOD report with today's activity
+   - Calculates taxes for closed trades
+   - Backs up database (keeps last 7 days)
+   - Cleans up temp files
+
+**Force shutdown (skip confirmations):**
+```bash
+uv run python scripts/phase5_shutdown.py --force
+```
+
+**Skip database backup:**
+```bash
+uv run python scripts/phase5_shutdown.py --no-backup
+```
+
 ---
 
 ## Integration with Phase 5
@@ -381,26 +403,38 @@ fi
 
 **Replace all these:**
 ```bash
-# OLD WAY (multiple commands)
+# OLD WAY - Morning Setup (multiple commands)
 uv run python /tmp/refresh_schwab_token.py
 uv run python scripts/monitoring/update_tax_config_ytd.py
 uv run python scripts/monitoring/setup_tax_database.py
 uv run python scripts/test_schwab_api_live.py
 # ... and 5 more commands
+
+# OLD WAY - Evening Shutdown (manual process)
+killall bigbrother
+killall streamlit
+# ... manually stop each process
 ```
 
-**With this:**
+**With these:**
 ```bash
-# NEW WAY (one command)
-uv run python scripts/phase5_setup.py
+# NEW WAY - Morning Setup (one command)
+uv run python scripts/phase5_setup.py --quick
+
+# NEW WAY - Evening Shutdown (one command)
+uv run python scripts/phase5_shutdown.py
 ```
 
-**Phase 5 paper trading is now 10x easier to set up and verify daily.**
+**Phase 5 paper trading is now 10x easier:**
+- ✅ Morning: 1 command verifies all systems (10-15 seconds)
+- ✅ Evening: 1 command stops everything gracefully + reports
 
 ---
 
 **Created:** 2025-11-10
-**Script:** `/home/muyiwa/Development/BigBrotherAnalytics/scripts/phase5_setup.py`
+**Scripts:**
+- Setup: [scripts/phase5_setup.py](../scripts/phase5_setup.py)
+- Shutdown: [scripts/phase5_shutdown.py](../scripts/phase5_shutdown.py)
 **Documentation:** This file
 
 **Next Step:** Run `uv run python scripts/phase5_setup.py` and begin Phase 5!
