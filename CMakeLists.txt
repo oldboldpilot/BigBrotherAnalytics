@@ -6,16 +6,62 @@ cmake_minimum_required(VERSION 3.28)  # Required for C++23 modules support
 # ============================================================================
 # Compiler Configuration (MUST be before project())
 # ============================================================================
-# Use Clang 21 from /usr/local/bin
-set(CMAKE_C_COMPILER "/usr/local/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/local/bin/clang++")
+# Auto-detect Clang or use environment variables (portable across systems)
+# Priority: ENV CC/CXX > /usr/local/bin > /usr/bin > system default
+if(NOT CMAKE_C_COMPILER)
+    if(DEFINED ENV{CC})
+        set(CMAKE_C_COMPILER "$ENV{CC}")
+    elseif(EXISTS "/usr/local/bin/clang")
+        set(CMAKE_C_COMPILER "/usr/local/bin/clang")
+    else()
+        find_program(CLANG_EXECUTABLE clang)
+        if(CLANG_EXECUTABLE)
+            set(CMAKE_C_COMPILER "${CLANG_EXECUTABLE}")
+        endif()
+    endif()
+endif()
+
+if(NOT CMAKE_CXX_COMPILER)
+    if(DEFINED ENV{CXX})
+        set(CMAKE_CXX_COMPILER "$ENV{CXX}")
+    elseif(EXISTS "/usr/local/bin/clang++")
+        set(CMAKE_CXX_COMPILER "/usr/local/bin/clang++")
+    else()
+        find_program(CLANGXX_EXECUTABLE clang++)
+        if(CLANGXX_EXECUTABLE)
+            set(CMAKE_CXX_COMPILER "${CLANGXX_EXECUTABLE}")
+        endif()
+    endif()
+endif()
+
+message(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
 
 project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
 # Use libc++ (LLVM's C++ standard library)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lc++abi")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lc++abi")
+
+# Auto-detect libc++ library path (portable across systems)
+# Priority: ENV LIBCXX_PATH > /usr/local/lib > /usr/lib
+if(DEFINED ENV{LIBCXX_PATH})
+    set(LIBCXX_LIB_PATH "$ENV{LIBCXX_PATH}")
+elseif(EXISTS "/usr/local/lib/libc++.so" OR EXISTS "/usr/local/lib/libc++.a")
+    set(LIBCXX_LIB_PATH "/usr/local/lib")
+elseif(EXISTS "/usr/lib/x86_64-linux-gnu/libc++.so" OR EXISTS "/usr/lib/x86_64-linux-gnu/libc++.a")
+    set(LIBCXX_LIB_PATH "/usr/lib/x86_64-linux-gnu")
+elseif(EXISTS "/usr/lib/libc++.so" OR EXISTS "/usr/lib/libc++.a")
+    set(LIBCXX_LIB_PATH "/usr/lib")
+else()
+    # Fallback to /usr/local/lib if not found
+    set(LIBCXX_LIB_PATH "/usr/local/lib")
+    message(WARNING "Could not find libc++ library, using fallback: ${LIBCXX_LIB_PATH}")
+endif()
+
+message(STATUS "Using libc++ library path: ${LIBCXX_LIB_PATH}")
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -L${LIBCXX_LIB_PATH} -Wl,-rpath,${LIBCXX_LIB_PATH} -lc++abi")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -L${LIBCXX_LIB_PATH} -Wl,-rpath,${LIBCXX_LIB_PATH} -lc++abi")
 
 # libc++ adds abi_tag attributes by default; disable to avoid duplicate attribute
 # emissions when Clang builds std headers alongside modules.
@@ -68,23 +114,46 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # C++23 Standard Library Module Support (import std;)
-# Precompile std module for faster builds and cleaner syntax
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/modules/std.pcm
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/modules
-    COMMAND ${CMAKE_CXX_COMPILER}
-            -std=c++23
-            -stdlib=libc++
-            -nostdinc++
-            -isystem /opt/libc++_modules/include/c++/v1
-        -D_LIBCPP_NO_ABI_TAG
-            --precompile
-            /opt/libc++_modules/share/libc++/v1/std.cppm
-            -o ${CMAKE_BINARY_DIR}/modules/std.pcm
-    COMMENT "Precompiling C++23 std module for import std; support"
-    VERBATIM
-)
-add_custom_target(std_module DEPENDS ${CMAKE_BINARY_DIR}/modules/std.pcm)
+# Auto-detect libc++ modules path (portable across systems)
+# Priority: ENV LIBCXX_MODULES_PATH > /opt/libc++_modules > /usr/local > /usr
+if(DEFINED ENV{LIBCXX_MODULES_PATH})
+    set(LIBCXX_MODULES_BASE "$ENV{LIBCXX_MODULES_PATH}")
+elseif(EXISTS "/opt/libc++_modules/share/libc++/v1/std.cppm")
+    set(LIBCXX_MODULES_BASE "/opt/libc++_modules")
+elseif(EXISTS "/usr/local/share/libc++/v1/std.cppm")
+    set(LIBCXX_MODULES_BASE "/usr/local")
+elseif(EXISTS "/usr/share/libc++/v1/std.cppm")
+    set(LIBCXX_MODULES_BASE "/usr")
+else()
+    # Fallback - build without std module (slower but still works)
+    set(LIBCXX_MODULES_BASE "")
+    message(WARNING "Could not find std.cppm, building without import std; support (slower builds)")
+endif()
+
+if(LIBCXX_MODULES_BASE)
+    message(STATUS "Using libc++ modules from: ${LIBCXX_MODULES_BASE}")
+
+    # Precompile std module for faster builds and cleaner syntax
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/std.pcm
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/modules
+        COMMAND ${CMAKE_CXX_COMPILER}
+                -std=c++23
+                -stdlib=libc++
+                -nostdinc++
+                -isystem ${LIBCXX_MODULES_BASE}/include/c++/v1
+                -D_LIBCPP_NO_ABI_TAG
+                --precompile
+                ${LIBCXX_MODULES_BASE}/share/libc++/v1/std.cppm
+                -o ${CMAKE_BINARY_DIR}/modules/std.pcm
+        COMMENT "Precompiling C++23 std module for import std; support"
+        VERBATIM
+    )
+    add_custom_target(std_module DEPENDS ${CMAKE_BINARY_DIR}/modules/std.pcm)
+else()
+    # Dummy target when std module is not available
+    add_custom_target(std_module)
+endif()
 
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

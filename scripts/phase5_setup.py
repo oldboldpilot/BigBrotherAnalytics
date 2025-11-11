@@ -411,24 +411,36 @@ class Phase5Setup:
 
         try:
             print("   Starting trading engine...", end=" ", flush=True)
-            # Use environment from ansible playbook (playbooks/complete-tier1-setup.yml)
-            # Matches: export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-            # Also include x86_64-unknown-linux-gnu subdirectory for libomp.so
-            lib_paths = [
-                "/usr/local/lib/x86_64-unknown-linux-gnu",
-                "/usr/local/lib",
-                os.environ.get("LD_LIBRARY_PATH", "")
-            ]
+
+            # Auto-detect library paths (portable across systems)
+            # Priority: ENV LIBCXX_PATH > /usr/local/lib > /usr/lib
+            lib_paths = []
+
+            # Add architecture-specific paths
+            for base in ["/usr/local/lib", "/usr/lib"]:
+                arch_path = os.path.join(base, "x86_64-unknown-linux-gnu")
+                if os.path.exists(arch_path):
+                    lib_paths.append(arch_path)
+                if os.path.exists(base):
+                    lib_paths.append(base)
+
+            # Add existing LD_LIBRARY_PATH
+            if os.environ.get("LD_LIBRARY_PATH"):
+                lib_paths.append(os.environ.get("LD_LIBRARY_PATH"))
+
             ld_library_path = ":".join(filter(None, lib_paths))
 
-            # Use compiler settings from ansible playbook
-            # Matches: export CC=/usr/local/bin/clang, export CXX=/usr/local/bin/clang++
+            # Auto-detect compiler locations (portable across systems)
+            # Priority: ENV CC/CXX > /usr/local/bin > /usr/bin > which
+            cc = os.environ.get("CC") or shutil.which("clang") or "/usr/local/bin/clang"
+            cxx = os.environ.get("CXX") or shutil.which("clang++") or "/usr/local/bin/clang++"
+
             env = {
                 **os.environ,
-                "CC": "/usr/local/bin/clang",
-                "CXX": "/usr/local/bin/clang++",
+                "CC": cc,
+                "CXX": cxx,
                 "LD_LIBRARY_PATH": ld_library_path,
-                "PATH": f"/usr/local/bin:{os.environ.get('PATH', '')}"
+                "PATH": os.environ.get("PATH", "")
             }
 
             subprocess.Popen(

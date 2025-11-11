@@ -12,11 +12,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 
-# Add scripts directory to path for health check imports
+# Add scripts and dashboard directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 # Import tax implications view
-from dashboard.tax_implications_view import show_tax_implications
+from tax_implications_view import show_tax_implications
 
 # Page configuration
 st.set_page_config(
