@@ -104,6 +104,11 @@ enum class ErrorCode : uint32_t {
     AuthenticationFailed,
     InsufficientFunds,
     OrderRejected,
+    InitializationError,
+    RuntimeError,
+    APIError,
+    ParseError,
+    CircuitBreakerOpen,
     UnknownError
 };
 

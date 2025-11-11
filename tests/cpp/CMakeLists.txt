@@ -77,6 +77,34 @@ if(GTest_FOUND)
 
     add_test(NAME SchwabE2EWorkflowTests COMMAND test_schwab_e2e_workflow)
 
+    # Yahoo Finance API Tests
+    add_executable(test_yahoo_finance
+        test_yahoo_finance.cpp
+    )
+
+    target_link_libraries(test_yahoo_finance
+        PRIVATE
+        market_intelligence
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    add_test(NAME YahooFinanceAPITests COMMAND test_yahoo_finance)
+
+    # Schwab API Tests
+    add_executable(test_schwab_api
+        test_schwab_api.cpp
+    )
+
+    target_link_libraries(test_schwab_api
+        PRIVATE
+        market_intelligence
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    add_test(NAME SchwabAPITests COMMAND test_schwab_api)
+
 else()
     message(STATUS "Google Test not found - C++ tests disabled")
     message(STATUS "Install with: sudo apt-get install libgtest-dev")

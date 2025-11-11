@@ -32,18 +32,20 @@ export module bigbrother.circuit_breaker;
 
 // Import dependencies
 import bigbrother.utils.logger;
+import bigbrother.utils.types;
 
 export namespace bigbrother::circuit_breaker {
 
 using namespace bigbrother::utils;
+using namespace bigbrother::types;
 
 /**
  * Circuit Breaker State
  */
 enum class CircuitState {
-    CLOSED,    // Normal operation
-    OPEN,      // Circuit is open, fail fast
-    HALF_OPEN  // Testing recovery
+    CLOSED,   // Normal operation
+    OPEN,     // Circuit is open, fail fast
+    HALF_OPEN // Testing recovery
 };
 
 /**
@@ -71,12 +73,12 @@ struct CircuitStats {
  * Circuit Breaker Configuration
  */
 struct CircuitConfig {
-    int failure_threshold{5};                            // Open after N consecutive failures
-    std::chrono::seconds timeout{60};                    // Time before trying HALF_OPEN
-    std::chrono::seconds half_open_timeout{30};          // Time in HALF_OPEN before CLOSED
-    int half_open_max_calls{3};                          // Max calls in HALF_OPEN state
-    bool enable_logging{true};                           // Log state transitions
-    std::string name{"CircuitBreaker"};                  // Name for logging
+    int failure_threshold{5};                   // Open after N consecutive failures
+    std::chrono::seconds timeout{60};           // Time before trying HALF_OPEN
+    std::chrono::seconds half_open_timeout{30}; // Time in HALF_OPEN before CLOSED
+    int half_open_max_calls{3};                 // Max calls in HALF_OPEN state
+    bool enable_logging{true};                  // Log state transitions
+    std::string name{"CircuitBreaker"};         // Name for logging
 
     [[nodiscard]] auto validate() const noexcept -> bool {
         return failure_threshold > 0 && timeout.count() > 0 && half_open_timeout.count() > 0 &&
@@ -140,8 +142,7 @@ class CircuitBreaker {
      * @return Result of the function or error if circuit is open
      */
     template <typename T>
-    [[nodiscard]] auto call(std::function<std::expected<T, std::string>()> func)
-        -> std::expected<T, std::string> {
+    [[nodiscard]] auto call(std::function<Result<T>()> func) -> Result<T> {
 
         // Check current state
         auto current_state = updateState();
@@ -156,7 +157,8 @@ class CircuitBreaker {
                                            config_.name);
             }
 
-            return std::unexpected("Circuit breaker is OPEN - service unavailable");
+            return std::unexpected(Error::make(ErrorCode::CircuitBreakerOpen,
+                                               "Circuit breaker is OPEN - service unavailable"));
         }
 
         // If circuit is HALF_OPEN, limit calls
@@ -168,7 +170,9 @@ class CircuitBreaker {
                     Logger::getInstance().warn(
                         "Circuit breaker '{}' is HALF_OPEN - max calls reached", config_.name);
                 }
-                return std::unexpected("Circuit breaker is HALF_OPEN - limited availability");
+                return std::unexpected(
+                    Error::make(ErrorCode::CircuitBreakerOpen,
+                                "Circuit breaker is HALF_OPEN - limited availability"));
             }
 
             half_open_calls_++;
@@ -181,7 +185,7 @@ class CircuitBreaker {
         if (result) {
             recordSuccess();
         } else {
-            recordFailure(result.error());
+            recordFailure(result.error().message);
         }
 
         return result;
@@ -197,9 +201,7 @@ class CircuitBreaker {
     /**
      * Check if circuit is open
      */
-    [[nodiscard]] auto isOpen() const noexcept -> bool {
-        return getState() == CircuitState::OPEN;
-    }
+    [[nodiscard]] auto isOpen() const noexcept -> bool { return getState() == CircuitState::OPEN; }
 
     /**
      * Check if circuit is closed
@@ -358,9 +360,9 @@ class CircuitBreaker {
             half_open_calls_ = 0;
 
             if (config_.enable_logging) {
-                Logger::getInstance().error(
-                    "Circuit breaker '{}' transitioning HALF_OPEN -> OPEN (failure during recovery)",
-                    config_.name);
+                Logger::getInstance().error("Circuit breaker '{}' transitioning HALF_OPEN -> OPEN "
+                                            "(failure during recovery)",
+                                            config_.name);
             }
         }
     }
@@ -463,8 +465,7 @@ class CircuitBreakerManager {
     /**
      * Get all circuit breaker statistics
      */
-    [[nodiscard]] auto getAllStats() const
-        -> std::vector<std::pair<std::string, CircuitStats>> {
+    [[nodiscard]] auto getAllStats() const -> std::vector<std::pair<std::string, CircuitStats>> {
 
         std::lock_guard<std::mutex> lock(mutex_);
 

@@ -311,6 +311,7 @@ target_link_libraries(utils
     PUBLIC
     Threads::Threads
     OpenMP::OpenMP_CXX
+    yaml-cpp
 )
 
 if(spdlog_FOUND)
@@ -343,6 +344,9 @@ target_sources(market_intelligence
             src/market_intelligence/news_ingestion.cppm
             src/market_intelligence/alphavantage_news.cppm
             src/market_intelligence/ml_sentiment_analyzer.cppm
+            src/market_intelligence/market_data_types.cppm
+            src/market_intelligence/yahoo_finance.cppm
+            src/market_intelligence/schwab_api.cppm
 )
 target_compile_options(market_intelligence PRIVATE -fmodule-output)
 
@@ -857,6 +861,14 @@ target_link_libraries(news_ingestion_py PRIVATE market_intelligence utils)
 set_target_properties(news_ingestion_py PROPERTIES
     OUTPUT_NAME "news_ingestion_py"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build"
+)
+
+# Market Data Python Bindings - Schwab + Yahoo Finance (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(market_data_py src/python_bindings/market_data_bindings.cpp)
+target_link_libraries(market_data_py PRIVATE market_intelligence utils CURL::libcurl)
+set_target_properties(market_data_py PROPERTIES
+    OUTPUT_NAME "market_data_py"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
 )
 
 # DuckDB Python Bindings - CRITICAL (Tagged: PYTHON_BINDINGS)
