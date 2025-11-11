@@ -21,6 +21,8 @@ Usage:
 
 import json
 import sys
+import os
+import time
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
@@ -74,9 +76,11 @@ def run_command(cmd, description):
         return False, str(e)
 
 class Phase5Setup:
-    def __init__(self, skip_oauth=False, quick=False):
+    def __init__(self, skip_oauth=False, quick=False, start_dashboard=False, start_trading=False):
         self.base_dir = Path(__file__).parent.parent
         self.skip_oauth = skip_oauth
+        self.start_dashboard = start_dashboard
+        self.start_trading = start_trading
         self.quick = quick
         self.checks_passed = []
         self.checks_failed = []
@@ -367,6 +371,63 @@ class Phase5Setup:
 
         return all_found
 
+    def start_dashboard_process(self):
+        """Start the Streamlit dashboard"""
+        print_header("Starting Dashboard")
+
+        dashboard_path = self.base_dir / "dashboard" / "app.py"
+        if not dashboard_path.exists():
+            print_error(f"Dashboard not found: {dashboard_path}")
+            return False
+
+        try:
+            print("   Starting Streamlit dashboard...", end=" ", flush=True)
+            # Start dashboard in background
+            subprocess.Popen(
+                ["uv", "run", "streamlit", "run", "app.py",
+                 "--server.headless=true", "--server.port=8501"],
+                cwd=self.base_dir / "dashboard",
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            time.sleep(3)  # Give it time to start
+            print_success("Started")
+            print_info("Dashboard available at: http://localhost:8501")
+            return True
+        except Exception as e:
+            print_error(f"Failed: {e}")
+            return False
+
+    def start_trading_engine(self):
+        """Start the trading engine"""
+        print_header("Starting Trading Engine")
+
+        bigbrother_path = self.base_dir / "build" / "bin" / "bigbrother"
+        if not bigbrother_path.exists():
+            print_error(f"Trading engine not found: {bigbrother_path}")
+            print_info("Build the project first: cd build && ninja bigbrother")
+            return False
+
+        try:
+            print("   Starting trading engine...", end=" ", flush=True)
+            # Start trading engine in background
+            subprocess.Popen(
+                [str(bigbrother_path)],
+                cwd=self.base_dir,
+                env={**os.environ, "LD_LIBRARY_PATH": "/usr/local/lib:" + os.environ.get("LD_LIBRARY_PATH", "")},
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            time.sleep(2)  # Give it time to start
+            print_success("Started")
+            print_info("Trading engine running in background")
+            return True
+        except Exception as e:
+            print_error(f"Failed: {e}")
+            return False
+
     def generate_report(self):
         """Generate final setup report"""
         print_header("Phase 5 Setup Report")
@@ -402,10 +463,34 @@ class Phase5Setup:
         if len(self.checks_failed) == 0:
             if len(self.warnings) == 0:
                 print_success("READY FOR PHASE 5 - All systems go! 🚀")
+
+                # Start services if requested
+                services_started = []
+                if self.start_dashboard:
+                    if self.start_dashboard_process():
+                        services_started.append("Dashboard")
+
+                if self.start_trading:
+                    if self.start_trading_engine():
+                        services_started.append("Trading Engine")
+
+                # Show next steps
                 print_info("Next steps:")
-                print("   1. Start dashboard: uv run streamlit run dashboard/app.py")
-                print("   2. Review execution plan: cat /tmp/phase5_execution_plan.md")
-                print("   3. Begin Day 0 setup checklist")
+                if services_started:
+                    print(f"\n{Colors.BOLD}✅ Started Services:{Colors.END}")
+                    for service in services_started:
+                        print(f"   • {service}")
+                    if not self.start_dashboard:
+                        print("\n   1. Start dashboard: uv run streamlit run dashboard/app.py")
+                    if not self.start_trading:
+                        print("   2. Start trading: ./build/bigbrother")
+                    print("   3. Review execution plan: cat /tmp/phase5_execution_plan.md")
+                else:
+                    print("   1. Start dashboard: uv run streamlit run dashboard/app.py")
+                    print("   2. Start trading: ./build/bigbrother")
+                    print("   3. Review execution plan: cat /tmp/phase5_execution_plan.md")
+                    print("\n   Tip: Use --start-all flag to auto-start dashboard and trading engine")
+
                 return 0
             else:
                 print_warning("MOSTLY READY - Review warnings before proceeding")
@@ -443,9 +528,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run python scripts/phase5_setup.py              # Full setup
-  uv run python scripts/phase5_setup.py --skip-oauth # Skip OAuth check
-  uv run python scripts/phase5_setup.py --quick      # Quick verification only
+  uv run python scripts/phase5_setup.py                    # Full setup
+  uv run python scripts/phase5_setup.py --skip-oauth       # Skip OAuth check
+  uv run python scripts/phase5_setup.py --quick            # Quick verification only
+  uv run python scripts/phase5_setup.py --start-all        # Setup + start dashboard & trading
+  uv run python scripts/phase5_setup.py --start-dashboard  # Setup + start dashboard only
 
 This script performs:
   1. OAuth token management and verification
@@ -455,6 +542,7 @@ This script performs:
   5. Schwab API connectivity test
   6. System component verification
   7. Comprehensive status report
+  8. (Optional) Start dashboard and trading engine
         """
     )
 
@@ -462,10 +550,25 @@ This script performs:
                        help='Skip OAuth token checks and API tests')
     parser.add_argument('--quick', action='store_true',
                        help='Quick verification only (skip initialization)')
+    parser.add_argument('--start-dashboard', action='store_true',
+                       help='Start Streamlit dashboard after successful setup')
+    parser.add_argument('--start-trading', action='store_true',
+                       help='Start trading engine after successful setup')
+    parser.add_argument('--start-all', action='store_true',
+                       help='Start both dashboard and trading engine after successful setup')
 
     args = parser.parse_args()
 
-    setup = Phase5Setup(skip_oauth=args.skip_oauth, quick=args.quick)
+    # If --start-all is specified, enable both
+    start_dashboard = args.start_dashboard or args.start_all
+    start_trading = args.start_trading or args.start_all
+
+    setup = Phase5Setup(
+        skip_oauth=args.skip_oauth,
+        quick=args.quick,
+        start_dashboard=start_dashboard,
+        start_trading=start_trading
+    )
     return setup.run()
 
 if __name__ == "__main__":
