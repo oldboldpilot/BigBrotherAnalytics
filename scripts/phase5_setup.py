@@ -3,15 +3,19 @@
 Phase 5 Setup - Complete Paper Trading Initialization
 
 One script to handle all Phase 5 setup tasks:
+- Stop old processes (dashboard, trading engine, news ingestion)
 - OAuth token management (with automatic refresh)
 - Tax configuration verification
 - Database initialization
 - System health checks
 - Schwab API connectivity testing
+- Schwab portfolio sync to database
 - Dashboard readiness verification
 - Optional auto-start of dashboard and trading engine
 
 Features:
+- Automatic cleanup of old processes (no manual killing needed)
+- Automatic Schwab portfolio sync before dashboard starts
 - Automatic token refresh when expired (uses refresh_token)
 - Complete system verification in one command
 - Portable across Unix systems (auto-detects paths)
@@ -33,6 +37,7 @@ import json
 import sys
 import os
 import time
+import signal
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
@@ -41,6 +46,7 @@ import shutil
 import yaml
 import requests
 import base64
+import psutil
 
 # Color output
 class Colors:
@@ -174,6 +180,74 @@ class Phase5Setup:
         except Exception as e:
             print_error(f"Token refresh error: {e}")
             return False
+
+    def stop_old_processes(self):
+        """Stop any old dashboard or trading processes before starting new ones"""
+        print_header("Stopping Old Processes")
+
+        process_patterns = [
+            ("bigbrother", "Trading Engine"),
+            ("streamlit", "Dashboard"),
+            ("token_refresh_service", "Token Refresh Service"),
+            ("news_ingestion", "News Ingestion"),
+        ]
+
+        found_processes = []
+        stopped_count = 0
+
+        # Find processes
+        for pattern, description in process_patterns:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    if pattern in cmdline or pattern in proc.info['name']:
+                        found_processes.append({
+                            'pid': proc.info['pid'],
+                            'name': proc.info['name'],
+                            'description': description,
+                            'proc': proc
+                        })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+        if not found_processes:
+            print_info("No old processes found - clean state")
+            return True
+
+        # Stop processes
+        print_info(f"Found {len(found_processes)} process(es) to stop:")
+        for proc_info in found_processes:
+            try:
+                proc = proc_info['proc']
+                print(f"   Stopping {proc_info['description']} (PID {proc_info['pid']})...", end=" ", flush=True)
+
+                # Try graceful termination
+                proc.send_signal(signal.SIGTERM)
+                proc.wait(timeout=5)
+                print(f"{Colors.GREEN}✓{Colors.END}")
+                stopped_count += 1
+
+            except psutil.TimeoutExpired:
+                # Force kill if timeout
+                try:
+                    proc.kill()
+                    proc.wait(timeout=2)
+                    print(f"{Colors.YELLOW}✓ (forced){Colors.END}")
+                    stopped_count += 1
+                except Exception:
+                    print(f"{Colors.RED}✗{Colors.END}")
+
+            except psutil.NoSuchProcess:
+                print(f"{Colors.BLUE}(already stopped){Colors.END}")
+
+            except Exception as e:
+                print(f"{Colors.RED}✗ {e}{Colors.END}")
+
+        if stopped_count > 0:
+            print_success(f"Stopped {stopped_count} process(es)")
+            time.sleep(1)  # Brief pause for cleanup
+
+        return True
 
     def check_oauth_tokens(self):
         """Check OAuth token status and offer refresh"""
@@ -636,6 +710,49 @@ class Phase5Setup:
             print_error(f"Failed: {e}")
             return False
 
+    def start_token_refresh_service(self):
+        """Start the OAuth token refresh service"""
+        print_header("Starting Token Refresh Service")
+
+        token_service_path = self.base_dir / "scripts" / "token_refresh_service.py"
+        if not token_service_path.exists():
+            print_error(f"Token refresh service not found: {token_service_path}")
+            return False
+
+        try:
+            # Kill existing token refresh processes to avoid duplicates
+            print("   Stopping existing token refresh processes...", end=" ", flush=True)
+            subprocess.run(["pkill", "-f", "token_refresh_service"],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+            time.sleep(1)  # Give processes time to terminate
+            print("done")
+
+            print("   Starting token refresh service...", end=" ", flush=True)
+
+            # Create logs directory if needed
+            logs_dir = self.base_dir / "logs"
+            logs_dir.mkdir(exist_ok=True)
+
+            # Start the service in background
+            log_file = logs_dir / "token_refresh.log"
+            with open(log_file, 'w') as log:
+                subprocess.Popen(
+                    ["uv", "run", "python", str(token_service_path)],
+                    cwd=self.base_dir,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True
+                )
+            time.sleep(2)  # Give it time to start
+            print_success("Started")
+            print_info("Token refresh service running in background (29-minute refresh cycle)")
+            print_info(f"Logs: {log_file}")
+            return True
+        except Exception as e:
+            print_error(f"Failed: {e}")
+            return False
+
     def generate_report(self):
         """Generate final setup report"""
         print_header("Phase 5 Setup Report")
@@ -672,6 +789,33 @@ class Phase5Setup:
             if len(self.warnings) == 0:
                 print_success("READY FOR PHASE 5 - All systems go! 🚀")
 
+                # Sync Schwab portfolio to database
+                print_header("Syncing Schwab Portfolio")
+                print_info("Fetching real positions from Schwab API...")
+                try:
+                    result = subprocess.run(
+                        ["uv", "run", "python", "scripts/sync_schwab_portfolio.py"],
+                        cwd=self.base_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=60
+                    )
+                    if result.returncode == 0:
+                        print_success("Portfolio synced successfully")
+                        # Show sync summary
+                        for line in result.stdout.split('\n'):
+                            if '✅' in line or '📊' in line or 'position' in line.lower():
+                                print(f"   {line.strip()}")
+                    else:
+                        print_warning(f"Portfolio sync failed: {result.stderr[:200]}")
+                        print_info("Dashboard will start without fresh portfolio data")
+                except subprocess.TimeoutExpired:
+                    print_warning("Portfolio sync timed out (>60s)")
+                    print_info("Dashboard will start without fresh portfolio data")
+                except Exception as e:
+                    print_warning(f"Could not sync portfolio: {e}")
+                    print_info("Dashboard will start without fresh portfolio data")
+
                 # Start services if requested
                 services_started = []
                 if self.start_dashboard:
@@ -681,6 +825,9 @@ class Phase5Setup:
                 if self.start_trading:
                     if self.start_trading_engine():
                         services_started.append("Trading Engine")
+                        # Start token refresh service automatically when trading engine starts
+                        if self.start_token_refresh_service():
+                            services_started.append("Token Refresh Service")
 
                 # Show next steps
                 print_info("Next steps:")
@@ -715,6 +862,10 @@ class Phase5Setup:
         print(f"   Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"   Directory: {self.base_dir}")
         print(f"   Mode: {'Quick Check' if self.quick else 'Full Setup'}")
+
+        # Stop old processes first (prevents database locks)
+        if self.start_dashboard or self.start_trading:
+            self.stop_old_processes()
 
         # Run all checks
         self.check_oauth_tokens()

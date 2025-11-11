@@ -74,6 +74,7 @@ class Phase5Shutdown:
         print_warning("This will stop all trading processes:")
         print("   • Trading engine (bigbrother)")
         print("   • Dashboard (streamlit)")
+        print("   • Token refresh service")
         print("   • News ingestion (if running)")
         print("   • Any background processes")
         print()
@@ -89,6 +90,7 @@ class Phase5Shutdown:
             ("bigbrother", "Trading Engine"),
             ("streamlit", "Dashboard"),
             ("news_ingestion", "News Ingestion"),
+            ("token_refresh_service", "Token Refresh Service"),
             ("python.*phase5", "Phase 5 Scripts"),
         ]
 
