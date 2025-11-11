@@ -33,6 +33,11 @@ export module bigbrother.schwab_api.orders;
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
 
+// Forward declaration for OrderManager from parent module
+export namespace bigbrother::schwab {
+class OrderManager;
+}
+
 export namespace bigbrother::schwab {
 
 using namespace bigbrother::types;
