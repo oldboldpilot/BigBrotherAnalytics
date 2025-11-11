@@ -233,7 +233,11 @@ endif()
 # Find CURL for HTTP requests
 find_package(CURL REQUIRED)
 
-# Find Python for optional bindings
+# Find Python for optional bindings - prefer uv venv Python if available
+if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python3")
+    set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python3")
+    message(STATUS "Using uv venv Python: ${Python3_EXECUTABLE}")
+endif()
 find_package(Python3 COMPONENTS Interpreter Development)
 
 # Intel MKL (optional, for optimized BLAS/LAPACK)
@@ -519,6 +523,7 @@ target_sources(schwab_api
             src/schwab_api/account_types.cppm
             src/schwab_api/schwab_api.cppm
             src/schwab_api/account_manager.cppm
+            src/schwab_api/orders_manager.cppm  # Uses duckdb_bridge for order logging
             # src/schwab_api/position_tracker.cppm  # Uses duckdb_bridge - works in Python bindings
             # src/schwab_api/portfolio_analyzer.cppm  # No DB deps - works in Python bindings
 )

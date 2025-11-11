@@ -82,6 +82,24 @@ class PreparedStatementHandle {
     void* pImpl_{nullptr};
 };
 
+class QueryResultHandle {
+  public:
+    QueryResultHandle() = default;
+    ~QueryResultHandle();
+
+    QueryResultHandle(QueryResultHandle const&) = delete;
+    auto operator=(QueryResultHandle const&) -> QueryResultHandle& = delete;
+    QueryResultHandle(QueryResultHandle&&) noexcept;
+    auto operator=(QueryResultHandle&&) noexcept -> QueryResultHandle&;
+
+    [[nodiscard]] auto getImpl() -> void*;
+    [[nodiscard]] auto getImpl() const -> void const*;
+    auto setImpl(void* impl) -> void;
+
+  private:
+    void* pImpl_{nullptr};
+};
+
 /**
  * Bridge functions - all DuckDB operations go through these
  */
@@ -96,6 +114,26 @@ auto createConnection(DatabaseHandle& db) -> std::unique_ptr<ConnectionHandle>;
 auto executeQuery(ConnectionHandle& conn, std::string const& query) -> bool;
 auto prepareStatement(ConnectionHandle& conn, std::string const& query)
     -> std::unique_ptr<PreparedStatementHandle>;
+
+// Query with results
+auto executeQueryWithResults(ConnectionHandle& conn, std::string const& query)
+    -> std::unique_ptr<QueryResultHandle>;
+
+// Result set operations
+auto getRowCount(QueryResultHandle const& result) -> size_t;
+auto getColumnCount(QueryResultHandle const& result) -> size_t;
+auto getColumnName(QueryResultHandle const& result, size_t col_idx) -> std::string;
+auto hasError(QueryResultHandle const& result) -> bool;
+auto getErrorMessage(QueryResultHandle const& result) -> std::string;
+
+// Value extraction (col, row indices)
+auto getValueAsString(QueryResultHandle const& result, size_t col_idx, size_t row_idx)
+    -> std::string;
+auto getValueAsInt(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int32_t;
+auto getValueAsInt64(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int64_t;
+auto getValueAsDouble(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> double;
+auto getValueAsBool(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool;
+auto isValueNull(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool;
 
 // Prepared statement operations
 auto bindString(PreparedStatementHandle& stmt, int index, std::string const& value) -> bool;

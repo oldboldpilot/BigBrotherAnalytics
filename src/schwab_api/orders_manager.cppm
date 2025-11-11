@@ -15,7 +15,6 @@
 module;
 
 #include <chrono>
-#include <duckdb.hpp>
 #include <expected>
 #include <memory>
 #include <mutex>
@@ -23,6 +22,9 @@ module;
 #include <optional>
 #include <string>
 #include <vector>
+
+// DuckDB bridge - isolates DuckDB incomplete types from C++23 modules
+#include "schwab_api/duckdb_bridge.hpp"
 
 // Module declaration
 export module bigbrother.schwab_api.orders;
@@ -156,9 +158,9 @@ class PositionDatabase {
   public:
     explicit PositionDatabase(std::string db_path) : db_path_{std::move(db_path)} {
 
-        // Open DuckDB connection
-        db_ = std::make_unique<duckdb::DuckDB>(db_path_);
-        conn_ = std::make_unique<duckdb::Connection>(*db_);
+        // Open DuckDB connection using bridge library
+        db_ = duckdb_bridge::openDatabase(db_path_);
+        conn_ = duckdb_bridge::createConnection(*db_);
 
         // Create schema
         createSchema();
@@ -167,8 +169,8 @@ class PositionDatabase {
     // Rule of Five - non-copyable due to mutex, move operations defined separately
     PositionDatabase(PositionDatabase const&) = delete;
     auto operator=(PositionDatabase const&) -> PositionDatabase& = delete;
-    PositionDatabase(PositionDatabase&&) noexcept;
-    auto operator=(PositionDatabase&&) noexcept -> PositionDatabase&;
+    PositionDatabase(PositionDatabase&&) noexcept = delete;
+    auto operator=(PositionDatabase&&) noexcept -> PositionDatabase& = delete;
     ~PositionDatabase();
 
     /**
@@ -180,30 +182,31 @@ class PositionDatabase {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            auto result = conn_->Query(R"(
-                SELECT account_id, symbol, quantity, avg_cost, current_price,
-                       market_value, unrealized_pnl, is_bot_managed, managed_by,
-                       bot_strategy, opened_at, opened_by, updated_at
-                FROM positions
-                WHERE account_id = ? AND symbol = ?
-            )",
-                                       account_id, symbol);
+            std::string query =
+                "SELECT account_id, symbol, quantity, avg_cost, current_price, "
+                "market_value, unrealized_pnl, is_bot_managed, managed_by, "
+                "bot_strategy, opened_at, opened_by, updated_at "
+                "FROM positions "
+                "WHERE account_id = '" +
+                account_id + "' AND symbol = '" + symbol + "'";
 
-            if (result->RowCount() == 0) {
+            auto result = duckdb_bridge::executeQueryWithResults(*conn_, query);
+
+            if (!result || duckdb_bridge::getRowCount(*result) == 0) {
                 return std::nullopt;
             }
 
             Position pos;
-            pos.account_id = result->GetValue(0, 0).ToString();
-            pos.symbol = result->GetValue(1, 0).ToString();
-            pos.quantity = result->GetValue(2, 0).GetValue<double>();
-            pos.avg_cost = result->GetValue(3, 0).GetValue<double>();
-            pos.current_price = result->GetValue(4, 0).GetValue<double>();
-            pos.market_value = result->GetValue(5, 0).GetValue<double>();
-            pos.unrealized_pnl = result->GetValue(6, 0).GetValue<double>();
-            pos.is_bot_managed = result->GetValue(7, 0).GetValue<bool>();
-            pos.managed_by = result->GetValue(8, 0).ToString();
-            pos.bot_strategy = result->GetValue(9, 0).ToString();
+            pos.account_id = duckdb_bridge::getValueAsString(*result, 0, 0);
+            pos.symbol = duckdb_bridge::getValueAsString(*result, 1, 0);
+            pos.quantity = duckdb_bridge::getValueAsDouble(*result, 2, 0);
+            pos.avg_cost = duckdb_bridge::getValueAsDouble(*result, 3, 0);
+            pos.current_price = duckdb_bridge::getValueAsDouble(*result, 4, 0);
+            pos.market_value = duckdb_bridge::getValueAsDouble(*result, 5, 0);
+            pos.unrealized_pnl = duckdb_bridge::getValueAsDouble(*result, 6, 0);
+            pos.is_bot_managed = duckdb_bridge::getValueAsBool(*result, 7, 0);
+            pos.managed_by = duckdb_bridge::getValueAsString(*result, 8, 0);
+            pos.bot_strategy = duckdb_bridge::getValueAsString(*result, 9, 0);
             // Note: timestamps would need proper parsing
 
             return pos;
@@ -221,16 +224,20 @@ class PositionDatabase {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            conn_->Query(R"(
-                INSERT INTO positions (
-                    account_id, symbol, quantity, avg_cost, current_price,
-                    market_value, unrealized_pnl, is_bot_managed, managed_by,
-                    bot_strategy, opened_at, opened_by, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-            )",
-                         pos.account_id, pos.symbol, pos.quantity, pos.avg_cost, pos.current_price,
-                         pos.market_value, pos.unrealized_pnl, pos.is_bot_managed, pos.managed_by,
-                         pos.bot_strategy, pos.opened_by);
+            std::string query =
+                "INSERT INTO positions ("
+                "account_id, symbol, quantity, avg_cost, current_price, "
+                "market_value, unrealized_pnl, is_bot_managed, managed_by, "
+                "bot_strategy, opened_at, opened_by, updated_at"
+                ") VALUES ('" +
+                pos.account_id + "', '" + pos.symbol + "', " + std::to_string(pos.quantity) + ", " +
+                std::to_string(pos.avg_cost) + ", " + std::to_string(pos.current_price) + ", " +
+                std::to_string(pos.market_value) + ", " + std::to_string(pos.unrealized_pnl) +
+                ", " + std::to_string(pos.is_bot_managed) + ", '" + pos.managed_by + "', '" +
+                pos.bot_strategy + "', CURRENT_TIMESTAMP, '" + pos.opened_by +
+                "', CURRENT_TIMESTAMP)";
+
+            duckdb_bridge::executeQuery(*conn_, query);
 
             Logger::getInstance().info("Inserted position: {} ({} managed)", pos.symbol,
                                        pos.managed_by);
@@ -249,14 +256,18 @@ class PositionDatabase {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            conn_->Query(R"(
-                UPDATE positions
-                SET quantity = ?, avg_cost = ?, current_price = ?,
-                    market_value = ?, unrealized_pnl = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE account_id = ? AND symbol = ?
-            )",
-                         pos.quantity, pos.avg_cost, pos.current_price, pos.market_value,
-                         pos.unrealized_pnl, pos.account_id, pos.symbol);
+            std::string query =
+                "UPDATE positions SET "
+                "quantity = " +
+                std::to_string(pos.quantity) + ", avg_cost = " + std::to_string(pos.avg_cost) +
+                ", current_price = " + std::to_string(pos.current_price) + ", market_value = " +
+                std::to_string(pos.market_value) + ", unrealized_pnl = " +
+                std::to_string(pos.unrealized_pnl) +
+                ", updated_at = CURRENT_TIMESTAMP "
+                "WHERE account_id = '" +
+                pos.account_id + "' AND symbol = '" + pos.symbol + "'";
+
+            duckdb_bridge::executeQuery(*conn_, query);
 
             return {};
 
@@ -274,11 +285,10 @@ class PositionDatabase {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            conn_->Query(R"(
-                DELETE FROM positions
-                WHERE account_id = ? AND symbol = ?
-            )",
-                         account_id, symbol);
+            std::string query = "DELETE FROM positions WHERE account_id = '" + account_id +
+                                "' AND symbol = '" + symbol + "'";
+
+            duckdb_bridge::executeQuery(*conn_, query);
 
             return {};
 
@@ -297,28 +307,35 @@ class PositionDatabase {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            auto result = conn_->Query(R"(
-                SELECT account_id, symbol, quantity, avg_cost, current_price,
-                       market_value, unrealized_pnl, is_bot_managed, managed_by,
-                       bot_strategy
-                FROM positions
-                WHERE account_id = ?
-            )",
-                                       account_id);
+            std::string query =
+                "SELECT account_id, symbol, quantity, avg_cost, current_price, "
+                "market_value, unrealized_pnl, is_bot_managed, managed_by, "
+                "bot_strategy "
+                "FROM positions "
+                "WHERE account_id = '" +
+                account_id + "'";
+
+            auto result = duckdb_bridge::executeQueryWithResults(*conn_, query);
+
+            if (!result) {
+                return makeError<std::vector<Position>>(ErrorCode::DatabaseError,
+                                                         "Failed to execute query");
+            }
 
             std::vector<Position> positions;
-            for (size_t i = 0; i < result->RowCount(); ++i) {
+            size_t row_count = duckdb_bridge::getRowCount(*result);
+            for (size_t i = 0; i < row_count; ++i) {
                 Position pos;
-                pos.account_id = result->GetValue(0, i).ToString();
-                pos.symbol = result->GetValue(1, i).ToString();
-                pos.quantity = result->GetValue(2, i).GetValue<double>();
-                pos.avg_cost = result->GetValue(3, i).GetValue<double>();
-                pos.current_price = result->GetValue(4, i).GetValue<double>();
-                pos.market_value = result->GetValue(5, i).GetValue<double>();
-                pos.unrealized_pnl = result->GetValue(6, i).GetValue<double>();
-                pos.is_bot_managed = result->GetValue(7, i).GetValue<bool>();
-                pos.managed_by = result->GetValue(8, i).ToString();
-                pos.bot_strategy = result->GetValue(9, i).ToString();
+                pos.account_id = duckdb_bridge::getValueAsString(*result, 0, i);
+                pos.symbol = duckdb_bridge::getValueAsString(*result, 1, i);
+                pos.quantity = duckdb_bridge::getValueAsDouble(*result, 2, i);
+                pos.avg_cost = duckdb_bridge::getValueAsDouble(*result, 3, i);
+                pos.current_price = duckdb_bridge::getValueAsDouble(*result, 4, i);
+                pos.market_value = duckdb_bridge::getValueAsDouble(*result, 5, i);
+                pos.unrealized_pnl = duckdb_bridge::getValueAsDouble(*result, 6, i);
+                pos.is_bot_managed = duckdb_bridge::getValueAsBool(*result, 7, i);
+                pos.managed_by = duckdb_bridge::getValueAsString(*result, 8, i);
+                pos.bot_strategy = duckdb_bridge::getValueAsString(*result, 9, i);
 
                 positions.push_back(pos);
             }
@@ -334,29 +351,26 @@ class PositionDatabase {
   private:
     auto createSchema() -> void {
         try {
-            conn_->Query(R"(
-                CREATE TABLE IF NOT EXISTS positions (
-                    id INTEGER PRIMARY KEY,
-                    account_id VARCHAR(50) NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    quantity DOUBLE NOT NULL,
-                    avg_cost DECIMAL(10,2) NOT NULL,
-                    current_price DECIMAL(10,2),
-                    market_value DECIMAL(10,2),
-                    unrealized_pnl DECIMAL(10,2),
+            std::string query =
+                "CREATE TABLE IF NOT EXISTS positions ("
+                "id INTEGER PRIMARY KEY, "
+                "account_id VARCHAR(50) NOT NULL, "
+                "symbol VARCHAR(20) NOT NULL, "
+                "quantity DOUBLE NOT NULL, "
+                "avg_cost DECIMAL(10,2) NOT NULL, "
+                "current_price DECIMAL(10,2), "
+                "market_value DECIMAL(10,2), "
+                "unrealized_pnl DECIMAL(10,2), "
+                "is_bot_managed BOOLEAN DEFAULT FALSE, "
+                "managed_by VARCHAR(20) DEFAULT 'MANUAL', "
+                "bot_strategy VARCHAR(50), "
+                "opened_at TIMESTAMP NOT NULL, "
+                "opened_by VARCHAR(20) DEFAULT 'MANUAL', "
+                "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                "UNIQUE(account_id, symbol)"
+                ")";
 
-                    -- CRITICAL SAFETY FLAGS
-                    is_bot_managed BOOLEAN DEFAULT FALSE,
-                    managed_by VARCHAR(20) DEFAULT 'MANUAL',
-                    bot_strategy VARCHAR(50),
-
-                    opened_at TIMESTAMP NOT NULL,
-                    opened_by VARCHAR(20) DEFAULT 'MANUAL',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-                    UNIQUE(account_id, symbol)
-                )
-            )");
+            duckdb_bridge::executeQuery(*conn_, query);
 
             Logger::getInstance().info("Position database schema created");
 
@@ -366,8 +380,8 @@ class PositionDatabase {
     }
 
     std::string db_path_;
-    std::unique_ptr<duckdb::DuckDB> db_;
-    std::unique_ptr<duckdb::Connection> conn_;
+    std::unique_ptr<duckdb_bridge::DatabaseHandle> db_;
+    std::unique_ptr<duckdb_bridge::ConnectionHandle> conn_;
     mutable std::mutex mutex_;
 };
 
@@ -382,16 +396,16 @@ class OrderDatabaseLogger {
   public:
     explicit OrderDatabaseLogger(std::string db_path) : db_path_{std::move(db_path)} {
 
-        db_ = std::make_unique<duckdb::DuckDB>(db_path_);
-        conn_ = std::make_unique<duckdb::Connection>(*db_);
+        db_ = duckdb_bridge::openDatabase(db_path_);
+        conn_ = duckdb_bridge::createConnection(*db_);
 
         // Schema is created by SQL script
     }
 
     OrderDatabaseLogger(OrderDatabaseLogger const&) = delete;
     auto operator=(OrderDatabaseLogger const&) -> OrderDatabaseLogger& = delete;
-    OrderDatabaseLogger(OrderDatabaseLogger&&) noexcept;
-    auto operator=(OrderDatabaseLogger&&) noexcept -> OrderDatabaseLogger&;
+    OrderDatabaseLogger(OrderDatabaseLogger&&) noexcept = delete;
+    auto operator=(OrderDatabaseLogger&&) noexcept -> OrderDatabaseLogger& = delete;
     ~OrderDatabaseLogger();
 
     /**
@@ -401,19 +415,25 @@ class OrderDatabaseLogger {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            conn_->Query(R"(
-                INSERT INTO orders (
-                    order_id, account_id, symbol, side, quantity,
-                    filled_quantity, order_type, limit_price, stop_price,
-                    trail_amount, avg_fill_price, status, duration,
-                    dry_run, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            )",
-                         order.order_id, order.account_id, order.symbol,
-                         static_cast<int>(order.side), order.quantity, order.filled_quantity,
-                         static_cast<int>(order.type), order.limit_price, order.stop_price,
-                         order.trail_amount, order.avg_fill_price, static_cast<int>(order.status),
-                         static_cast<int>(order.duration), order.dry_run);
+            std::string query =
+                "INSERT INTO orders ("
+                "order_id, account_id, symbol, side, quantity, "
+                "filled_quantity, order_type, limit_price, stop_price, "
+                "trail_amount, avg_fill_price, status, duration, "
+                "dry_run, created_at"
+                ") VALUES ('" +
+                order.order_id + "', '" + order.account_id + "', '" + order.symbol + "', " +
+                std::to_string(static_cast<int>(order.side)) + ", " +
+                std::to_string(order.quantity) + ", " + std::to_string(order.filled_quantity) +
+                ", " + std::to_string(static_cast<int>(order.type)) + ", " +
+                std::to_string(order.limit_price) + ", " + std::to_string(order.stop_price) +
+                ", " + std::to_string(order.trail_amount) + ", " +
+                std::to_string(order.avg_fill_price) + ", " +
+                std::to_string(static_cast<int>(order.status)) + ", " +
+                std::to_string(static_cast<int>(order.duration)) + ", " +
+                std::to_string(order.dry_run) + ", CURRENT_TIMESTAMP)";
+
+            duckdb_bridge::executeQuery(*conn_, query);
 
             Logger::getInstance().info("Order logged: {} ({} mode)", order.order_id,
                                        order.dry_run ? "DRY-RUN" : "LIVE");
@@ -433,12 +453,12 @@ class OrderDatabaseLogger {
         std::lock_guard<std::mutex> lock(mutex_);
 
         try {
-            conn_->Query(R"(
-                UPDATE orders
-                SET status = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE order_id = ?
-            )",
-                         static_cast<int>(new_status), order_id);
+            std::string query = "UPDATE orders SET status = " +
+                                std::to_string(static_cast<int>(new_status)) +
+                                ", updated_at = CURRENT_TIMESTAMP WHERE order_id = '" + order_id +
+                                "'";
+
+            duckdb_bridge::executeQuery(*conn_, query);
 
             return {};
 
@@ -450,8 +470,8 @@ class OrderDatabaseLogger {
 
   private:
     std::string db_path_;
-    std::unique_ptr<duckdb::DuckDB> db_;
-    std::unique_ptr<duckdb::Connection> conn_;
+    std::unique_ptr<duckdb_bridge::DatabaseHandle> db_;
+    std::unique_ptr<duckdb_bridge::ConnectionHandle> conn_;
     mutable std::mutex mutex_;
 };
 
@@ -473,8 +493,8 @@ class OrdersManager {
 
     OrdersManager(OrdersManager const&) = delete;
     auto operator=(OrdersManager const&) -> OrdersManager& = delete;
-    OrdersManager(OrdersManager&&) noexcept;
-    auto operator=(OrdersManager&&) noexcept -> OrdersManager&;
+    OrdersManager(OrdersManager&&) noexcept = delete;
+    auto operator=(OrdersManager&&) noexcept -> OrdersManager& = delete;
     ~OrdersManager();
 
     // ========================================================================
@@ -556,8 +576,8 @@ class OrdersManager {
 
         if (position && !position->is_bot_managed) {
             return makeError<OrderConfirmation>(
-                ErrorCode::InvalidOperation,
-                fmt::format("SAFETY VIOLATION: Cannot trade {} - manual position exists. "
+                ErrorCode::RuntimeError,
+                std::format("SAFETY VIOLATION: Cannot trade {} - manual position exists. "
                             "Bot only trades NEW securities or bot-managed positions.",
                             order.symbol));
         }
@@ -631,7 +651,7 @@ class OrdersManager {
 
         if (position && !position->is_bot_managed) {
             return makeError<std::vector<OrderConfirmation>>(
-                ErrorCode::InvalidOperation, "Cannot place bracket order - manual position exists");
+                ErrorCode::RuntimeError, "Cannot place bracket order - manual position exists");
         }
 
         std::vector<OrderConfirmation> confirmations;
@@ -726,13 +746,13 @@ class OrdersManager {
         auto position = position_db_.queryPosition(account_id, symbol);
 
         if (!position) {
-            return makeError<OrderConfirmation>(ErrorCode::NotFound, "Position not found");
+            return makeError<OrderConfirmation>(ErrorCode::DatabaseError, "Position not found");
         }
 
         if (!position->is_bot_managed) {
             return makeError<OrderConfirmation>(
-                ErrorCode::InvalidOperation,
-                fmt::format("SAFETY VIOLATION: Cannot close {} - manual position. "
+                ErrorCode::RuntimeError,
+                std::format("SAFETY VIOLATION: Cannot close {} - manual position. "
                             "Only human can close manual positions.",
                             symbol));
         }
@@ -774,7 +794,7 @@ class OrdersManager {
         }
 
         // TODO: Implement actual Schwab API call
-        return makeError<OrderConfirmation>(ErrorCode::NotImplemented,
+        return makeError<OrderConfirmation>(ErrorCode::RuntimeError,
                                             "Modify order not yet implemented for live trading");
     }
 
@@ -796,7 +816,7 @@ class OrdersManager {
         }
 
         // TODO: Implement actual Schwab API call
-        return makeError<void>(ErrorCode::NotImplemented,
+        return makeError<void>(ErrorCode::RuntimeError,
                                "Cancel order not yet implemented for live trading");
     }
 
@@ -832,7 +852,7 @@ class OrdersManager {
         }
 
         // TODO: Implement actual Schwab API call
-        return makeError<Order>(ErrorCode::NotImplemented, "Get order not yet implemented");
+        return makeError<Order>(ErrorCode::RuntimeError, "Get order not yet implemented");
     }
 
     /**
@@ -949,20 +969,9 @@ module :private;
 
 namespace bigbrother::schwab {
 
-// PositionDatabase move operations (defined here for complete DuckDB types)
-PositionDatabase::PositionDatabase(PositionDatabase&&) noexcept = default;
-auto PositionDatabase::operator=(PositionDatabase&&) noexcept -> PositionDatabase& = default;
+// Destructor implementations
 PositionDatabase::~PositionDatabase() = default;
-
-// OrderDatabaseLogger move operations (defined here for complete DuckDB types)
-OrderDatabaseLogger::OrderDatabaseLogger(OrderDatabaseLogger&&) noexcept = default;
-auto OrderDatabaseLogger::operator=(OrderDatabaseLogger&&) noexcept
-    -> OrderDatabaseLogger& = default;
 OrderDatabaseLogger::~OrderDatabaseLogger() = default;
-
-// OrdersManager move operations (defined here for complete member types)
-OrdersManager::OrdersManager(OrdersManager&&) noexcept = default;
-auto OrdersManager::operator=(OrdersManager&&) noexcept -> OrdersManager& = default;
 OrdersManager::~OrdersManager() = default;
 
 } // namespace bigbrother::schwab

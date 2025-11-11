@@ -66,7 +66,8 @@ export class PositionTracker {
         db_ = duckdb_bridge::openDatabase(db_path_);
         conn_ = duckdb_bridge::createConnection(*db_);
 
-        // Logger::getInstance().info("PositionTracker initialized (refresh interval: {}s)", refresh_interval_);
+        // Logger::getInstance().info("PositionTracker initialized (refresh interval: {}s)",
+        // refresh_interval_);
     }
 
     // Rule of Five - non-copyable, non-movable due to thread
@@ -117,7 +118,8 @@ export class PositionTracker {
             if (!running_)
                 return;
 
-            // Logger::getInstance().info("Stopping PositionTracker (total updates: {})", update_count_.load());
+            // Logger::getInstance().info("Stopping PositionTracker (total updates: {})",
+            // update_count_.load());
             running_ = false;
         }
 
@@ -272,7 +274,8 @@ export class PositionTracker {
     // ========================================================================
 
     auto trackingLoop() -> void {
-        // Logger::getInstance().info("PositionTracker thread started ({}s refresh)", refresh_interval_);
+        // Logger::getInstance().info("PositionTracker thread started ({}s refresh)",
+        // refresh_interval_);
 
         // Perform initial update immediately
         updatePositions();
@@ -310,7 +313,8 @@ export class PositionTracker {
         auto positions_result = account_mgr_->getPositions(account_id_);
 
         if (!positions_result) {
-            // Logger::getInstance().error("Failed to fetch positions: {}", positions_result.error());
+            // Logger::getInstance().error("Failed to fetch positions: {}",
+            // positions_result.error());
             return;
         }
 
@@ -373,7 +377,8 @@ export class PositionTracker {
         // Detect CLOSED positions
         for (auto const& [symbol, pos] : old_map) {
             if (new_map.find(symbol) == new_map.end()) {
-                // Logger::getInstance().warn("POSITION CLOSED: {} (was {} shares)", symbol, pos.quantity);
+                // Logger::getInstance().warn("POSITION CLOSED: {} (was {} shares)", symbol,
+                // pos.quantity);
                 recordPositionChange("CLOSED", pos, std::nullopt);
             }
         }
@@ -389,7 +394,8 @@ export class PositionTracker {
 
                     // Logger::getInstance().info("POSITION {}: {} ({} -> {} shares, change: {})",
                     //                           change_type, symbol, old_pos.quantity,
-                    //                           new_pos.quantity, new_pos.quantity - old_pos.quantity);
+                    //                           new_pos.quantity, new_pos.quantity -
+                    //                           old_pos.quantity);
 
                     recordPositionChange(change_type, new_pos, old_pos);
                 }
@@ -432,7 +438,8 @@ export class PositionTracker {
             duckdb_bridge::executeQuery(*conn_, "BEGIN TRANSACTION");
 
             // Delete existing positions for this account
-            std::string delete_query = "DELETE FROM positions WHERE account_id = '" + account_id_ + "'";
+            std::string delete_query =
+                "DELETE FROM positions WHERE account_id = '" + account_id_ + "'";
             duckdb_bridge::executeQuery(*conn_, delete_query);
 
             // Insert current positions
@@ -462,22 +469,16 @@ export class PositionTracker {
             "day_pnl, day_pnl_percent, previous_close, "
             "is_bot_managed, managed_by, opened_by, bot_strategy, opened_at, "
             "updated_at) VALUES ('" +
-            pos.account_id + "', '" + pos.symbol + "', '" + pos.asset_type + "', '" + pos.cusip + "', " +
-            std::to_string(pos.quantity) + ", " +
-            std::to_string(pos.long_quantity) + ", " +
-            std::to_string(pos.short_quantity) + ", " +
-            std::to_string(pos.average_cost) + ", " +
-            std::to_string(pos.current_price) + ", " +
-            std::to_string(pos.market_value) + ", " +
-            std::to_string(pos.cost_basis) + ", " +
-            std::to_string(pos.unrealized_pnl) + ", " +
-            std::to_string(pos.unrealized_pnl_percent) + ", " +
-            std::to_string(pos.day_pnl) + ", " +
-            std::to_string(pos.day_pnl_percent) + ", " +
-            std::to_string(pos.previous_close) + ", " +
-            std::to_string(pos.is_bot_managed) + ", '" +
-            pos.managed_by + "', '" + pos.opened_by + "', '" + pos.bot_strategy + "', " +
-            std::to_string(pos.opened_at) + ", CURRENT_TIMESTAMP)";
+            pos.account_id + "', '" + pos.symbol + "', '" + pos.asset_type + "', '" + pos.cusip +
+            "', " + std::to_string(pos.quantity) + ", " + std::to_string(pos.long_quantity) + ", " +
+            std::to_string(pos.short_quantity) + ", " + std::to_string(pos.average_cost) + ", " +
+            std::to_string(pos.current_price) + ", " + std::to_string(pos.market_value) + ", " +
+            std::to_string(pos.cost_basis) + ", " + std::to_string(pos.unrealized_pnl) + ", " +
+            std::to_string(pos.unrealized_pnl_percent) + ", " + std::to_string(pos.day_pnl) + ", " +
+            std::to_string(pos.day_pnl_percent) + ", " + std::to_string(pos.previous_close) + ", " +
+            std::to_string(pos.is_bot_managed) + ", '" + pos.managed_by + "', '" + pos.opened_by +
+            "', '" + pos.bot_strategy + "', " + std::to_string(pos.opened_at) +
+            ", CURRENT_TIMESTAMP)";
 
         duckdb_bridge::executeQuery(*conn_, query);
     }
@@ -485,7 +486,8 @@ export class PositionTracker {
     auto persistPositionHistory(std::vector<Position> const& positions) -> void {
         try {
             for (auto const& pos : positions) {
-                // Note: Using executeQuery for now. TODO: Enhance bridge for proper prepared statements
+                // Note: Using executeQuery for now. TODO: Enhance bridge for proper prepared
+                // statements
                 std::string query =
                     "INSERT INTO position_history ("
                     "account_id, symbol, asset_type, quantity, "
@@ -493,11 +495,9 @@ export class PositionTracker {
                     "unrealized_pnl, unrealized_pnl_percent, day_pnl, "
                     "timestamp) VALUES ('" +
                     pos.account_id + "', '" + pos.symbol + "', '" + pos.asset_type + "', " +
-                    std::to_string(pos.quantity) + ", " +
-                    std::to_string(pos.average_cost) + ", " +
-                    std::to_string(pos.current_price) + ", " +
-                    std::to_string(pos.market_value) + ", " +
-                    std::to_string(pos.cost_basis) + ", " +
+                    std::to_string(pos.quantity) + ", " + std::to_string(pos.average_cost) + ", " +
+                    std::to_string(pos.current_price) + ", " + std::to_string(pos.market_value) +
+                    ", " + std::to_string(pos.cost_basis) + ", " +
                     std::to_string(pos.unrealized_pnl) + ", " +
                     std::to_string(pos.unrealized_pnl_percent) + ", " +
                     std::to_string(pos.day_pnl) + ", CURRENT_TIMESTAMP)";

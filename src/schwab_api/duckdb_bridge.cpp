@@ -95,6 +95,48 @@ auto ConnectionHandle::getImpl() const -> void const* {
 }
 
 // ============================================================================
+// QueryResultHandle Implementation (C API)
+// ============================================================================
+
+QueryResultHandle::~QueryResultHandle() {
+    if (pImpl_) {
+        auto* result = static_cast<duckdb_result*>(pImpl_);
+        duckdb_destroy_result(result);
+        delete result;
+        pImpl_ = nullptr;
+    }
+}
+
+QueryResultHandle::QueryResultHandle(QueryResultHandle&& other) noexcept : pImpl_(other.pImpl_) {
+    other.pImpl_ = nullptr;
+}
+
+auto QueryResultHandle::operator=(QueryResultHandle&& other) noexcept -> QueryResultHandle& {
+    if (this != &other) {
+        if (pImpl_) {
+            auto* result = static_cast<duckdb_result*>(pImpl_);
+            duckdb_destroy_result(result);
+            delete result;
+        }
+        pImpl_ = other.pImpl_;
+        other.pImpl_ = nullptr;
+    }
+    return *this;
+}
+
+auto QueryResultHandle::getImpl() -> void* {
+    return pImpl_;
+}
+
+auto QueryResultHandle::getImpl() const -> void const* {
+    return pImpl_;
+}
+
+auto QueryResultHandle::setImpl(void* impl) -> void {
+    pImpl_ = impl;
+}
+
+// ============================================================================
 // PreparedStatementHandle Implementation (C API)
 // ============================================================================
 
@@ -251,6 +293,121 @@ auto executeStatement(PreparedStatementHandle& stmt) -> bool {
     } catch (...) {
         return false;
     }
+}
+
+auto executeQueryWithResults(ConnectionHandle& conn, std::string const& query)
+    -> std::unique_ptr<QueryResultHandle> {
+    try {
+        auto* duckdb_conn = static_cast<duckdb_connection*>(conn.getImpl());
+
+        auto* result = new duckdb_result;
+        auto state = duckdb_query(*duckdb_conn, query.c_str(), result);
+
+        if (state == DuckDBError) {
+            duckdb_destroy_result(result);
+            delete result;
+            return nullptr;
+        }
+
+        auto handle = std::make_unique<QueryResultHandle>();
+        handle->setImpl(result);
+        return handle;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+auto getRowCount(QueryResultHandle const& result) -> size_t {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return 0;
+    return duckdb_row_count(duckdb_res);
+}
+
+auto getColumnCount(QueryResultHandle const& result) -> size_t {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return 0;
+    return duckdb_column_count(duckdb_res);
+}
+
+auto getColumnName(QueryResultHandle const& result, size_t col_idx) -> std::string {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return "";
+
+    const char* name = duckdb_column_name(duckdb_res, col_idx);
+    return name ? std::string(name) : "";
+}
+
+auto hasError(QueryResultHandle const& result) -> bool {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return true;
+
+    const char* error = duckdb_result_error(duckdb_res);
+    return (error != nullptr);
+}
+
+auto getErrorMessage(QueryResultHandle const& result) -> std::string {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return "Invalid result handle";
+
+    const char* error = duckdb_result_error(duckdb_res);
+    return error ? std::string(error) : "";
+}
+
+auto getValueAsString(QueryResultHandle const& result, size_t col_idx, size_t row_idx)
+    -> std::string {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return "";
+
+    auto value = duckdb_value_varchar(duckdb_res, col_idx, row_idx);
+    std::string str = value ? std::string(value) : "";
+    duckdb_free(value);
+    return str;
+}
+
+auto getValueAsInt(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int32_t {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return 0;
+
+    return duckdb_value_int32(duckdb_res, col_idx, row_idx);
+}
+
+auto getValueAsInt64(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int64_t {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return 0;
+
+    return duckdb_value_int64(duckdb_res, col_idx, row_idx);
+}
+
+auto getValueAsDouble(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> double {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return 0.0;
+
+    return duckdb_value_double(duckdb_res, col_idx, row_idx);
+}
+
+auto getValueAsBool(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return false;
+
+    return duckdb_value_boolean(duckdb_res, col_idx, row_idx);
+}
+
+auto isValueNull(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool {
+    auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
+    if (!duckdb_res)
+        return true;
+
+    return duckdb_value_is_null(duckdb_res, col_idx, row_idx);
 }
 
 } // namespace bigbrother::duckdb_bridge

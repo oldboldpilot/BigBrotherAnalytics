@@ -18,7 +18,6 @@ module;
 
 #include <atomic>
 #include <chrono>
-#include <duckdb.hpp>
 #include <expected>
 #include <memory>
 #include <mutex>
@@ -27,6 +26,9 @@ module;
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+// DuckDB bridge - isolates DuckDB incomplete types from C++23 modules
+#include "schwab_api/duckdb_bridge.hpp"
 
 // Module declaration
 export module bigbrother.utils.resilient_database;
@@ -204,8 +206,9 @@ public:
 
         auto connect_operation = [this]() -> Result<void> {
             try {
-                db_ = std::make_unique<duckdb::DuckDB>(config_.db_path);
-                conn_ = std::make_unique<duckdb::Connection>(*db_);
+                // Use DuckDB bridge to avoid incomplete type issues with C++23 modules
+                db_ = duckdb_bridge::openDatabase(config_.db_path);
+                conn_ = duckdb_bridge::createConnection(*db_);
 
                 health_.mode = DatabaseMode::Normal;
                 health_.last_successful_operation = std::chrono::steady_clock::now();
@@ -566,8 +569,9 @@ public:
 private:
     ResilientDatabaseConfig config_;
     RetryEngine& retry_engine_;
-    std::unique_ptr<duckdb::DuckDB> db_;
-    std::unique_ptr<duckdb::Connection> conn_;
+    // TODO: Full migration to bridge API requires converting all conn_->Query() calls
+    std::unique_ptr<duckdb_bridge::DatabaseHandle> db_;
+    std::unique_ptr<duckdb_bridge::ConnectionHandle> conn_;
     DatabaseHealth health_;
     OperationCache operation_cache_;
     mutable std::mutex mutex_;
