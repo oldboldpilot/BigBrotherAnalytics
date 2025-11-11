@@ -381,6 +381,14 @@ class Phase5Setup:
             return False
 
         try:
+            # Kill existing streamlit processes to avoid port conflicts
+            print("   Stopping existing dashboard processes...", end=" ", flush=True)
+            subprocess.run(["pkill", "-f", "streamlit"],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+            time.sleep(1)  # Give processes time to terminate
+            print("done")
+
             print("   Starting Streamlit dashboard...", end=" ", flush=True)
             # Start dashboard in background
             subprocess.Popen(
@@ -410,6 +418,14 @@ class Phase5Setup:
             return False
 
         try:
+            # Kill existing bigbrother processes to avoid duplicates
+            print("   Stopping existing trading engine processes...", end=" ", flush=True)
+            subprocess.run(["pkill", "-f", "bigbrother"],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+            time.sleep(1)  # Give processes time to terminate
+            print("done")
+
             print("   Starting trading engine...", end=" ", flush=True)
 
             # Auto-detect library paths (portable across systems)

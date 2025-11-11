@@ -128,12 +128,27 @@ This project prioritizes thorough planning and iterative refinement. We will:
 
 ### Quick Start:
 
+**🚀 One-Command Setup (Recommended for new deployments):**
+
+```bash
+# Complete system bootstrap from scratch (5-15 minutes)
+./scripts/bootstrap.sh
+
+# This single script:
+# 1. Checks prerequisites (ansible, uv, git)
+# 2. Runs ansible playbook (installs Clang 21, libc++, OpenMP, MPI, DuckDB)
+# 3. Compiles C++ project
+# 4. Sets up Python environment
+# 5. Initializes database and tax configuration
+# 6. Verifies everything is working
+```
+
+**Manual Build (If dependencies already installed):**
+
 ```bash
 # 1. Build project (2 min)
 cd build
-env CC=/usr/local/bin/clang \
-    CXX=/usr/local/bin/clang++ \
-    cmake -G Ninja ..
+cmake -G Ninja ..  # Auto-detects compilers and libraries
 ninja
 
 # 2. Run tests (< 1 sec)
