@@ -142,8 +142,9 @@ CREATE TABLE IF NOT EXISTS tax_config (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default configuration
-INSERT OR IGNORE INTO tax_config (id, user_id) VALUES (1, 'default');
+-- Insert default configuration (DuckDB-compatible)
+INSERT INTO tax_config (id, user_id) VALUES (1, 'default')
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Tax Events Table (Audit Trail)

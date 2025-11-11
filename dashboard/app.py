@@ -15,6 +15,9 @@ import sys
 # Add scripts directory to path for health check imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
+# Import tax implications view
+from dashboard.tax_implications_view import show_tax_implications
+
 # Page configuration
 st.set_page_config(
     page_title="BigBrother Trading Dashboard",
@@ -172,7 +175,7 @@ def main():
         st.markdown("### Navigation")
         view = st.radio(
             "Select View",
-            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "Alerts", "System Health"]
+            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "Alerts", "System Health", "Tax Implications"]
         )
 
         st.divider()
@@ -198,6 +201,8 @@ def main():
         show_alerts()
     elif view == "System Health":
         show_system_health()
+    elif view == "Tax Implications":
+        show_tax_implications(get_db_connection())
 
     # Auto-refresh
     if auto_refresh:

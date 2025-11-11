@@ -46,7 +46,11 @@ def setup_tax_database():
                     conn.execute(stmt)
                     print(f"  ✅ Statement {i}/{len(statements)} executed")
                 except Exception as e:
-                    if "already exists" not in str(e):
+                    error_msg = str(e).lower()
+                    # Ignore expected errors
+                    if "already exists" in error_msg or "does not exist" in error_msg:
+                        pass  # Table indexes being created before table exists - will be recreated
+                    else:
                         print(f"  ⚠️  Statement {i}: {str(e)}")
 
         # Verify tables created
