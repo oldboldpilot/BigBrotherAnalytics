@@ -163,10 +163,11 @@ def get_traded_symbols(db_path: str, limit: int = 10) -> List[str]:
     try:
         conn = duckdb.connect(str(db_path), read_only=True)
 
-        # Get symbols from stocks table
+        # Get symbols from positions table (current portfolio)
         result = conn.execute("""
             SELECT DISTINCT symbol
-            FROM stocks
+            FROM positions
+            WHERE is_bot_managed = 1
             ORDER BY symbol
             LIMIT ?
         """, [limit]).fetchall()

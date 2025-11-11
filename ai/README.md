@@ -124,6 +124,71 @@ uv run streamlit run dashboard/app.py
 
 ---
 
+## Trading Platform Architecture (Phase 5+)
+
+**Status:** IMPLEMENTED - Production Ready | **Location:** `src/core/trading/`
+
+### Three-Layer Loosely Coupled Design
+
+The trading system uses Dependency Inversion Principle (SOLID) for multi-platform support:
+
+**1. Platform-Agnostic Types** (`order_types.cppm` - 175 lines)
+- Common data structures shared across all platforms
+- Types: `Position`, `Order`, `OrderSide`, `OrderType`, `OrderStatus`
+- Safety flags: `is_bot_managed`, `managed_by`, `bot_strategy`
+
+**2. Abstract Interface** (`platform_interface.cppm` - 142 lines)
+- `TradingPlatformInterface` - Pure virtual base class
+- Contract: `submitOrder()`, `cancelOrder()`, `modifyOrder()`, `getOrders()`, `getPositions()`
+- High-level code depends on abstraction, not concrete implementations
+
+**3. Platform-Agnostic Business Logic** (`orders_manager.cppm` - 600+ lines)
+- `OrdersManager` depends ONLY on `TradingPlatformInterface`
+- Zero coupling to platform-specific code
+- Dependency injection: `OrdersManager(db_path, std::unique_ptr<TradingPlatformInterface> platform)`
+
+**4. Platform-Specific Adapters** (e.g., `schwab_order_executor.cppm` - 382 lines)
+- Implements `TradingPlatformInterface` for specific brokers
+- Adapter pattern: converts platform types ↔ common types
+- Injected at runtime into `OrdersManager`
+
+### Key Benefits
+
+- **Multi-Platform:** Add IBKR, TD Ameritrade, Alpaca without touching `OrdersManager`
+- **Testability:** Easy to mock platform implementations
+- **Maintainability:** Clean separation of concerns
+- **Scalability:** Platform code isolated in adapters
+- **Type Safety:** C++23 module compile-time verification
+
+### Build Configuration
+
+```cmake
+# New library: trading_core
+add_library(trading_core SHARED)
+target_sources(trading_core
+    PUBLIC FILE_SET CXX_MODULES FILES
+        src/core/trading/order_types.cppm
+        src/core/trading/platform_interface.cppm
+        src/core/trading/orders_manager.cppm
+)
+
+# Platform implementations link trading_core
+target_link_libraries(schwab_api PUBLIC trading_core)
+```
+
+### Testing
+
+- Regression suite: `scripts/test_loose_coupling_architecture.sh` (379 lines)
+- 12 tests, 32 assertions, 100% passing
+- Validates: dependency inversion, type conversion, CMake config
+
+### Documentation
+
+- Architecture guide: `docs/TRADING_PLATFORM_ARCHITECTURE.md` (590 lines)
+- Step-by-step guide for adding new trading platforms
+
+---
+
 ## Directory Structure
 
 ```

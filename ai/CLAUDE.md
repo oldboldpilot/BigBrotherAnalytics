@@ -93,6 +93,70 @@ export LD_LIBRARY_PATH=/home/muyiwa/Development/BigBrotherAnalytics/build:$LD_LI
 
 See `docs/NEWS_INGESTION_SYSTEM.md` for complete architecture and implementation details.
 
+### Trading Platform Architecture (Loose Coupling via Dependency Inversion)
+
+**Status:** IMPLEMENTED | **Location:** `src/core/trading/` | **Integration:** Production Ready
+
+The system features a three-layer loosely coupled architecture for multi-platform trading support:
+
+**Architecture Layers:**
+
+1. **Platform-Agnostic Types** (`order_types.cppm` - 175 lines)
+   - Common data structures: `Position`, `Order`, `OrderSide`, `OrderType`, `OrderStatus`
+   - Safety flags: `is_bot_managed`, `managed_by`, `bot_strategy` (prevents manual position interference)
+   - Shared across all trading platforms (Schwab, IBKR, TD Ameritrade, etc.)
+
+2. **Abstract Interface** (`platform_interface.cppm` - 142 lines)
+   - `TradingPlatformInterface` - Pure virtual base class defining platform contract
+   - Core methods: `submitOrder()`, `cancelOrder()`, `modifyOrder()`, `getOrders()`, `getPositions()`
+   - Enforces Dependency Inversion Principle (SOLID) - high-level logic depends on abstraction, not concrete implementations
+
+3. **Platform-Agnostic Business Logic** (`orders_manager.cppm` - 600+ lines)
+   - `OrdersManager` depends ONLY on `TradingPlatformInterface` abstraction
+   - Zero coupling to platform-specific code (Schwab, IBKR, etc.)
+   - Dependency injection via constructor: `OrdersManager(db_path, std::unique_ptr<TradingPlatformInterface> platform)`
+   - Handles order lifecycle, state management, database persistence
+
+4. **Platform-Specific Implementations** (`src/schwab_api/schwab_order_executor.cppm` - 382 lines)
+   - Schwab `OrderExecutor` implements `TradingPlatformInterface`
+   - Adapter pattern: converts between platform-specific types (`schwab::Order`) and common types (`trading::Order`)
+   - Type conversions: `chrono::time_point` ↔ `int64_t` milliseconds
+   - Injected at runtime into `OrdersManager` (runtime polymorphism)
+
+**Key Benefits:**
+- Multi-Platform Support: Add IBKR, TD Ameritrade, Alpaca without modifying `OrdersManager`
+- Testability: Easy to mock platform implementations for unit testing
+- Maintainability: Clean separation of concerns, platform-specific code isolated
+- Scalability: New platforms added by implementing `TradingPlatformInterface`
+- Type Safety: Compile-time interface verification with C++23 modules
+
+**Build Configuration:**
+- New library: `trading_core` (SHARED) with module chain: `order_types` → `platform_interface` → `orders_manager`
+- `schwab_api` now links `trading_core` for loose coupling
+- Module dependency chain enforced by C++23 module system
+
+**Testing & Validation:**
+- Regression test suite: `scripts/test_loose_coupling_architecture.sh` (379 lines)
+- 12 comprehensive tests, 32 assertions
+- All tests passing: 32/32 (100% success rate)
+- Validates: dependency inversion, type conversion, no circular dependencies, CMake configuration
+
+**Documentation:**
+- Complete architecture guide: `docs/TRADING_PLATFORM_ARCHITECTURE.md` (590 lines)
+- Step-by-step guide for adding new trading platforms (IBKR, TD Ameritrade, Alpaca, etc.)
+- Design patterns: Dependency Inversion, Adapter, Dependency Injection
+
+**Example Usage:**
+```cpp
+// Runtime dependency injection
+auto schwab_platform = std::make_unique<schwab::OrderExecutor>(api_client);
+auto orders_manager = OrdersManager("data/orders.db", std::move(schwab_platform));
+
+// Business logic unchanged regardless of platform
+orders_manager.submitOrder(order);
+orders_manager.getPositions();
+```
+
 ### Quick Start (New System Deployment)
 
 **🚀 One-Command Bootstrap (Fresh Machine → Production Ready in 5-15 min):**

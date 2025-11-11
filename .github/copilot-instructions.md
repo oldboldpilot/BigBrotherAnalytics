@@ -89,7 +89,21 @@ uv run python scripts/phase5_shutdown.py
 
 ### Core Components
 
-#### 1. **Market Intelligence Engine**
+#### 1. **Trading Platform Architecture (Loose Coupling)**
+- **Location:** `src/core/trading/`
+- **Key Files:**
+  - `order_types.cppm` (175 lines) - Platform-agnostic types (Position, Order, OrderSide, etc.)
+  - `platform_interface.cppm` (142 lines) - TradingPlatformInterface abstract base class
+  - `orders_manager.cppm` (600+ lines) - Platform-agnostic business logic with dependency injection
+  - `schwab_order_executor.cppm` (382 lines) - Schwab platform adapter
+- **Purpose:** Multi-platform trading support via Dependency Inversion Principle (SOLID)
+- **Architecture:** Three-layer design (types → interface → business logic) with runtime adapter injection
+- **Benefits:** Testability, maintainability, scalability, multi-platform support (IBKR, TD Ameritrade, Alpaca)
+- **Build:** trading_core library (SHARED), platform adapters link trading_core
+- **Testing:** 12 tests, 32 assertions, 100% passing
+- **Documentation:** `docs/TRADING_PLATFORM_ARCHITECTURE.md` (590 lines)
+
+#### 2. **Market Intelligence Engine**
 - **Location:** `src/market_intelligence/`
 - **Key Files:**
   - `employment_signals.cppm` - Employment signal generation
@@ -99,7 +113,7 @@ uv run python scripts/phase5_shutdown.py
 - **Purpose:** Processes BLS employment data, financial news, and generates trading signals
 - **Performance:** Sub-10ms queries via DuckDB, 100K articles/sec sentiment analysis
 
-#### 2. **Trading Decision Module**
+#### 3. **Trading Decision Module**
 - **Location:** `src/trading_decision/`
 - **Key Files:**
   - `strategies.cppm` - Strategy implementations (SectorRotationStrategy)
@@ -110,7 +124,7 @@ uv run python scripts/phase5_shutdown.py
   - 11 GICS sector coverage
   - RiskManager integration
 
-#### 3. **Risk Management**
+#### 4. **Risk Management**
 - **Location:** `src/risk_management/`
 - **Key Files:**
   - `risk_management.cppm` - Kelly criterion, Monte Carlo, position sizing
@@ -122,17 +136,19 @@ uv run python scripts/phase5_shutdown.py
   - Max portfolio heat: 15%
   - Max concurrent: 2-3 positions
 
-#### 4. **Schwab API C++23 Modules**
+#### 5. **Schwab API C++23 Modules**
 - **Location:** `src/schwab_api/`
 - **Key Files:**
   - `account_types.cppm` (307 lines) - Account, Balance, Position, Transaction data structures
   - `schwab_api.cppm` - OAuth token management + AccountClient (lightweight wrapper)
   - `account_manager.cppm` (1080 lines) - Full account management with analytics
+  - `schwab_order_executor.cppm` (382 lines) - Implements TradingPlatformInterface (adapter pattern)
 - **Module Hierarchy:**
   ```
   bigbrother.schwab.account_types (foundation)
     └── bigbrother.schwab_api (OAuth + API wrapper)
         └── bigbrother.schwab.account_manager (full implementation)
+        └── bigbrother.schwab.order_executor (trading platform adapter)
   ```
 - **Key Features:**
   - OAuth integration via TokenManager
@@ -141,16 +157,18 @@ uv run python scripts/phase5_shutdown.py
   - Position tracking and transaction history
   - Portfolio analytics (value calculation, P&L)
   - Database integration (pending DuckDB API migration)
+  - **Loose coupling**: OrderExecutor adapts schwab::Order ↔ trading::Order
 - **Technical Highlights:**
   - **spdlog Integration**: Uses `SPDLOG_USE_STD_FORMAT` for C++23 compatibility
   - **Error Propagation**: Converts `Error` struct to `std::string` for `std::expected`
   - **Rule of Five**: Explicit move deletion due to mutex member
   - **AccountClient vs AccountManager**: Lightweight fluent API vs full-featured management
+  - **Adapter Pattern**: OrderExecutor converts between platform types and common types
 - **Migration:** Converted from header/implementation to unified C++23 modules
   - See `docs/ACCOUNT_MANAGER_CPP23_MIGRATION.md` for complete migration details
   - Build: Zero errors, zero warnings, 100% regression tests passing
 
-#### 5. **Tax Tracking System**
+#### 6. **Tax Tracking System**
 - **Location:** `src/utils/tax.cppm`, `scripts/monitoring/`
 - **Key Files:**
   - `calculate_taxes.py` - Tax calculator with YTD tracking
@@ -198,6 +216,65 @@ uv run python scripts/phase5_shutdown.py
   - Market movers and hours
   - **No third-party data subscriptions needed**
 - **DuckDB** - Local data storage (employment, sectors, signals, market data cache, tax records, news articles)
+
+---
+
+## Architecture Principles (CRITICAL)
+
+### SOLID Principles
+
+The project follows SOLID principles rigorously, especially for trading system components:
+
+**1. Dependency Inversion Principle (DIP)**
+- High-level modules (OrdersManager) depend on abstractions (TradingPlatformInterface)
+- Low-level modules (OrderExecutor) implement abstractions
+- **Never** depend on concrete platform implementations from business logic
+
+**Example:**
+```cpp
+// ✅ CORRECT - Depends on abstraction
+class OrdersManager {
+    std::unique_ptr<TradingPlatformInterface> platform_;  // Abstract interface
+public:
+    OrdersManager(std::string db, std::unique_ptr<TradingPlatformInterface> platform);
+};
+
+// ❌ WRONG - Depends on concrete implementation
+class OrdersManager {
+    std::unique_ptr<schwab::OrderExecutor> platform_;  // Concrete platform - BAD!
+};
+```
+
+**2. Open/Closed Principle (OCP)**
+- Open for extension: Add new trading platforms by implementing TradingPlatformInterface
+- Closed for modification: Never modify OrdersManager to add new platforms
+
+**3. Adapter Pattern**
+- Platform-specific adapters convert between platform types and common types
+- Example: schwab::Order ↔ trading::Order conversion in OrderExecutor
+
+**4. Dependency Injection**
+- Runtime injection of platform implementations
+- Enables testing with mock platforms
+- Example: `OrdersManager(db_path, std::make_unique<MockPlatform>())`
+
+### Design Patterns Used
+
+**1. Adapter Pattern** (Trading Platform)
+- Converts platform-specific types to common types
+- Location: `src/schwab_api/schwab_order_executor.cppm`
+
+**2. Strategy Pattern** (Trading Strategies)
+- IStrategy interface with multiple implementations
+- Location: `src/trading_decision/strategies.cppm`
+
+**3. Factory Pattern** (Strategy Creation)
+- StrategyManager creates strategies by name
+- Location: `src/trading_decision/strategy_manager.cpp`
+
+**4. Builder Pattern** (Fluent APIs)
+- AccountClient uses method chaining
+- Location: `src/schwab_api/schwab_api.cppm`
 
 ---
 

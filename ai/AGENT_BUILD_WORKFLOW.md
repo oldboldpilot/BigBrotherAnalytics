@@ -508,10 +508,154 @@ Total pre-commit time: ~20-50 seconds (fast feedback!)
 
 ---
 
+## Building Trading Platform Architecture (Loose Coupling)
+
+**Status:** IMPLEMENTED | **Location:** `src/core/trading/`
+
+### Overview
+
+The trading platform architecture uses Dependency Inversion Principle for multi-platform support:
+- Platform-agnostic types and interfaces (order_types.cppm)
+- Abstract interface defining platform contract (platform_interface.cppm)
+- Business logic depends on abstraction only (orders_manager.cppm)
+- Platform-specific adapters inject at runtime (schwab_order_executor.cppm)
+
+### Build Steps
+
+#### Step 1: Build trading_core Library
+
+```bash
+cd /home/muyiwa/Development/BigBrotherAnalytics/build
+
+# Build trading core (order types → platform interface → orders manager)
+ninja trading_core
+```
+
+**Build Output:**
+```
+[1/3] Building CXX object CMakeFiles/trading_core.dir/src/core/trading/order_types.cppm.pcm
+[2/3] Building CXX object CMakeFiles/trading_core.dir/src/core/trading/platform_interface.cppm.pcm
+[3/3] Building CXX object CMakeFiles/trading_core.dir/src/core/trading/orders_manager.cppm.pcm
+[4/4] Linking CXX shared library libtrading_core.so
+```
+
+**Files Created:**
+- `build/libtrading_core.so` - Trading core library (platform-agnostic)
+- `build/CMakeFiles/trading_core.dir/*.pcm` - Precompiled module files
+
+#### Step 2: Build Platform Adapters
+
+```bash
+# Build Schwab API with trading_core integration
+ninja schwab_api
+
+# Schwab API now links trading_core library
+```
+
+#### Step 3: Run Regression Tests
+
+```bash
+# Run comprehensive test suite (12 tests, 32 assertions)
+./scripts/test_loose_coupling_architecture.sh
+
+# Expected output:
+# ✅ 32/32 assertions passed (100%)
+# All checks passed!
+```
+
+**What Gets Tested:**
+- Dependency inversion (OrdersManager depends on abstraction)
+- Type conversion (platform types ↔ common types)
+- No circular dependencies (module hierarchy)
+- CMake configuration (trading_core library exists)
+- Build system (libtrading_core.so exists)
+
+### Architecture Components
+
+**1. Platform-Agnostic Types** (`order_types.cppm` - 175 lines)
+- Common data structures: Position, Order, OrderSide, OrderType, OrderStatus
+- Safety flags: is_bot_managed, managed_by, bot_strategy
+- Shared across all trading platforms
+
+**2. Abstract Interface** (`platform_interface.cppm` - 142 lines)
+- TradingPlatformInterface - Pure virtual base class
+- Core methods: submitOrder(), cancelOrder(), modifyOrder(), getOrders(), getPositions()
+- Defines contract for all platform implementations
+
+**3. Platform-Agnostic Business Logic** (`orders_manager.cppm` - 600+ lines)
+- OrdersManager depends ONLY on TradingPlatformInterface
+- Dependency injection via constructor
+- Order lifecycle management, state tracking, database persistence
+
+**4. Schwab Adapter** (`schwab_order_executor.cppm` - 382 lines)
+- Implements TradingPlatformInterface for Schwab
+- Adapter pattern: converts schwab::Order ↔ trading::Order
+- Type conversions: chrono::time_point ↔ int64_t milliseconds
+
+### Key Benefits
+
+- **Multi-Platform:** Add IBKR, TD Ameritrade, Alpaca by implementing TradingPlatformInterface
+- **Testability:** Mock platform for unit testing
+- **Maintainability:** Platform code isolated in adapters
+- **Scalability:** New platforms without modifying OrdersManager
+- **Type Safety:** Compile-time verification with C++23 modules
+
+### Module Dependency Chain
+
+```
+order_types.cppm (foundation)
+   └→ platform_interface.cppm (depends on order_types)
+      └→ orders_manager.cppm (depends on platform_interface)
+         └→ schwab_order_executor.cppm (implements interface)
+```
+
+### CMake Configuration
+
+```cmake
+# New library: trading_core
+add_library(trading_core SHARED)
+target_sources(trading_core
+    PUBLIC FILE_SET CXX_MODULES FILES
+        src/core/trading/order_types.cppm
+        src/core/trading/platform_interface.cppm
+        src/core/trading/orders_manager.cppm
+)
+
+# Platform implementations link trading_core
+add_library(schwab_api SHARED)
+target_link_libraries(schwab_api PUBLIC trading_core)
+```
+
+### Handling Build Errors
+
+**Error: "module 'bigbrother.core.trading.X' not found"**
+
+**Solution:** Build in dependency order
+```bash
+ninja trading_core  # First build trading_core
+ninja schwab_api    # Then platform adapters
+```
+
+**Error: "undefined reference to TradingPlatformInterface vtable"**
+
+**Solution:** Ensure schwab_api links trading_core
+```cmake
+target_link_libraries(schwab_api PUBLIC trading_core)
+```
+
+### Documentation
+
+- **Architecture Guide:** `docs/TRADING_PLATFORM_ARCHITECTURE.md` (590 lines)
+- Step-by-step guide for adding new trading platforms
+- Design patterns: Dependency Inversion, Adapter, Dependency Injection
+
+---
+
 ## Questions?
 
 See:
 - `docs/CODING_STANDARDS.md` - Complete coding standards
+- `docs/TRADING_PLATFORM_ARCHITECTURE.md` - Trading platform architecture
 - `BUILD_AND_TEST_INSTRUCTIONS.md` - Build procedures
 - `.github/workflows/code-quality.yml` - CI/CD details
 - `.githooks/pre-commit` - Local enforcement details
@@ -519,5 +663,5 @@ See:
 ---
 
 **Author:** Olumuyiwa Oluwasanmi
-**Last Updated:** 2025-11-08
-**Version:** 1.0.0
+**Last Updated:** 2025-11-11
+**Version:** 1.1.0
