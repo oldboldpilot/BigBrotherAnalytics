@@ -176,7 +176,7 @@ def main():
         st.markdown("### Navigation")
         view = st.radio(
             "Select View",
-            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "Alerts", "System Health", "Tax Implications"]
+            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"]
         )
 
         st.divider()
@@ -198,6 +198,8 @@ def main():
         show_employment_signals()
     elif view == "Trade History":
         show_trade_history()
+    elif view == "News Feed":
+        show_news_feed()
     elif view == "Alerts":
         show_alerts()
     elif view == "System Health":
@@ -730,6 +732,209 @@ def show_trade_history():
             )])
             fig.update_layout(title="Strategy Distribution")
             st.plotly_chart(fig, use_container_width=True)
+
+def show_news_feed():
+    """Display Component: News Feed with Sentiment Analysis"""
+    st.header("📰 News Feed")
+
+    conn = get_db_connection()
+
+    # Check if news_articles table exists
+    try:
+        table_check = conn.execute("""
+            SELECT COUNT(*) as count
+            FROM information_schema.tables
+            WHERE table_name = 'news_articles'
+        """).fetchone()
+
+        if not table_check or table_check[0] == 0:
+            st.warning("📊 News database not initialized")
+            st.info("Run `uv run python scripts/monitoring/setup_news_database.py` to create the news table")
+            return
+    except Exception as e:
+        st.error(f"Error checking news table: {e}")
+        return
+
+    # Load news articles
+    try:
+        query = """
+            SELECT
+                article_id,
+                symbol,
+                title,
+                description,
+                url,
+                source_name,
+                author,
+                published_at,
+                sentiment_score,
+                sentiment_label,
+                positive_keywords,
+                negative_keywords,
+                fetched_at
+            FROM news_articles
+            ORDER BY published_at DESC
+            LIMIT 100
+        """
+        news_df = conn.execute(query).df()
+    except Exception as e:
+        st.error(f"Error loading news: {e}")
+        st.info("If the table exists but is empty, run `uv run python scripts/data_collection/news_ingestion.py` to fetch news")
+        return
+
+    if news_df.empty:
+        st.info("📭 No news articles yet")
+        st.markdown("""
+        ### Get Started
+
+        1. **Setup database**: `uv run python scripts/monitoring/setup_news_database.py`
+        2. **Fetch news**: `uv run python scripts/data_collection/news_ingestion.py`
+        3. **View results**: Refresh this page
+
+        The system will fetch news for your traded symbols with sentiment analysis.
+        """)
+        return
+
+    # Summary metrics at top
+    st.subheader("📊 Summary")
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.metric("Total Articles", len(news_df))
+
+    with col2:
+        unique_symbols = news_df['symbol'].nunique()
+        st.metric("Symbols", unique_symbols)
+
+    with col3:
+        positive_count = len(news_df[news_df['sentiment_label'] == 'positive'])
+        st.metric("Positive", positive_count, delta=f"{100*positive_count/len(news_df):.1f}%")
+
+    with col4:
+        negative_count = len(news_df[news_df['sentiment_label'] == 'negative'])
+        st.metric("Negative", negative_count, delta=f"{100*negative_count/len(news_df):.1f}%", delta_color="inverse")
+
+    with col5:
+        avg_sentiment = news_df['sentiment_score'].mean()
+        st.metric("Avg Sentiment", f"{avg_sentiment:+.3f}")
+
+    st.divider()
+
+    # Filters
+    st.subheader("🔍 Filters")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        symbols = ['All'] + sorted(news_df['symbol'].unique().tolist())
+        selected_symbol = st.selectbox("Symbol", symbols, key='news_symbol')
+
+    with col2:
+        sentiments = ['All', 'positive', 'negative', 'neutral']
+        selected_sentiment = st.selectbox("Sentiment", sentiments, key='news_sentiment')
+
+    with col3:
+        limit = st.slider("Number of Articles", 5, 50, 20, key='news_limit')
+
+    # Apply filters
+    filtered_df = news_df.copy()
+
+    if selected_symbol != 'All':
+        filtered_df = filtered_df[filtered_df['symbol'] == selected_symbol]
+
+    if selected_sentiment != 'All':
+        filtered_df = filtered_df[filtered_df['sentiment_label'] == selected_sentiment]
+
+    filtered_df = filtered_df.head(limit)
+
+    st.divider()
+
+    # Sentiment distribution chart
+    st.subheader("📈 Sentiment Distribution")
+
+    sentiment_counts = news_df.groupby('sentiment_label').size().reset_index(name='count')
+
+    fig = px.bar(
+        sentiment_counts,
+        x='sentiment_label',
+        y='count',
+        color='sentiment_label',
+        color_discrete_map={
+            'positive': 'green',
+            'negative': 'red',
+            'neutral': 'gray'
+        },
+        title="Articles by Sentiment"
+    )
+    fig.update_layout(showlegend=False, xaxis_title="Sentiment", yaxis_title="Count")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Sentiment by symbol
+    if news_df['symbol'].nunique() > 1:
+        st.subheader("📊 Average Sentiment by Symbol")
+
+        sentiment_by_symbol = news_df.groupby('symbol')['sentiment_score'].agg(['mean', 'count']).reset_index()
+        sentiment_by_symbol = sentiment_by_symbol.sort_values('mean', ascending=False)
+
+        fig = px.bar(
+            sentiment_by_symbol,
+            x='symbol',
+            y='mean',
+            color='mean',
+            color_continuous_scale=['red', 'yellow', 'green'],
+            hover_data=['count'],
+            title="Average Sentiment Score by Symbol"
+        )
+        fig.update_layout(xaxis_title="Symbol", yaxis_title="Avg Sentiment Score", coloraxis_showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # Display news articles
+    st.subheader(f"📰 Recent Articles ({len(filtered_df)} shown)")
+
+    for idx, row in filtered_df.iterrows():
+        # Sentiment color
+        if row['sentiment_label'] == 'positive':
+            sentiment_color = 'green'
+            sentiment_emoji = '📈'
+        elif row['sentiment_label'] == 'negative':
+            sentiment_color = 'red'
+            sentiment_emoji = '📉'
+        else:
+            sentiment_color = 'gray'
+            sentiment_emoji = '➖'
+
+        # Article card
+        with st.container():
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                st.markdown(f"### [{row['title']}]({row['url']})")
+                st.caption(f"**{row['symbol']}** | {row['source_name']} | {pd.to_datetime(row['published_at']).strftime('%Y-%m-%d %H:%M')}")
+
+            with col2:
+                st.markdown(f"<h3 style='text-align: right; color: {sentiment_color};'>{sentiment_emoji} {row['sentiment_label'].upper()}</h3>", unsafe_allow_html=True)
+                st.metric("Score", f"{row['sentiment_score']:+.3f}", label_visibility="collapsed")
+
+            if row['description']:
+                st.write(row['description'])
+
+            # Keywords
+            if row['positive_keywords'] or row['negative_keywords']:
+                kw_col1, kw_col2 = st.columns(2)
+
+                with kw_col1:
+                    if row['positive_keywords'] and len(row['positive_keywords']) > 0:
+                        st.caption(f"✅ Positive: {', '.join(row['positive_keywords'][:5])}")
+
+                with kw_col2:
+                    if row['negative_keywords'] and len(row['negative_keywords']) > 0:
+                        st.caption(f"❌ Negative: {', '.join(row['negative_keywords'][:5])}")
+
+            if row['author']:
+                st.caption(f"By {row['author']}")
+
+            st.divider()
 
 def show_alerts():
     """Display alert history and statistics"""

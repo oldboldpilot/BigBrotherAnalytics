@@ -178,7 +178,7 @@ class ProtectedSchwabClient {
     [[nodiscard]] auto placeOrder(Order order) -> Result<std::string> {
         auto* breaker = getBreaker("orders");
 
-        return breaker->call<std::string>([&]() { return client_->orders().placeOrder(order); });
+        return breaker->call<std::string>([&]() -> Result<std::string> { return client_->orders().placeOrder(order); });
     }
 
     /**
@@ -187,7 +187,7 @@ class ProtectedSchwabClient {
     [[nodiscard]] auto cancelOrder(std::string const& order_id) -> Result<void> {
         auto* breaker = getBreaker("orders");
 
-        return breaker->call<void>([&]() { return client_->orders().cancelOrder(order_id); });
+        return breaker->call<void>([&]() -> Result<void> { return client_->orders().cancelOrder(order_id); });
     }
 
     /**

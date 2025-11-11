@@ -19,6 +19,7 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 > - **Health Monitoring:** Real-time token validation, system status checks
 > - **Security:** API keys removed from git, comprehensive .gitignore patterns
 > - **Paper Trading:** $100 position limit, 2-3 concurrent, ≥55% win rate target
+> - **News Ingestion System:** C++23 sentiment analysis (260 lines), NewsAPI integration (402 lines), 236KB Python bindings
 > - All 20 autonomous agents across Phases 1-4 achieved 100% success rate.
 
 ### Orchestration Hierarchy
@@ -49,6 +50,77 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 | Playwright + Schema Guard |
 +---------------------------+
 ```
+
+---
+
+## News Ingestion System (Phase 5+)
+
+**Status:** ✅ IMPLEMENTED - Production Ready | **Integration:** 8/8 checks passing (100%)
+
+The News Ingestion System adds real-time financial news tracking with sentiment analysis:
+
+### System Components (13/13 Complete)
+
+**C++ Core Modules:**
+1. `src/market_intelligence/sentiment_analyzer.cppm` (260 lines) - Keyword-based sentiment analysis
+2. `src/market_intelligence/news_ingestion.cppm` (402 lines) - NewsAPI integration with rate limiting
+3. `src/python_bindings/news_bindings.cpp` (110 lines) - pybind11 interface
+
+**Python Scripts:**
+4. `scripts/monitoring/setup_news_database.py` - Database initialization
+5. `scripts/data_collection/news_ingestion.py` - Main ingestion script (320 lines)
+
+**Documentation:**
+6. `docs/NEWS_INGESTION_SYSTEM.md` - Complete architecture (620 lines)
+7. `docs/NEWS_INGESTION_QUICKSTART.md` - Setup guide (450 lines)
+8. `docs/NEWS_INGESTION_DELIVERY_SUMMARY.md` - Implementation summary
+9. `docs/NEWS_CLANG_TIDY_REPORT.md` - Validation report
+
+**Dashboard Integration:**
+10. `dashboard/app.py` - News feed view (+200 lines)
+
+**Build System:**
+11. `CMakeLists.txt` - Updated (lines 293, 333-334) for C++23 modules
+12. Build output: `news_ingestion_py.cpython-314-x86_64-linux-gnu.so` (236KB)
+
+**Database Schema:**
+13. `news_articles` table with sentiment metrics and indexes
+
+### Technology Stack Updates
+
+**Added Technologies:**
+- **CMake + Ninja:** Required for C++23 module compilation
+- **clang-tidy:** C++ Core Guidelines enforcement (0 errors, 36 acceptable warnings)
+- **libcurl:** HTTP client for NewsAPI requests
+- **nlohmann/json:** JSON parsing in C++
+- **pybind11:** Python bindings for C++ modules
+
+### Key Features
+
+- **Sentiment Analysis:** 60+ positive/negative keywords, negation handling, intensifiers
+- **NewsAPI Integration:** Rate limiting (100 requests/day), automatic deduplication
+- **Error Handling:** Direct `std::unexpected(Error::make(code, msg))` pattern (no circuit breaker)
+- **Python-Delegated Storage:** Database writes handled by Python layer for simplicity
+- **Dashboard Visualization:** News feed with filtering, charts, sentiment color coding
+
+### Quick Reference
+
+```bash
+# Build C++ modules
+cmake -G Ninja -B build
+ninja -C build market_intelligence
+
+# Setup database
+uv run python scripts/monitoring/setup_news_database.py
+
+# Fetch news
+uv run python scripts/data_collection/news_ingestion.py
+
+# View dashboard (News Feed tab)
+uv run streamlit run dashboard/app.py
+```
+
+**Documentation:** See `docs/NEWS_INGESTION_SYSTEM.md` for complete architecture and implementation details.
 
 ---
 

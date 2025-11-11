@@ -342,6 +342,28 @@ class Phase5Setup:
             self.checks_failed.append("Tax database initialization failed")
             return False
 
+    def initialize_news_database(self):
+        """Initialize or verify news database"""
+        print_header("Step 3.5: News Database Initialization")
+
+        if self.quick:
+            print_info("Skipping in quick mode")
+            return True
+
+        # Run news setup script
+        success, output = run_command(
+            f"cd {self.base_dir} && uv run python scripts/monitoring/setup_news_database.py",
+            "News database setup"
+        )
+
+        if success:
+            self.checks_passed.append("News database initialized")
+            return True
+        else:
+            self.warnings.append("News database initialization failed (non-critical)")
+            print_warning("News features may not be available")
+            return True  # Non-critical, don't fail setup
+
     def verify_paper_trading_config(self):
         """Verify paper trading configuration"""
         print_header("Step 4: Paper Trading Configuration")
@@ -650,6 +672,7 @@ class Phase5Setup:
 
         if not self.quick:
             self.initialize_tax_database()
+            self.initialize_news_database()
 
         self.verify_paper_trading_config()
         self.test_schwab_api()

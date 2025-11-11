@@ -108,6 +108,204 @@ Author: Olumuyiwa Oluwasanmi"
 
 ---
 
+## Building C++23 Modules (News Ingestion System)
+
+**Prerequisites:**
+- Clang 21.1.5+ (required for C++23 module support)
+- Ninja build system (REQUIRED - Make does not support C++23 modules properly)
+- clang-tidy configured with C++ Core Guidelines
+
+### Step 1: Configure with Ninja Generator
+
+```bash
+cd /home/muyiwa/Development/BigBrotherAnalytics
+
+# CRITICAL: Use Ninja generator (required for C++23 modules)
+cmake -G Ninja -B build
+
+# If already configured with Make, reconfigure:
+rm -rf build
+cmake -G Ninja -B build
+```
+
+**Why Ninja is Required:**
+- Make has poor support for C++23 module dependencies
+- Ninja correctly handles module precompilation (.pcm files)
+- CMake's C++23 module support is optimized for Ninja
+
+### Step 2: Build Market Intelligence Modules
+
+```bash
+# Build all market intelligence modules (includes news + sentiment)
+ninja -C build market_intelligence
+
+# Or build specific targets
+ninja -C build sentiment_analyzer
+ninja -C build news_ingestion
+```
+
+**Build Output:**
+```
+[1/5] Building CXX object CMakeFiles/utils.dir/src/utils/circuit_breaker.cppm.pcm
+[2/5] Building CXX object CMakeFiles/market_intelligence.dir/src/market_intelligence/sentiment_analyzer.cppm.pcm
+[3/5] Building CXX object CMakeFiles/market_intelligence.dir/src/market_intelligence/news_ingestion.cppm.pcm
+[4/5] Linking CXX shared library libmarket_intelligence.so
+[5/5] Building complete
+```
+
+**Files Created:**
+- `build/libmarket_intelligence.so` - Market intelligence library (includes news + sentiment)
+- `build/libutils.so` - Utils library (includes circuit_breaker module)
+- `build/CMakeFiles/market_intelligence.dir/*.pcm` - Precompiled module files
+
+### Step 3: Build Python Bindings
+
+```bash
+# Build Python bindings for news system
+ninja -C build news_ingestion_py
+
+# Verify build output (should be ~236KB)
+ls -lh build/news_ingestion_py.cpython-314-x86_64-linux-gnu.so
+```
+
+**Expected Output:**
+```
+-rwxr-xr-x 1 user user 236K Nov 10 19:58 news_ingestion_py.cpython-314-x86_64-linux-gnu.so
+```
+
+### Step 4: clang-tidy Validation
+
+```bash
+# Run clang-tidy on news modules before building
+./scripts/validate_code.sh src/market_intelligence/
+
+# Expected output:
+# Files validated: 2 (sentiment_analyzer.cppm, news_ingestion.cppm)
+# Errors: 0
+# Acceptable warnings: 36 (modernize-*, readability-*)
+# Status: ✅ PASSED
+```
+
+**What Gets Checked:**
+- Trailing return type syntax: `auto func() -> ReturnType`
+- `[[nodiscard]]` attributes on getters
+- C++ Core Guidelines compliance (C.21, F.16, F.20, R.1)
+- nullptr vs NULL
+- Const correctness
+- Memory safety (no raw pointers, RAII)
+
+### Step 5: Set Library Path
+
+```bash
+# Required for Python bindings to find shared libraries
+export LD_LIBRARY_PATH=/home/muyiwa/Development/BigBrotherAnalytics/build:$LD_LIBRARY_PATH
+
+# Verify Python can import module
+python3 -c "import sys; sys.path.insert(0, 'build'); from news_ingestion_py import SentimentAnalyzer; print('✅ Success!')"
+```
+
+### Handling C++23 Module Build Errors
+
+**Error: "module 'bigbrother.X' not found"**
+
+**Cause:** Module not added to CMakeLists.txt or dependency order wrong
+
+**Solution:**
+```cmake
+# Check CMakeLists.txt - ensure module is in FILE_SET CXX_MODULES
+add_library(market_intelligence)
+target_sources(market_intelligence
+    PUBLIC FILE_SET CXX_MODULES FILES
+        src/market_intelligence/sentiment_analyzer.cppm
+        src/market_intelligence/news_ingestion.cppm
+)
+
+# Ensure dependency order: utils → market_intelligence → bindings
+target_link_libraries(market_intelligence PUBLIC utils)
+```
+
+**Error: "undefined symbol" when importing Python module**
+
+**Cause:** Missing shared library dependencies (libmarket_intelligence.so, libutils.so)
+
+**Solution:**
+```bash
+# Set LD_LIBRARY_PATH before importing
+export LD_LIBRARY_PATH=/home/muyiwa/Development/BigBrotherAnalytics/build:$LD_LIBRARY_PATH
+
+# Verify library dependencies
+ldd build/news_ingestion_py.cpython-314-x86_64-linux-gnu.so
+# Should show:
+#   libmarket_intelligence.so => /path/to/build/libmarket_intelligence.so
+#   libutils.so => /path/to/build/libutils.so
+```
+
+**Error: clang-tidy validation fails**
+
+**Cause:** Code doesn't follow C++ Core Guidelines
+
+**Common Fixes:**
+```cpp
+// Fix 1: Add trailing return type
+// Before:
+double calculate() { return 0.0; }
+// After:
+auto calculate() -> double { return 0.0; }
+
+// Fix 2: Add [[nodiscard]] to getters
+// Before:
+double getScore() const { return score_; }
+// After:
+[[nodiscard]] auto getScore() const -> double { return score_; }
+
+// Fix 3: Use nullptr instead of NULL
+// Before:
+if (ptr == NULL) { }
+// After:
+if (ptr == nullptr) { }
+```
+
+**Error: Ninja generator not available**
+
+**Cause:** Ninja not installed
+
+**Solution:**
+```bash
+# Install Ninja
+sudo apt install ninja-build  # Ubuntu/Debian
+brew install ninja            # macOS
+
+# Verify
+ninja --version  # Should show 1.10+
+```
+
+### News System Module Files
+
+**C++ Modules:**
+- `src/market_intelligence/sentiment_analyzer.cppm` (260 lines)
+  - Keyword-based sentiment analysis
+  - 60+ positive/negative keywords
+  - Negation handling, intensifiers
+  - Score: -1.0 (very negative) to +1.0 (very positive)
+
+- `src/market_intelligence/news_ingestion.cppm` (402 lines)
+  - NewsAPI HTTP client (libcurl)
+  - Rate limiting (1 second between calls, 100 requests/day)
+  - Error handling with Result<T> pattern
+  - Direct `std::unexpected(Error::make(code, msg))` (no circuit breaker)
+
+**Python Bindings:**
+- `src/python_bindings/news_bindings.cpp` (110 lines)
+  - pybind11 interface
+  - Exposes SentimentAnalyzer, NewsAPICollector, NewsAPIConfig
+  - Python-delegated database storage
+
+**CMakeLists.txt Changes:**
+- Line 293: Added `src/utils/circuit_breaker.cppm` to utils target
+- Lines 333-334: Added sentiment_analyzer.cppm and news_ingestion.cppm to market_intelligence target
+
+---
+
 ## Code Standards Checklist
 
 Before considering code complete, verify:

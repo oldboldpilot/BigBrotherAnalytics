@@ -63,6 +63,7 @@ uv run python scripts/phase5_shutdown.py
 ## Quick Reference
 
 ### Essential Documentation
+- **[AI_CONTEXT.md](../docs/AI_CONTEXT.md)** - Comprehensive AI assistant context (module architecture, news system, patterns)
 - **[PRD.md](../docs/PRD.md)** - Product Requirements (224KB, comprehensive)
 - **[README.md](../README.md)** - Project overview and Phase 5 workflow
 - **[CURRENT_STATUS.md](../docs/CURRENT_STATUS.md)** - Current status (100% ready)
@@ -70,6 +71,8 @@ uv run python scripts/phase5_shutdown.py
 - **[TAX_TRACKING_YTD.md](../docs/TAX_TRACKING_YTD.md)** - YTD tax tracking system
 - **[TAX_PLANNING_300K.md](../docs/TAX_PLANNING_300K.md)** - Tax planning for $300K income
 - **[CODING_STANDARDS.md](../docs/CODING_STANDARDS.md)** - C++23 coding standards
+- **[NEWS_INGESTION_SYSTEM.md](../docs/NEWS_INGESTION_SYSTEM.md)** - News ingestion architecture and implementation
+- **[NEWS_INGESTION_QUICKSTART.md](../docs/NEWS_INGESTION_QUICKSTART.md)** - Quick start guide for news system
 
 ### Architecture Documents
 - **[employment_signals_architecture.md](../docs/employment_signals_architecture.md)** - Employment signal system design
@@ -91,8 +94,10 @@ uv run python scripts/phase5_shutdown.py
 - **Key Files:**
   - `employment_signals.cppm` - Employment signal generation
   - `market_intelligence.cppm` - Main intelligence module
-- **Purpose:** Processes BLS employment data and generates trading signals
-- **Performance:** Sub-10ms queries via DuckDB
+  - `sentiment_analyzer.cppm` - Keyword-based sentiment analysis (60+ keywords)
+  - `news_ingestion.cppm` - NewsAPI client with circuit breaker
+- **Purpose:** Processes BLS employment data, financial news, and generates trading signals
+- **Performance:** Sub-10ms queries via DuckDB, 100K articles/sec sentiment analysis
 
 #### 2. **Trading Decision Module**
 - **Location:** `src/trading_decision/`
@@ -152,6 +157,11 @@ uv run python scripts/phase5_shutdown.py
 
 ### Data Sources
 - **BLS API v2** - Employment data (500 queries/day, authenticated)
+- **NewsAPI** - Financial news (100 requests/day, free tier)
+  - 7-day lookback period
+  - 20 articles per request
+  - Keyword-based sentiment analysis (no ML dependencies)
+  - Circuit breaker protection (5 failures → 60s timeout)
 - **Schwab API** - **ALL market data** (quotes, options, historical) + trading + account
   - FREE market data included with Schwab account
   - Real-time quotes for equities and options
@@ -159,42 +169,103 @@ uv run python scripts/phase5_shutdown.py
   - Historical OHLCV data
   - Market movers and hours
   - **No third-party data subscriptions needed**
-- **DuckDB** - Local data storage (employment, sectors, signals, market data cache, tax records)
+- **DuckDB** - Local data storage (employment, sectors, signals, market data cache, tax records, news articles)
 
 ---
 
 ## Coding Standards (MANDATORY)
 
-### C++23 Style
+### C++23 Module System
+
+**Compiler:** Clang 21.1.5 with C++23 modules
+**Build Tool:** CMake 3.28+ with Ninja generator (REQUIRED)
+
+**Module Import Syntax:**
 ```cpp
-// ✅ CORRECT - Trailing return type
+// ✅ CORRECT - Module imports
+import bigbrother.utils.types;
+import bigbrother.utils.logger;
+import bigbrother.market_intelligence.sentiment;
+import bigbrother.market_intelligence.news;
+
+// ❌ WRONG - Old header includes for modules
+#include "sentiment_analyzer.h"  // Don't use headers for new modules
+```
+
+**Module Structure:**
+```cpp
+// Global module fragment (for system includes)
+module;
+#include <vector>
+#include <string>
+
+// Module declaration
+export module bigbrother.mymodule;
+
+// Import other modules
+import bigbrother.utils.types;
+
+// Exported API
+export namespace bigbrother::mymodule {
+    class MyClass {
+    public:
+        [[nodiscard]] auto compute() -> Result<double>;
+    };
+}
+```
+
+### C++23 Style Requirements
+
+```cpp
+// ✅ CORRECT - Trailing return type (MANDATORY)
 auto calculate(int x) -> double {
     return x * 2.5;
 }
 
-// ❌ WRONG - Old-style return type
+// ❌ WRONG - Old-style return type (clang-tidy ERROR)
 double calculate(int x) {
     return x * 2.5;
 }
 
-// ✅ CORRECT - [[nodiscard]] on getters
+// ✅ CORRECT - [[nodiscard]] on getters/queries
 [[nodiscard]] auto getName() const -> std::string;
+[[nodiscard]] auto calculatePrice() const -> double;
 
-// ✅ CORRECT - Module structure
-module;  // Global module fragment
-#include <vector>
-export module bigbrother.mymodule;
-export namespace bigbrother::mymodule {
-    // Exports
+// ✅ CORRECT - Error handling with Result<T>
+auto fetchData() -> Result<Data> {
+    if (failed) {
+        return std::unexpected(Error::make(ErrorCode::NetworkError, "Connection timeout"));
+    }
+    return data;
 }
+
+// ❌ WRONG - Never use raw Error{} construction
+return Error{"message"};  // Compile error!
+```
+
+### Error Handling Pattern
+
+**ALWAYS use `std::unexpected` for errors:**
+```cpp
+// ✅ CORRECT
+return std::unexpected(Error::make(ErrorCode::NetworkError, "message"));
+
+// ❌ WRONG - Direct Error construction
+return Error{"message"};  // Don't do this!
+
+// ❌ WRONG - Throwing exceptions for expected failures
+throw std::runtime_error("Error");  // Only for unrecoverable errors
 ```
 
 ### Key Requirements
-1. **Trailing Return Syntax:** All functions use `auto func() -> ReturnType`
-2. **[[nodiscard]]:** All getter methods must be marked `[[nodiscard]]`
+1. **Trailing Return Syntax:** All functions use `auto func() -> ReturnType` (ERROR level in clang-tidy)
+2. **[[nodiscard]]:** All getter/query methods must be marked `[[nodiscard]]`
 3. **Modules:** Use C++23 modules (not headers) for new code
-4. **Error Handling:** Use `std::expected<T, std::string>` for error-prone operations
-5. **Documentation:** All public APIs must have doc comments
+4. **Error Handling:** Use `Result<T>` with `std::unexpected(Error::make(...))`
+5. **Rule of Five:** Delete copy, carefully consider move (ERROR level in clang-tidy)
+6. **const Correctness:** Use `const&` for expensive types, value for primitives
+7. **RAII:** No raw new/delete - use smart pointers and containers
+8. **Documentation:** All public APIs must have doc comments
 
 ---
 
@@ -423,9 +494,9 @@ LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./bin/test_schwab_e2e_workflow
 cd /home/muyiwa/Development/BigBrotherAnalytics
 rm -rf build && mkdir build && cd build
 
-export SKIP_CLANG_TIDY=1
 export CC=/usr/local/bin/clang
 export CXX=/usr/local/bin/clang++
+# Note: SKIP_CLANG_TIDY=1 no longer works - clang-tidy runs automatically
 
 cmake -G Ninja ..
 
@@ -435,18 +506,96 @@ ninja
 # Specific targets
 ninja bigbrother
 ninja backtest
+ninja news_ingestion_py       # Python bindings for news system
 ```
 
 ### Key CMake Variables
 - `CMAKE_CXX_STANDARD`: 23
-- `CMAKE_CXX_COMPILER`: clang++ (Clang 21)
+- `CMAKE_CXX_COMPILER`: clang++ (Clang 21.1.5)
+- `CMAKE_GENERATOR`: Ninja (REQUIRED for C++23 modules)
 - `CMAKE_BUILD_TYPE`: Release (for production)
+
+### clang-tidy Enforcement
+- **Status**: MANDATORY - Runs automatically before every build
+- **Cannot be skipped**: SKIP_CLANG_TIDY flag no longer works
+- **Key Checks**:
+  - Trailing return types (ERROR level)
+  - Rule of Five (ERROR level)
+  - [[nodiscard]] on query methods
+  - const correctness
+  - cppcoreguidelines-*, modernize-*, cert-*, concurrency-*
+- **System Headers**: Excluded via .clang-tidy config
 
 ### Module Dependencies
 ```
-utils → types → pricing → strategy → trading_decision
-utils → types → risk_management
-utils → types → market_intelligence → employment_signals
+Core Modules:
+utils.types ──────────────────────────────┐
+   │                                       │
+   ├→ utils.logger                         │
+   ├→ utils.database                       │
+   ├→ utils.circuit_breaker                │
+   └→ utils.result                         │
+                                           │
+Market Intelligence:                       │
+market_intelligence.sentiment ←────────────┤
+   │                                       │
+   └→ market_intelligence.news ←───────────┘
+         │
+         └→ market_intelligence.employment_signals
+
+Trading System:
+trading_decision.strategy
+   ├→ risk_management.position_sizing
+   └→ execution.order_management
+```
+
+### News Ingestion System
+
+**Architecture:**
+```
+NewsAPI → C++ News Collector → C++ Sentiment Analyzer → DuckDB → Dashboard
+  (fetch)    (circuit breaker)     (60+ keywords)      (store)   (visualize)
+```
+
+**Key Modules:**
+- `sentiment_analyzer.cppm` - Keyword-based sentiment (-1.0 to +1.0)
+- `news_ingestion.cppm` - NewsAPI client with rate limiting
+- `news_bindings.cpp` - Python bindings via pybind11
+
+**Build Commands:**
+```bash
+cd build
+cmake -G Ninja ..
+ninja utils                    # Build utils first
+ninja market_intelligence      # Then market intelligence (includes news/sentiment)
+ninja news_ingestion_py       # Finally Python bindings
+```
+
+**Python Usage:**
+```python
+from build import news_ingestion_py
+
+# Sentiment analysis
+analyzer = news_ingestion_py.SentimentAnalyzer()
+result = analyzer.analyze("Stock surges on earnings")
+print(f"Score: {result.score}, Label: {result.label}")
+
+# News fetching
+uv run python scripts/data_collection/news_ingestion.py
+```
+
+**Database Schema:**
+```sql
+CREATE TABLE news_articles (
+    article_id VARCHAR PRIMARY KEY,    -- MD5 hash of URL
+    symbol VARCHAR NOT NULL,
+    title VARCHAR NOT NULL,
+    sentiment_score DOUBLE,            -- -1.0 to 1.0
+    sentiment_label VARCHAR,           -- 'positive', 'negative', 'neutral'
+    positive_keywords TEXT[],
+    negative_keywords TEXT[],
+    published_at TIMESTAMP NOT NULL
+);
 ```
 
 ---
@@ -511,6 +660,19 @@ error: module 'bigbrother.utils.types' not found
 ```bash
 ninja -C build utils types
 ninja -C build trading_decision
+```
+
+**Problem:** clang-tidy errors blocking build
+```
+error: trailing return types are required [modernize-use-trailing-return-type]
+```
+**Solution:** Fix all clang-tidy errors (cannot be skipped)
+```cpp
+// Change from:
+double calculate(int x) { return x * 2.0; }
+
+// To:
+auto calculate(int x) -> double { return x * 2.0; }
 ```
 
 ### Runtime Issues
@@ -611,22 +773,28 @@ git config user.email "muyiwamc2@gmail.com"
 scripts/
 ├── phase5_setup.py                  # Unified setup (6 checks)
 ├── phase5_shutdown.py               # End-of-day automation
+├── data_collection/
+│   └── news_ingestion.py            # News fetching with sentiment analysis
 └── monitoring/
     ├── calculate_taxes.py           # Tax calculator with YTD
     ├── update_tax_rates_married.py  # Married filing jointly config
     ├── update_tax_config_ytd.py     # YTD tracking configuration
-    └── setup_tax_database.py        # Tax database initialization
+    ├── setup_tax_database.py        # Tax database initialization
+    └── setup_news_database.py       # News database initialization
 ```
 
 ### Documentation
 ```
 docs/
+├── AI_CONTEXT.md                    # Comprehensive AI assistant context (NEWS!)
 ├── PHASE5_SETUP_GUIDE.md            # Phase 5 daily workflow
 ├── TAX_TRACKING_YTD.md              # YTD tax tracking system
 ├── TAX_PLANNING_300K.md             # Tax planning for $300K income
 ├── CURRENT_STATUS.md                # Current status (100% ready)
 ├── PRD.md                           # Product Requirements (224KB)
 ├── CODING_STANDARDS.md              # C++23 standards
+├── NEWS_INGESTION_SYSTEM.md         # News ingestion architecture (NEWS!)
+├── NEWS_INGESTION_QUICKSTART.md     # News system quick start (NEWS!)
 └── ...
 ```
 

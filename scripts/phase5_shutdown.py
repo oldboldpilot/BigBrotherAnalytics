@@ -74,6 +74,7 @@ class Phase5Shutdown:
         print_warning("This will stop all trading processes:")
         print("   • Trading engine (bigbrother)")
         print("   • Dashboard (streamlit)")
+        print("   • News ingestion (if running)")
         print("   • Any background processes")
         print()
 
@@ -87,6 +88,7 @@ class Phase5Shutdown:
         process_patterns = [
             ("bigbrother", "Trading Engine"),
             ("streamlit", "Dashboard"),
+            ("news_ingestion", "News Ingestion"),
             ("python.*phase5", "Phase 5 Scripts"),
         ]
 

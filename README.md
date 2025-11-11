@@ -61,6 +61,9 @@ A machine learning system that synthesizes insights from the previous two sub-pr
 - **AI/ML Processing:** Python 3.13 with pybind11 for performance-critical paths
 - **Parallel Computing:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM for massive parallelization
 - **Package Management:** uv for fast, reproducible Python dependency management (no venv)
+- **Build System:** CMake 3.28+ with Ninja generator for C++23 modules
+- **Code Quality:** clang-tidy for pre-build validation (blocking on violations)
+- **HTTP Client:** libcurl for NewsAPI integration
 - **Document Processing:** Maven + OpenJDK 25 + Apache Tika for news/filing analysis
 - **Model Serving:** PyTorch + Transformers for AI inference
 - **Deployment:** Ansible for automated infrastructure management
@@ -98,7 +101,7 @@ This project prioritizes thorough planning and iterative refinement. We will:
 
 **STATUS: PHASE 5 ACTIVE - PAPER TRADING READY ✅**
 
-### ✅ All Systems Complete (12/12)
+### ✅ All Systems Complete (13/13)
 
 1. ✅ **Utility Library** - 8 C++23 modules (types, logger, config, database, timer, math, tax, utils)
 2. ✅ **Options Pricing Engine** - 3 C++23 modules with OptionBuilder fluent API (< 100μs)
@@ -112,12 +115,16 @@ This project prioritizes thorough planning and iterative refinement. We will:
 10. ✅ **Tax Calculation** - C++23 module with TaxCalculatorBuilder fluent API
 11. ✅ **Market Intelligence** - Data fetching framework
 12. ✅ **Explainability** - Decision logging framework
+13. ✅ **News Ingestion System** - NewsAPI integration with sentiment analysis (Phase 5+)
 
 ### Implementation Highlights:
 
-- **17 C++23 Modules** - Modern modular architecture (~10,000 lines)
+- **19 C++23 Modules** - Modern modular architecture (~11,000 lines)
+  - 17 core trading modules
+  - 2 market intelligence modules (sentiment, news)
 - **100% Trailing Return Syntax** - All new code uses `auto func() -> ReturnType`
 - **6 Fluent APIs** - Intuitive builder pattern throughout
+- **News Ingestion** - NewsAPI integration with keyword-based sentiment (60+ keywords)
 - **Tax-Aware Trading** - 37.1% effective tax rate calculated (California)
 - **Profitable After Tax** - +$4,463 (+14.88%) on $30k account
 - **65% Win Rate** - Exceeds 60% target
@@ -196,6 +203,12 @@ uv run python scripts/phase5_shutdown.py
 ### Phase 5 Features
 - ✅ **Unified Setup** - Single script with automatic OAuth token refresh (10-15 sec)
 - ✅ **Auto-Start Services** - One command starts dashboard + trading engine
+- ✅ **News Ingestion** (Phase 5+) - NewsAPI integration with sentiment analysis
+  - 2 C++23 modules: sentiment analyzer (281 lines), news collector (402 lines)
+  - Python bindings via pybind11 (119 lines)
+  - Dashboard integration with News Feed tab
+  - Database schema: news_articles table (15 columns)
+  - Keyword-based sentiment: 60+ positive/negative keywords
 - ✅ **Tax Tracking** - Married filing jointly ($300K base income, California)
   - Short-term: 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
   - Long-term: 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
@@ -240,14 +253,17 @@ See [docs/PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md) for complete setu
 
 ### Architecture Implemented:
 
-- **C++23 Modules:** 17 production-ready modules with modern features
+- **C++23 Modules:** 19 production-ready modules with modern features
+  - 17 core trading modules (pricing, risk, strategies, backtest, tax)
+  - 2 market intelligence modules (sentiment, news)
 - **Trailing Return Syntax:** 100% coverage (`auto func() -> ReturnType`)
 - **Fluent APIs:** 6 comprehensive builders (Option, Correlation, Risk, Schwab, Strategy, Backtest, Tax)
+- **Python Bindings:** pybind11 integration for C++ modules (news ingestion)
 - **Tax-Aware Trading:** 37.1% effective tax rate calculated (California: federal + Medicare + state)
 - **Performance Optimized:** 4.09x speedup, OpenMP + MPI, microsecond latency
 - **Production Hardening:** Error handling, circuit breakers, retry logic
 - **DuckDB-First:** Zero infrastructure setup
-- **Free Data Sources:** Yahoo Finance, FRED (60K+ bars downloaded)
+- **Free Data Sources:** Yahoo Finance, FRED, NewsAPI (60K+ bars + news articles)
 - **Modern C++23:** Ranges, concepts, std::expected, constexpr/noexcept throughout
 - **Profitable After Tax:** +$4,463 (+14.88%) validated with real tax calculations
 

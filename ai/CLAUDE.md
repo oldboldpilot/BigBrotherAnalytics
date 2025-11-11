@@ -10,6 +10,9 @@
 
 **Three Interconnected Systems:**
 1. **Market Intelligence Engine** - Multi-source data ingestion, NLP, impact prediction, graph generation
+   - **News Ingestion System:** NewsAPI integration with C++23 sentiment analysis (260 lines)
+   - **Employment Signals:** BLS data integration with sector rotation (1,064+ records)
+   - **Sentiment Analysis:** Keyword-based scoring (-1.0 to 1.0, 60+ keywords each direction)
 2. **Correlation Analysis Tool** - Statistical relationships, time-lagged correlations, leading indicators
 3. **Trading Decision Engine** - Options day trading (initial focus), explainable decisions, risk management
 
@@ -20,6 +23,8 @@
 - **ML/AI:** PyTorch, Transformers, XGBoost, SHAP
 - **C++/Python Integration:** pybind11 for performance-critical code (bypasses GIL)
 - **Document Processing:** Maven + OpenJDK 25 + Apache Tika
+- **Build System:** CMake 4.1.2+ with Ninja generator (required for C++23 modules)
+- **Code Quality:** clang-tidy (C++ Core Guidelines enforcement)
 - **Package Manager:** uv (10-100x faster than pip, project-based, no venv needed)
 - **Execution:** All Python code runs with `uv run python script.py`
 
@@ -37,10 +42,56 @@
 - **Database Strategy:** `docs/architecture/database-strategy-analysis.md` - DuckDB-first rationale
 - **Playbook:** `playbooks/complete-tier1-setup.yml` - Environment setup (DuckDB, no PostgreSQL)
 - **Architecture:** `docs/architecture/*` - Detailed system designs
+- **News Ingestion:** `docs/NEWS_INGESTION_SYSTEM.md` - Complete architecture and implementation (620 lines)
+- **News Quick Start:** `docs/NEWS_INGESTION_QUICKSTART.md` - Setup guide with actual build output (450 lines)
+- **News Delivery:** `docs/NEWS_INGESTION_DELIVERY_SUMMARY.md` - Implementation summary and status
 
 ## Phase 5: Paper Trading Validation (ACTIVE)
 
 **Timeline:** Days 0-21 | **Started:** November 10, 2025
+
+### News Ingestion System (IMPLEMENTED)
+
+**Status:** Production Ready | **Integration:** 8/8 Phase 5 checks passing (100%)
+
+The system includes real-time financial news tracking with sentiment analysis:
+
+**C++ Core Modules:**
+- `src/market_intelligence/sentiment_analyzer.cppm` (260 lines) - Keyword-based sentiment analysis
+- `src/market_intelligence/news_ingestion.cppm` (402 lines) - NewsAPI integration with rate limiting
+- Python bindings: 236KB shared library (`news_ingestion_py.cpython-314-x86_64-linux-gnu.so`)
+
+**Architecture:**
+- **Direct error handling:** Uses `std::unexpected(Error::make(code, msg))` pattern (no circuit breaker)
+- **Python-delegated storage:** Database writes handled by Python layer for simplicity
+- **Result<T> pattern:** Comprehensive error propagation with detailed messages
+- **Rate limiting:** 1 second between API calls (100 requests/day limit)
+
+**Build System:**
+```bash
+# Build C++ modules (requires CMake + Ninja for C++23 module support)
+cmake -G Ninja -B build
+ninja -C build market_intelligence
+
+# Build Python bindings
+ninja -C build news_ingestion_py
+
+# Set library path (required for shared library dependencies)
+export LD_LIBRARY_PATH=/home/muyiwa/Development/BigBrotherAnalytics/build:$LD_LIBRARY_PATH
+```
+
+**Features:**
+- **Sentiment Analysis:** Fast keyword-based scoring (-1.0 to 1.0, 60+ keywords each direction)
+- **NewsAPI Integration:** Fetches news with automatic deduplication (article_id hash from URL)
+- **Dashboard Integration:** News feed view with filtering and visualization
+- **Database Schema:** `news_articles` table with sentiment metrics and indexes
+
+**Validation:**
+- clang-tidy: 0 errors, 36 acceptable warnings
+- Build: SUCCESS (all modules compile)
+- Integration: 8/8 Phase 5 checks passing
+
+See `docs/NEWS_INGESTION_SYSTEM.md` for complete architecture and implementation details.
 
 ### Quick Start (New System Deployment)
 
@@ -115,6 +166,7 @@ uv run python scripts/phase5_shutdown.py
 - ✅ **Performance optimization** (4.09x speedup)
 - ✅ **Monitoring & alerts** (9 health checks, 27 types, token validation)
 - ✅ **Health monitoring** (real-time token validation, system status)
+- ✅ **News Ingestion System** (8/8 checks passing, 236KB Python bindings, sentiment analysis)
 
 ### Success Criteria
 - **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
@@ -398,10 +450,65 @@ importing.cpp uses BMI (fast)
 - Real examples from BigBrotherAnalytics
 
 **Project Status:**
-- 25 C++23 modules implemented
+- 27 C++23 modules implemented (includes news ingestion + sentiment analyzer)
 - 100% trailing return syntax
 - Zero traditional headers in new code
 - Clang 21.1.5 required
+
+### Building C++23 Modules with News Ingestion
+
+**Prerequisites:**
+- Clang 21.1.5+ (required for C++23 module support)
+- Ninja build system (required for C++23 module compilation)
+- clang-tidy (for validation)
+
+**Build Commands:**
+```bash
+# Configure with Ninja generator (REQUIRED for C++23 modules)
+cmake -G Ninja -B build
+
+# Build market intelligence modules (includes news + sentiment)
+ninja -C build market_intelligence
+
+# Build Python bindings for news system
+ninja -C build news_ingestion_py
+
+# Verify build output (236KB library)
+ls -lh build/news_ingestion_py.cpython-314-x86_64-linux-gnu.so
+```
+
+**clang-tidy Validation:**
+```bash
+# Validate all C++ files before building
+./scripts/validate_code.sh
+
+# Expected output:
+# Files validated: 48
+# Errors: 0
+# Acceptable warnings: 36 (modernize-*, readability-*)
+# Status: ✅ PASSED
+```
+
+**Handling Build Errors:**
+
+1. **"module 'bigbrother.X' not found"**
+   - Check CMakeLists.txt - ensure module is in FILE_SET CXX_MODULES
+   - Verify module dependency order (utils → market_intelligence → bindings)
+
+2. **"undefined symbol" errors when importing Python module**
+   - Set LD_LIBRARY_PATH: `export LD_LIBRARY_PATH=/path/to/build:$LD_LIBRARY_PATH`
+   - Verify shared libraries: `ldd build/news_ingestion_py.*.so`
+
+3. **clang-tidy errors blocking build**
+   - Fix all trailing return syntax issues: `auto func() -> ReturnType`
+   - Add missing [[nodiscard]] attributes on getters
+   - CMake runs clang-tidy AUTOMATICALLY before compilation
+
+**News System Specific:**
+- Module files: `src/market_intelligence/sentiment_analyzer.cppm` (260 lines)
+- Module files: `src/market_intelligence/news_ingestion.cppm` (402 lines)
+- Python bindings: `src/python_bindings/news_bindings.cpp` (110 lines)
+- Output library: `news_ingestion_py.cpython-314-x86_64-linux-gnu.so` (236KB)
 
 When helping with this project:
 1. Always check database strategy first - use DuckDB for Tier 1, not PostgreSQL

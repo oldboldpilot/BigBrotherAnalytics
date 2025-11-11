@@ -290,6 +290,7 @@ target_sources(utils
             src/utils/database_api.cppm
             src/utils/database.cppm
             src/utils/timer.cppm
+            src/utils/circuit_breaker.cppm
             src/utils/math.cppm
             src/utils/tax.cppm
             src/utils/risk_free_rate.cppm
@@ -329,6 +330,8 @@ target_sources(market_intelligence
         FILE_SET CXX_MODULES FILES
             src/market_intelligence/market_intelligence.cppm
             src/market_intelligence/employment_signals.cppm
+            src/market_intelligence/sentiment_analyzer.cppm
+            src/market_intelligence/news_ingestion.cppm
 )
 target_compile_options(market_intelligence PRIVATE -fmodule-output)
 
@@ -761,6 +764,14 @@ target_link_libraries(bigbrother_risk PRIVATE risk_management utils)
 set_target_properties(bigbrother_risk PROPERTIES
     OUTPUT_NAME "bigbrother_risk"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
+
+# News Ingestion Python Bindings (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(news_ingestion_py src/python_bindings/news_bindings.cpp)
+target_link_libraries(news_ingestion_py PRIVATE market_intelligence utils)
+set_target_properties(news_ingestion_py PROPERTIES
+    OUTPUT_NAME "news_ingestion_py"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build"
 )
 
 # DuckDB Python Bindings - CRITICAL (Tagged: PYTHON_BINDINGS)
