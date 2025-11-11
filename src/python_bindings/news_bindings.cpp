@@ -59,6 +59,13 @@ PYBIND11_MODULE(news_ingestion_py, m) {
     // News Ingestion
     // ========================================================================
 
+    py::enum_<SourceQuality>(m, "SourceQuality")
+        .value("All", SourceQuality::All, "No filtering - accept all sources")
+        .value("Premium", SourceQuality::Premium, "WSJ, Bloomberg, Reuters, FT, etc.")
+        .value("Verified", SourceQuality::Verified, "Major news outlets with editorial standards")
+        .value("Exclude", SourceQuality::Exclude, "Explicitly excluded sources")
+        .export_values();
+
     py::class_<NewsArticle>(m, "NewsArticle")
         .def(py::init<>())
         .def_readwrite("article_id", &NewsArticle::article_id)
@@ -87,7 +94,10 @@ PYBIND11_MODULE(news_ingestion_py, m) {
         .def_readwrite("base_url", &NewsAPIConfig::base_url)
         .def_readwrite("requests_per_day", &NewsAPIConfig::requests_per_day)
         .def_readwrite("lookback_days", &NewsAPIConfig::lookback_days)
-        .def_readwrite("timeout_seconds", &NewsAPIConfig::timeout_seconds);
+        .def_readwrite("timeout_seconds", &NewsAPIConfig::timeout_seconds)
+        .def_readwrite("quality_filter", &NewsAPIConfig::quality_filter)
+        .def_readwrite("preferred_sources", &NewsAPIConfig::preferred_sources)
+        .def_readwrite("excluded_sources", &NewsAPIConfig::excluded_sources);
 
     py::class_<NewsAPICollector>(m, "NewsAPICollector")
         .def(py::init<NewsAPIConfig>())
@@ -111,7 +121,7 @@ PYBIND11_MODULE(news_ingestion_py, m) {
     // Utility Functions
     // ========================================================================
 
-    m.def("analyze_sentiment", [](std::string const& text) {
+    m.def("analyze_sentiment", [](std::string const& text) -> SentimentResult {
         SentimentAnalyzer analyzer;
         return analyzer.analyze(text);
     }, "Quick sentiment analysis function",

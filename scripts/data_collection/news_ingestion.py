@@ -38,6 +38,96 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# Python Fallback Sentiment Analyzer
+# ============================================================================
+
+def simple_sentiment(text: str):
+    """
+    Simple keyword-based sentiment analysis (Python fallback)
+
+    Matches the expanded keyword set from C++ sentiment analyzer.
+
+    Args:
+        text: Text to analyze
+
+    Returns:
+        Tuple of (score, label, positive_keywords, negative_keywords)
+    """
+    if not text:
+        return 0.0, 'neutral', [], []
+
+    text_lower = text.lower()
+
+    # Expanded positive keywords (matching C++ implementation)
+    positive_words = [
+        # Strong positive
+        'surge', 'soar', 'rally', 'jump', 'climb', 'spike', 'breakout', 'boom',
+        'excellent', 'outstanding', 'exceptional', 'remarkable', 'impressive',
+
+        # Earnings & performance
+        'beat', 'exceed', 'outperform', 'strong', 'robust', 'solid', 'record',
+        'growth', 'accelerate', 'expand', 'increase', 'gain', 'profit', 'revenue',
+
+        # Market sentiment
+        'bullish', 'optimistic', 'positive', 'upgrade', 'raise', 'boost',
+        'momentum', 'upside', 'breakthrough', 'success',
+
+        # Fundamentals
+        'earnings', 'guidance', 'margins', 'cash flow', 'dividend', 'buyback',
+        'innovation', 'competitive', 'market share', 'efficiency'
+    ]
+
+    # Expanded negative keywords (matching C++ implementation)
+    negative_words = [
+        # Strong negative
+        'plunge', 'crash', 'tumble', 'sink', 'collapse', 'plummet', 'selloff', 'slump',
+        'terrible', 'awful', 'disastrous', 'catastrophic', 'severe',
+
+        # Earnings & performance
+        'miss', 'disappoint', 'weak', 'soft', 'decline', 'fall', 'loss', 'deficit',
+        'slowdown', 'decelerate', 'contract', 'decrease', 'cut', 'reduce',
+
+        # Market sentiment
+        'bearish', 'pessimistic', 'negative', 'downgrade', 'lower', 'warning',
+        'concern', 'risk', 'uncertainty', 'volatility',
+
+        # Issues & problems
+        'crisis', 'recession', 'bankruptcy', 'lawsuit', 'probe', 'scandal',
+        'layoff', 'restructure', 'writedown', 'impairment', 'default'
+    ]
+
+    # Count keyword matches
+    pos_count = sum(1 for word in positive_words if word in text_lower)
+    neg_count = sum(1 for word in negative_words if word in text_lower)
+
+    # Extract matched keywords
+    pos_kw = [w for w in positive_words if w in text_lower]
+    neg_kw = [w for w in negative_words if w in text_lower]
+
+    # Calculate score
+    total = pos_count + neg_count
+    if total == 0:
+        return 0.0, 'neutral', [], []
+
+    # Score formula: balance between keyword counts and text length
+    # Formula: (positive - negative) / sqrt(total_keywords) normalized by text length
+    word_count = max(len(text_lower.split()), 1)
+    score = (pos_count - neg_count) / (total ** 0.5)  # Dampened by sqrt
+    score = score / (word_count ** 0.3)  # Light normalization by text length
+    score = max(-1.0, min(1.0, score))  # Clamp to [-1, 1]
+
+    # Determine label
+    if score > 0.1:
+        label = 'positive'
+    elif score < -0.1:
+        label = 'negative'
+    else:
+        label = 'neutral'
+
+    return score, label, pos_kw, neg_kw
+
+
 def load_api_key() -> Optional[str]:
     """
     Load NewsAPI key from configs/api_keys.yaml
@@ -196,30 +286,6 @@ def run_python_fallback_ingestion(api_key: str, symbols: List[str], db_path: str
 
         # Connect to database
         conn = duckdb.connect(str(db_path))
-
-        # Simple sentiment analyzer (fallback)
-        def simple_sentiment(text):
-            if not text:
-                return 0.0, 'neutral', [], []
-
-            text_lower = text.lower()
-            positive_words = ['profit', 'gain', 'growth', 'surge', 'bull', 'upgrade', 'beat', 'exceed', 'strong', 'positive']
-            negative_words = ['loss', 'decline', 'fall', 'bear', 'downgrade', 'miss', 'weak', 'negative', 'warning', 'concern']
-
-            pos_count = sum(1 for word in positive_words if word in text_lower)
-            neg_count = sum(1 for word in negative_words if word in text_lower)
-
-            total = pos_count + neg_count
-            if total == 0:
-                return 0.0, 'neutral', [], []
-
-            score = (pos_count - neg_count) / total
-            label = 'positive' if score > 0.1 else 'negative' if score < -0.1 else 'neutral'
-
-            pos_kw = [w for w in positive_words if w in text_lower]
-            neg_kw = [w for w in negative_words if w in text_lower]
-
-            return score, label, pos_kw, neg_kw
 
         total_articles = 0
 

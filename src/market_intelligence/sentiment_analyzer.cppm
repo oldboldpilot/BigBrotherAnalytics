@@ -17,14 +17,14 @@
 // Global module fragment
 module;
 
-#include <string>
-#include <vector>
-#include <map>
-#include <set>
 #include <algorithm>
 #include <cctype>
-#include <sstream>
 #include <cmath>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
+#include <vector>
 
 // Module declaration
 export module bigbrother.market_intelligence.sentiment;
@@ -47,8 +47,8 @@ using namespace bigbrother::utils;
  * C.1: Use struct for passive data
  */
 struct SentimentResult {
-    double score{0.0};              // -1.0 to 1.0
-    std::string label;              // "positive", "negative", "neutral"
+    double score{0.0}; // -1.0 to 1.0
+    std::string label; // "positive", "negative", "neutral"
     std::vector<std::string> positive_keywords;
     std::vector<std::string> negative_keywords;
     double positive_score{0.0};
@@ -70,7 +70,7 @@ struct SentimentResult {
  * C.2: Use class when invariants exist
  */
 class SentimentAnalyzer {
-public:
+  public:
     /**
      * Constructor
      */
@@ -115,7 +115,7 @@ public:
 
             // Check for intensifier
             double intensifier = 1.0;
-            if (i > 0 && intensifiers_.contains(words[i-1])) {
+            if (i > 0 && intensifiers_.contains(words[i - 1])) {
                 intensifier = 1.5;
             }
 
@@ -185,7 +185,8 @@ public:
      * @param texts Vector of texts to analyze
      * @return Vector of sentiment results
      */
-    [[nodiscard]] auto analyzeBatch(std::vector<std::string> const& texts) const -> std::vector<SentimentResult> {
+    [[nodiscard]] auto analyzeBatch(std::vector<std::string> const& texts) const
+        -> std::vector<SentimentResult> {
         std::vector<SentimentResult> results;
         results.reserve(texts.size());
 
@@ -196,50 +197,478 @@ public:
         return results;
     }
 
-private:
+  private:
     /**
      * Initialize keyword sets
      */
     auto initializeKeywords() -> void {
-        // Positive financial keywords
+        // Positive financial keywords (150+ total with negative)
         positive_keywords_ = {
-            "profit", "profits", "profitable", "gain", "gains", "growth", "grow", "growing",
-            "surge", "surged", "surges", "surging", "bull", "bullish", "rally", "rallied",
-            "upgrade", "upgraded", "upgrades", "beat", "beats", "beating", "exceed", "exceeded",
-            "exceeds", "outperform", "outperformed", "outperforming", "strong", "stronger",
-            "strength", "success", "successful", "positive", "optimistic", "optimism",
-            "improve", "improved", "improving", "improvement", "rise", "rises", "rising",
-            "rose", "increase", "increased", "increasing", "up", "higher", "high", "record",
-            "advance", "advanced", "advancing", "expansion", "expand", "expanding", "boom",
-            "breakthrough", "win", "wins", "winning", "won", "leader", "leading", "innovation",
-            "innovative", "opportunity", "opportunities", "recovery", "recover", "recovering",
+            // Core positive terms
+            "profit",
+            "profits",
+            "profitable",
+            "gain",
+            "gains",
+            "growth",
+            "grow",
+            "growing",
+            "surge",
+            "surged",
+            "surges",
+            "surging",
+            "bull",
+            "bullish",
+            "rally",
+            "rallied",
+            "upgrade",
+            "upgraded",
+            "upgrades",
+            "beat",
+            "beats",
+            "beating",
+            "exceed",
+            "exceeded",
+            "exceeds",
+            "outperform",
+            "outperformed",
+            "outperforming",
+            "strong",
+            "stronger",
+            "strength",
+            "success",
+            "successful",
+            "positive",
+            "optimistic",
+            "optimism",
+            "improve",
+            "improved",
+            "improving",
+            "improvement",
+            "rise",
+            "rises",
+            "rising",
+            "rose",
+            "increase",
+            "increased",
+            "increasing",
+            "up",
+            "higher",
+            "high",
+            "record",
+            "advance",
+            "advanced",
+            "advancing",
+            "expansion",
+            "expand",
+            "expanding",
+            "boom",
+            "breakthrough",
+            "win",
+            "wins",
+            "winning",
+            "won",
+            "leader",
+            "leading",
+            "innovation",
+            "innovative",
+            "opportunity",
+            "opportunities",
+            "recovery",
+            "recover",
+            "recovering",
+
+            // Financial performance terms
+            "revenue",
+            "revenues",
+            "earnings",
+            "margin",
+            "margins",
+            "dividend",
+            "dividends",
+            "buyback",
+            "buybacks",
+            "acquisition",
+            "acquisitions",
+            "merge",
+            "merger",
+            "synergy",
+            "synergies",
+            "accretive",
+            "cashflow",
+            "ebitda",
+            "guidance",
+            "reaffirm",
+            "reaffirmed",
+            "raise",
+            "raised",
+            "raising",
+            "boost",
+            "boosted",
+            "boosting",
+            "robust",
+            "solid",
+            "healthy",
+            "impressive",
+            "stellar",
+            "outstanding",
+            "excellent",
+            "exceptional",
+            "resilient",
+            "resilience",
+            "capitalize",
+            "capitalizing",
+            "monetize",
+            "monetizing",
+
+            // Market sentiment terms
+            "breakout",
+            "uptrend",
+            "upturn",
+            "momentum",
+            "support",
+            "accumulation",
+            "accumulate",
+            "soar",
+            "soared",
+            "soaring",
+            "skyrocket",
+            "skyrocketed",
+            "climb",
+            "climbed",
+            "climbing",
+            "spike",
+            "spiked",
+            "spiking",
+            "jump",
+            "jumped",
+            "jumping",
+            "leap",
+            "leaped",
+            "leaping",
+            "thrive",
+            "thriving",
+            "thrived",
+            "flourish",
+            "flourishing",
+            "prosper",
+            "prospering",
+            "prosperity",
+            "confidence",
+            "confident",
+            "promising",
+            "favorable",
+            "attractive",
+
+            // Company performance terms
+            "overweight",
+            "buy",
+            "accelerate",
+            "accelerated",
+            "accelerating",
+            "scale",
+            "scaling",
+            "penetrate",
+            "penetration",
+            "diversify",
+            "diversification",
+            "streamline",
+            "streamlined",
+            "efficient",
+            "efficiency",
+            "productive",
+            "productivity",
+            "competitive",
+            "competitiveness",
+            "advantage",
+            "advantages",
+            "edge",
+            "dominate",
+            "dominated",
+            "dominating",
+            "leadership",
+            "strategic",
+            "synergistic",
+            "transformative",
+            "pioneering",
+            "disruptive",
+            "revolutionary",
+
+            // Economic indicators
+            "uptick",
+            "expansion",
+            "expansionary",
+            "stimulus",
+            "tailwind",
+            "tailwinds",
+            "rebound",
+            "rebounding",
+            "revive",
+            "revival",
+            "upside",
+            "appreciate",
+            "appreciation",
+            "strengthen",
+            "strengthening",
+            "optimized",
+            "optimize",
+            "maximized",
+            "maximize",
         };
 
-        // Negative financial keywords
+        // Negative financial keywords (150+ total with positive)
         negative_keywords_ = {
-            "loss", "losses", "lose", "losing", "lost", "decline", "declined", "declining",
-            "fall", "falls", "falling", "fell", "drop", "dropped", "dropping", "drops",
-            "bear", "bearish", "downgrade", "downgrades", "downgraded", "miss", "missed",
-            "misses", "missing", "underperform", "underperformed", "underperforming",
-            "weak", "weaker", "weakness", "failure", "fail", "failed", "failing", "fails",
-            "negative", "pessimistic", "pessimism", "worsen", "worsened", "worsening",
-            "worse", "decrease", "decreased", "decreasing", "down", "lower", "low",
-            "plunge", "plunged", "plunging", "crash", "crashed", "crashing", "slump",
-            "slumped", "slumping", "risk", "risks", "risky", "concern", "concerns",
-            "concerned", "concerning", "warning", "warnings", "warn", "warned", "trouble",
-            "troubled", "crisis", "recession", "bankruptcy", "bankrupt", "deficit",
+            // Core negative terms
+            "loss",
+            "losses",
+            "lose",
+            "losing",
+            "lost",
+            "decline",
+            "declined",
+            "declining",
+            "fall",
+            "falls",
+            "falling",
+            "fell",
+            "drop",
+            "dropped",
+            "dropping",
+            "drops",
+            "bear",
+            "bearish",
+            "downgrade",
+            "downgrades",
+            "downgraded",
+            "miss",
+            "missed",
+            "misses",
+            "missing",
+            "underperform",
+            "underperformed",
+            "underperforming",
+            "weak",
+            "weaker",
+            "weakness",
+            "failure",
+            "fail",
+            "failed",
+            "failing",
+            "fails",
+            "negative",
+            "pessimistic",
+            "pessimism",
+            "worsen",
+            "worsened",
+            "worsening",
+            "worse",
+            "decrease",
+            "decreased",
+            "decreasing",
+            "down",
+            "lower",
+            "low",
+            "plunge",
+            "plunged",
+            "plunging",
+            "crash",
+            "crashed",
+            "crashing",
+            "slump",
+            "slumped",
+            "slumping",
+            "risk",
+            "risks",
+            "risky",
+            "concern",
+            "concerns",
+            "concerned",
+            "concerning",
+            "warning",
+            "warnings",
+            "warn",
+            "warned",
+            "trouble",
+            "troubled",
+            "crisis",
+            "recession",
+            "bankruptcy",
+            "bankrupt",
+            "deficit",
+
+            // Financial performance terms
+            "shortfall",
+            "shortfalls",
+            "writedown",
+            "writedowns",
+            "impairment",
+            "impairments",
+            "charge",
+            "charges",
+            "restructure",
+            "restructuring",
+            "layoff",
+            "layoffs",
+            "cut",
+            "cuts",
+            "cutting",
+            "eliminate",
+            "eliminated",
+            "eliminating",
+            "reduction",
+            "reductions",
+            "reduce",
+            "reduced",
+            "reducing",
+            "dilute",
+            "diluted",
+            "dilution",
+            "erode",
+            "eroded",
+            "eroding",
+            "erosion",
+            "shrink",
+            "shrinking",
+            "contraction",
+            "disappointing",
+            "disappoints",
+            "disappointed",
+            "lowered",
+            "lowering",
+            "slash",
+            "slashed",
+            "slashing",
+            "drag",
+            "dragged",
+            "dragging",
+
+            // Market sentiment terms
+            "breakdown",
+            "downtrend",
+            "downturn",
+            "resistance",
+            "selloff",
+            "sell-off",
+            "dump",
+            "dumped",
+            "dumping",
+            "tumble",
+            "tumbled",
+            "tumbling",
+            "sink",
+            "sinking",
+            "sank",
+            "plummet",
+            "plummeted",
+            "plummeting",
+            "crater",
+            "cratered",
+            "cratering",
+            "collapse",
+            "collapsed",
+            "collapsing",
+            "vulnerable",
+            "vulnerability",
+            "volatile",
+            "volatility",
+            "unstable",
+            "instability",
+            "oversold",
+            "overbought",
+            "distribution",
+            "capitulation",
+            "panic",
+            "fear",
+            "uncertainty",
+
+            // Company performance terms
+            "underweight",
+            "sell",
+            "avoid",
+            "decelerate",
+            "decelerated",
+            "decelerating",
+            "struggle",
+            "struggled",
+            "struggling",
+            "deteriorate",
+            "deteriorated",
+            "deteriorating",
+            "deterioration",
+            "impair",
+            "impaired",
+            "impairing",
+            "obsolete",
+            "obsolescence",
+            "stagnant",
+            "stagnation",
+            "stagnate",
+            "stagnating",
+            "uncompetitive",
+            "disadvantage",
+            "disadvantages",
+            "challenged",
+            "challenges",
+            "challenging",
+            "headwind",
+            "headwinds",
+            "obstacle",
+            "obstacles",
+            "friction",
+
+            // Economic indicators
+            "downtick",
+            "contraction",
+            "contractionary",
+            "recessionary",
+            "slowdown",
+            "slowing",
+            "inflation",
+            "inflationary",
+            "stagflation",
+            "deflation",
+            "deflationary",
+            "overhang",
+            "debt",
+            "debts",
+            "leverage",
+            "leveraged",
+            "overleveraged",
+            "insolvent",
+            "insolvency",
+            "default",
+            "defaulted",
+            "defaulting",
+            "distress",
+            "distressed",
+            "stressed",
+            "fragile",
+            "fragility",
+            "contagion",
+            "exposure",
+            "exposed",
+            "downside",
+            "depreciate",
+            "depreciation",
+            "weaken",
+            "weakening",
+            "undermine",
+            "undermined",
+            "undermining",
+            "disruptive",
+            "disruption",
         };
 
         // Intensifiers
         intensifiers_ = {
-            "very", "extremely", "highly", "significantly", "substantially",
-            "dramatically", "sharply", "rapidly", "strongly", "massively",
+            "very",         "extremely", "highly",  "significantly", "substantially",
+            "dramatically", "sharply",   "rapidly", "strongly",      "massively",
         };
 
         // Negations
         negations_ = {
-            "not", "no", "never", "neither", "nobody", "nothing", "nowhere",
-            "hardly", "scarcely", "barely",
+            "not",     "no",      "never",  "neither",  "nobody",
+            "nothing", "nowhere", "hardly", "scarcely", "barely",
         };
     }
 
@@ -257,7 +686,7 @@ private:
             if (std::isalnum(c) || c == '\'') {
                 word += std::tolower(c);
             } else if (!word.empty()) {
-                if (word.length() >= 2) {  // Filter very short words
+                if (word.length() >= 2) { // Filter very short words
                     words.push_back(word);
                 }
                 word.clear();
@@ -278,4 +707,4 @@ private:
     std::set<std::string> negations_;
 };
 
-} // export namespace bigbrother::market_intelligence
+} // namespace bigbrother::market_intelligence

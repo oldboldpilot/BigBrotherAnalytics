@@ -39,6 +39,11 @@ message(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
 
 project(BigBrotherAnalytics VERSION 1.0.0 LANGUAGES CXX)
 
+# Enable C++23 module dependency scanning and caching for incremental builds
+# Precompiled modules (.pcm files) are reused when source files haven't changed
+set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
 # Use libc++ (LLVM's C++ standard library)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
