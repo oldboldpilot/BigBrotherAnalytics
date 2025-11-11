@@ -15,7 +15,8 @@
  * Date: 2025-11-09
  */
 
-#pragma once
+#ifndef BIGBROTHER_SCHWAB_ACCOUNT_MANAGER_HPP
+#define BIGBROTHER_SCHWAB_ACCOUNT_MANAGER_HPP
 
 #include "account_types.hpp"
 #include <string>
@@ -444,3 +445,5 @@ private:
 };
 
 } // namespace bigbrother::schwab
+
+#endif // BIGBROTHER_SCHWAB_ACCOUNT_MANAGER_HPP

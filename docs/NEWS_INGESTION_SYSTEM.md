@@ -12,14 +12,15 @@
 The News Ingestion System adds real-time financial news tracking with sentiment analysis to BigBrotherAnalytics. Built with C++23 core modules and Python bindings, it fetches news from NewsAPI, performs keyword-based sentiment analysis, and stores results in DuckDB for dashboard visualization.
 
 ### Key Features
-- **C++23 Core**: High-performance sentiment analysis and news processing (402 lines)
-- **Python Bindings**: pybind11 integration producing 236KB shared library
+- **C++23 Core**: High-performance sentiment analysis and news processing
+- **Python Bindings**: pybind11 integration producing shared library
 - **NewsAPI Integration**: Fetches news for traded symbols with rate limiting
 - **Sentiment Analysis**: Fast keyword-based scoring (-1.0 to 1.0)
-- **Simplified Architecture**: Direct error handling without circuit breaker complexity
+- **Circuit Breaker Protection**: Automatic failure detection and recovery for API resilience
+- **Result<T> Error Handling**: Type-safe error propagation throughout the system
 - **Dashboard Integration**: Streamlit news feed with filtering and visualization
 - **CMake/Ninja Build**: Full C++23 module support with validated build process
-- **Production Ready**: 8/8 Phase 5 checks passing (100%)
+- **Production Ready**: Full Phase 5 integration complete
 
 ---
 
@@ -29,11 +30,14 @@ The News Ingestion System adds real-time financial news tracking with sentiment 
 
 ```
 News Ingestion System
-├── C++ Core Modules (src/market_intelligence/)
-│   ├── sentiment_analyzer.cppm    # Keyword-based sentiment analysis
-│   └── news_ingestion.cppm         # NewsAPI client with circuit breaker
+├── C++ Core Modules (src/)
+│   ├── market_intelligence/
+│   │   ├── sentiment_analyzer.cppm  # Keyword-based sentiment analysis
+│   │   └── news_ingestion.cppm      # NewsAPI client with circuit breaker
+│   └── utils/
+│       └── circuit_breaker.cppm     # Circuit breaker pattern implementation
 ├── Python Bindings (src/python_bindings/)
-│   └── news_bindings.cpp            # pybind11 interface
+│   └── news_bindings.cpp            # pybind11 interface (with circuit breaker)
 ├── Python Orchestration (scripts/)
 │   ├── monitoring/setup_news_database.py
 │   └── data_collection/news_ingestion.py
@@ -87,15 +91,29 @@ auto result = analyzer.analyze("Apple stock surges on strong earnings");
 
 ### 2. C++ News Ingestion Module
 
-**File**: `src/market_intelligence/news_ingestion.cppm` (402 lines)
+**File**: `src/market_intelligence/news_ingestion.cppm`
 
-**Purpose**: NewsAPI integration with simplified error handling
+**Purpose**: NewsAPI integration with circuit breaker protection and Result<T> error handling
 
-**Architecture Changes from Original Plan**:
-- **No Circuit Breaker**: Removed due to API complexity mismatch
-- **Direct Error Handling**: Uses `std::unexpected(Error::make(ErrorCode, message))`
-- **Python-Delegated Storage**: Database writes handled by Python layer for simplicity
-- **Simplified Design**: Focuses on HTTP fetching and sentiment integration
+**Architecture Features**:
+- **Circuit Breaker Integration**: Automatic failure detection and recovery (5 failures → OPEN, 60s timeout)
+- **Result<T> Error Handling**: Type-safe error propagation using `std::expected<T, Error>`
+- **DuckDB Storage**: Direct C++ database writes with atomic transactions
+- **Rate Limiting**: Configurable request throttling (100 requests/day default)
+- **Source Quality Filtering**: Premium, Verified, and All quality levels
+
+**Circuit Breaker Configuration** (via `NewsAPIConfig`):
+```cpp
+struct NewsAPIConfig {
+    // ... existing fields ...
+
+    // Circuit breaker configuration
+    int circuit_breaker_failure_threshold{5};        // Open after N failures
+    int circuit_breaker_timeout_seconds{60};         // Time before HALF_OPEN
+    int circuit_breaker_half_open_timeout_seconds{30};
+    int circuit_breaker_half_open_max_calls{3};      // Test calls in HALF_OPEN
+};
+```
 
 **Features**:
 - **HTTP Client**: libcurl for API requests
@@ -118,7 +136,7 @@ config.timeout_seconds = 30;
 ```cpp
 NewsAPICollector collector(config);
 
-// Fetch news for single symbol
+// Fetch news for single symbol (with circuit breaker protection)
 auto result = collector.fetchNews("AAPL", "2025-11-03", "2025-11-10");
 
 // Fetch news for multiple symbols (with rate limiting)
@@ -126,7 +144,24 @@ auto batch = collector.fetchNewsBatch({"AAPL", "MSFT", "GOOGL"});
 
 // Store in database
 collector.storeArticles(articles, "data/bigbrother.duckdb");
+
+// Monitor circuit breaker status
+auto state = collector.getCircuitBreakerState();
+auto stats = collector.getCircuitBreakerStats();
+bool is_open = collector.isCircuitBreakerOpen();
+
+// Manual intervention if needed
+collector.resetCircuitBreaker();
 ```
+
+**Circuit Breaker States**:
+- **CLOSED**: Normal operation, all requests pass through
+- **OPEN**: Circuit breaker activated, requests fail fast (after 5 consecutive failures)
+- **HALF_OPEN**: Testing recovery, allowing limited requests (3 calls max)
+
+The circuit breaker automatically wraps all `callNewsAPI()` calls, converting between:
+- Internal `Result<json>` (with `Error` type)
+- Circuit breaker `std::expected<json, std::string>`
 
 ### 3. Python Bindings
 
@@ -139,9 +174,11 @@ collector.storeArticles(articles, "data/bigbrother.duckdb");
 **Exposed Classes**:
 - `SentimentAnalyzer`: Sentiment analysis engine
 - `SentimentResult`: Analysis results
-- `NewsAPICollector`: News fetching (storage delegated to Python)
-- `NewsAPIConfig`: API configuration
+- `NewsAPICollector`: News fetching with circuit breaker
+- `NewsAPIConfig`: API configuration (including circuit breaker settings)
 - `NewsArticle`: Article data structure
+- `CircuitState`: Circuit breaker state enum (CLOSED, OPEN, HALF_OPEN)
+- `CircuitStats`: Circuit breaker statistics and metrics
 
 **Python Usage**:
 ```python
@@ -150,20 +187,36 @@ sys.path.insert(0, 'build')  # Add build directory to path
 import os
 os.environ['LD_LIBRARY_PATH'] = 'build:' + os.environ.get('LD_LIBRARY_PATH', '')
 
-from news_ingestion_py import SentimentAnalyzer, NewsAPICollector, NewsAPIConfig
+from news_ingestion_py import (
+    SentimentAnalyzer, NewsAPICollector, NewsAPIConfig,
+    CircuitState, CircuitStats
+)
 
 # Sentiment analysis
 analyzer = SentimentAnalyzer()
 result = analyzer.analyze("Stock price drops on weak earnings")
 print(f"Score: {result.score}, Label: {result.label}")
 
-# News fetching
+# News fetching with circuit breaker
 config = NewsAPIConfig()
 config.api_key = "your_key"
+config.circuit_breaker_failure_threshold = 5
+config.circuit_breaker_timeout_seconds = 60
 collector = NewsAPICollector(config)
 
+# Fetch news (protected by circuit breaker)
 articles = collector.fetch_news("AAPL")
-# Storage handled by Python layer using DuckDB Python library
+
+# Monitor circuit breaker health
+stats = collector.get_circuit_breaker_stats()
+print(f"Circuit state: {stats.state}")
+print(f"Success rate: {stats.get_success_rate():.2%}")
+print(f"Consecutive failures: {stats.consecutive_failures}")
+
+# Reset circuit breaker if needed
+if collector.is_circuit_breaker_open():
+    print("Circuit breaker is open - service degraded")
+    # collector.reset_circuit_breaker()  # Manual reset if appropriate
 ```
 
 **Important**: Requires `LD_LIBRARY_PATH` to include build directory for shared library dependencies.
@@ -253,6 +306,120 @@ CREATE INDEX idx_news_sentiment ON news_articles(sentiment_label, sentiment_scor
   - Author attribution
 
 **Navigation**: Added "News Feed" option to main radio selector
+
+---
+
+## Circuit Breaker Pattern Integration
+
+### Overview
+
+The circuit breaker pattern protects the NewsAPI integration from cascading failures by automatically detecting and recovering from API errors. This prevents overwhelming the external service and provides graceful degradation.
+
+### Implementation Details
+
+**Module**: `src/utils/circuit_breaker.cppm`
+
+**Integration Point**: `NewsAPICollector::fetchNews()` at line 179
+
+**How It Works**:
+1. Wraps all HTTP calls to NewsAPI in `circuit_breaker_.call<json>()`
+2. Converts between Result<T> and std::expected<T, string> types
+3. Tracks success/failure counts automatically
+4. Opens circuit after 5 consecutive failures
+5. Attempts recovery after 60-second timeout
+6. Tests with limited calls (3) in HALF_OPEN state
+
+### State Transitions
+
+```
+CLOSED (normal) --[5 failures]--> OPEN (fail fast)
+                                    |
+                              [60s timeout]
+                                    |
+                                    v
+                              HALF_OPEN (testing)
+                                    |
+                    [success]       |       [failure]
+                        |           |           |
+                        v           |           v
+                    CLOSED <--------+---------> OPEN
+```
+
+### Configuration
+
+Configure circuit breaker via `NewsAPIConfig`:
+
+```cpp
+NewsAPIConfig config;
+config.circuit_breaker_failure_threshold = 5;        // Failures before opening
+config.circuit_breaker_timeout_seconds = 60;         // Recovery attempt delay
+config.circuit_breaker_half_open_timeout_seconds = 30;
+config.circuit_breaker_half_open_max_calls = 3;      // Test calls in HALF_OPEN
+```
+
+### Monitoring
+
+**C++ API**:
+```cpp
+auto state = collector.getCircuitBreakerState();
+auto stats = collector.getCircuitBreakerStats();
+
+// stats contains:
+// - state: CLOSED, OPEN, or HALF_OPEN
+// - total_calls: Total requests attempted
+// - success_count: Successful requests
+// - failure_count: Failed requests
+// - consecutive_failures: Current failure streak
+// - last_error: Most recent error message
+```
+
+**Python API**:
+```python
+stats = collector.get_circuit_breaker_stats()
+print(f"State: {stats.state}")
+print(f"Success rate: {stats.get_success_rate():.2%}")
+print(f"Total calls: {stats.total_calls}")
+print(f"Consecutive failures: {stats.consecutive_failures}")
+
+if collector.is_circuit_breaker_open():
+    logger.warning("NewsAPI circuit breaker is OPEN - service degraded")
+```
+
+### Benefits
+
+1. **Prevents Cascading Failures**: Stops hammering a failing API
+2. **Fast Failure**: Returns immediately when circuit is OPEN
+3. **Automatic Recovery**: Tests service health after timeout
+4. **Detailed Metrics**: Track API reliability over time
+5. **Manual Override**: Can reset circuit breaker if needed
+
+### Error Handling Flow
+
+```cpp
+// In fetchNews():
+auto response = circuit_breaker_.call<json>([this, &url]() -> std::expected<json, std::string> {
+    auto result = callNewsAPI(url);  // Returns Result<json>
+
+    if (!result) {
+        return std::unexpected(result.error().message);  // Convert to string
+    }
+
+    return result.value();
+});
+
+if (!response) {
+    // Circuit breaker error OR API error
+    return std::unexpected(
+        Error::make(ErrorCode::NetworkError,
+                   "Failed to fetch news from API: " + response.error()));
+}
+```
+
+This ensures:
+- Type-safe error propagation with Result<T>
+- Circuit breaker compatibility with std::expected<T, string>
+- Proper error message preservation
+- Consistent error handling throughout the stack
 
 ---
 

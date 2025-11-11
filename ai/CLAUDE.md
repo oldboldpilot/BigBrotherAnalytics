@@ -450,10 +450,46 @@ importing.cpp uses BMI (fast)
 - Real examples from BigBrotherAnalytics
 
 **Project Status:**
-- 27 C++23 modules implemented (includes news ingestion + sentiment analyzer)
+- 30 C++23 modules implemented (market intelligence + Schwab API + account management)
 - 100% trailing return syntax
 - Zero traditional headers in new code
 - Clang 21.1.5 required
+
+### Schwab API C++23 Modules
+
+**Architecture:**
+- `bigbrother.schwab.account_types` (307 lines) - Account, Balance, Position, Transaction data structures
+- `bigbrother.schwab_api` - OAuth token management + AccountClient (lightweight wrapper)
+- `bigbrother.schwab.account_manager` (1080 lines) - Full account management with analytics
+
+**Module Hierarchy:**
+```
+bigbrother.schwab.account_types (foundation)
+  └── bigbrother.schwab_api (OAuth + API wrapper)
+      └── bigbrother.schwab.account_manager (full implementation)
+```
+
+**Key Features:**
+- OAuth integration via TokenManager
+- Thread-safe operations with mutex protection
+- Error handling with `std::expected<T, std::string>`
+- Position tracking and transaction history
+- Portfolio analytics (value calculation, P&L)
+- Database integration (pending DuckDB API migration)
+
+**Technical Highlights:**
+- **spdlog Integration**: Uses `SPDLOG_USE_STD_FORMAT` for C++23 compatibility
+- **Error Propagation**: Converts `Error` struct to `std::string` for `std::expected`
+- **Rule of Five**: Explicit move deletion due to mutex member
+- **AccountClient vs AccountManager**: Lightweight fluent API vs full-featured management
+
+**Migration Benefits:**
+- Faster compilation (module precompilation)
+- Better encapsulation (clear exported API)
+- Type safety (no ODR violations)
+- Zero-warning build (stricter checks)
+
+See [CODEBASE_STRUCTURE.md](../CODEBASE_STRUCTURE.md) Section 10 and [docs/ACCOUNT_MANAGER_CPP23_MIGRATION.md](../docs/ACCOUNT_MANAGER_CPP23_MIGRATION.md) for complete details.
 
 ### Building C++23 Modules with News Ingestion
 

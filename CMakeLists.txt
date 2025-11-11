@@ -337,6 +337,7 @@ target_sources(market_intelligence
             src/market_intelligence/employment_signals.cppm
             src/market_intelligence/sentiment_analyzer.cppm
             src/market_intelligence/news_ingestion.cppm
+            src/market_intelligence/alphavantage_news.cppm
 )
 target_compile_options(market_intelligence PRIVATE -fmodule-output)
 
@@ -480,8 +481,12 @@ add_library(schwab_api SHARED
 target_sources(schwab_api
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            # src/schwab_api/schwab.cppm  # Removed - superseded by schwab_api.cppm
+            # Module dependency: account_types -> schwab_api -> account_manager
+            # AccountClient (lightweight) is in schwab_api.cppm
+            # AccountManager (full-featured) is in account_manager.cppm
+            src/schwab_api/account_types.cppm
             src/schwab_api/schwab_api.cppm
+            src/schwab_api/account_manager.cppm
 )
 target_compile_options(schwab_api PRIVATE -fmodule-output)
 

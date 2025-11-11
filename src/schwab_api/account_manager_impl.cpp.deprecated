@@ -1,0 +1,799 @@
+/**
+ * BigBrotherAnalytics - Account Manager Implementation (C++23)
+ *
+ * Complete implementation of Schwab Account API endpoints with:
+ * - Real HTTP requests to Schwab API
+ * - Position classification (MANUAL vs BOT-managed)
+ * - DuckDB persistence
+ * - Automatic position tracking
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-09
+ */
+
+#include "account_manager.hpp"
+#include "account_types.hpp"
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <curl/curl.h>
+#include <duckdb.hpp>
+#include <format>
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+#include <cmath>
+
+namespace bigbrother::schwab {
+
+using json = nlohmann::json;
+
+// ============================================================================
+// HTTP Helper Functions
+// ============================================================================
+
+namespace {
+
+struct HttpResponse {
+    std::string body;
+    long status_code{0};
+    std::string error_message;
+
+    [[nodiscard]] auto isSuccess() const noexcept -> bool {
+        return status_code >= 200 && status_code < 300;
+    }
+};
+
+auto writeCallback(void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
+    auto* str = static_cast<std::string*>(userp);
+    auto* data = static_cast<char*>(contents);
+    str->append(data, size * nmemb);
+    return size * nmemb;
+}
+
+auto makeHttpGetRequest(std::string const& url, std::string const& access_token)
+    -> Result<HttpResponse> {
+    CURL* curl = curl_easy_init();
+    if (curl == nullptr) {
+        return std::unexpected("Failed to initialize CURL");
+    }
+
+    HttpResponse response;
+
+    // Set CURL options
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+    // Set headers
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("Authorization: Bearer " + access_token).c_str());
+    headers = curl_slist_append(headers, "Accept: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    // Perform request
+    CURLcode res = curl_easy_perform(curl);
+
+    // Get response code
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.status_code);
+
+    // Cleanup
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    // Check for errors
+    if (res != CURLE_OK) {
+        response.error_message = curl_easy_strerror(res);
+        return std::unexpected(response.error_message);
+    }
+
+    return response;
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// JSON Parsing Functions
+// ============================================================================
+
+namespace {
+
+auto parseAccountFromJson(json const& data) -> Result<Account> {
+    try {
+        Account account;
+        account.account_id = data.value("accountNumber", "");
+        account.account_hash = data.value("hashValue", "");
+        account.account_type = data.value("type", "");
+        account.is_day_trader = data.value("isDayTrader", false);
+        account.is_closing_only = data.value("isClosingOnlyRestricted", false);
+        account.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        return account;
+    } catch (json::exception const& e) {
+        return std::unexpected(std::string("Failed to parse account: ") + e.what());
+    }
+}
+
+auto parsePositionFromJson(json const& data, std::string const& account_id) -> Result<Position> {
+    try {
+        Position pos;
+        pos.account_id = account_id;
+
+        // Instrument data
+        if (data.contains("instrument")) {
+            auto const& instrument = data["instrument"];
+            pos.symbol = instrument.value("symbol", "");
+            pos.cusip = instrument.value("cusip", "");
+            pos.asset_type = instrument.value("assetType", "EQUITY");
+        }
+
+        // Position quantities
+        pos.long_quantity = data.value("longQuantity", 0.0);
+        pos.short_quantity = data.value("shortQuantity", 0.0);
+        pos.quantity = pos.long_quantity - pos.short_quantity;
+
+        // Pricing
+        pos.average_cost = data.value("averagePrice", 0.0);
+        auto const market_value = data.value("marketValue", 0.0);
+        auto const quantity_abs = std::max(quantity_epsilon, std::abs(pos.quantity));
+        pos.current_price =
+            (quantity_abs <= quantity_epsilon) ? pos.average_cost : market_value / quantity_abs;
+
+        pos.market_value = market_value;
+        pos.cost_basis = std::abs(pos.quantity) * pos.average_cost;
+
+        // P/L calculations
+        pos.unrealized_pnl = pos.market_value - pos.cost_basis;
+        if (pos.cost_basis > 0.0) {
+            pos.unrealized_pnl_percent = (pos.unrealized_pnl / pos.cost_basis) * 100.0;
+        }
+
+        // Day P/L
+        pos.previous_close = data.value("previousSessionLongQuantity", 0.0);
+        pos.day_pnl = data.value("currentDayProfitLoss", 0.0);
+        if (pos.market_value > 0.0) {
+            pos.day_pnl_percent = (pos.day_pnl / pos.market_value) * 100.0;
+        }
+
+        pos.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        // CRITICAL: Default to MANUAL - will be updated during classification
+        pos.markAsManual();
+
+        return pos;
+    } catch (json::exception const& e) {
+        return std::unexpected(std::string("Failed to parse position: ") + e.what());
+    }
+}
+
+auto parseBalanceFromJson(json const& data) -> Result<Balance> {
+    try {
+        Balance balance;
+
+        // Check if securitiesAccount exists
+        json balances_data;
+        if (data.contains("securitiesAccount")) {
+            if (data["securitiesAccount"].contains("currentBalances")) {
+                balances_data = data["securitiesAccount"]["currentBalances"];
+            }
+        } else if (data.contains("currentBalances")) {
+            balances_data = data["currentBalances"];
+        } else {
+            return std::unexpected("No balance data found in response");
+        }
+
+        // Parse balance fields
+        balance.total_equity = balances_data.value("liquidationValue", 0.0);
+        balance.cash = balances_data.value("cashBalance", 0.0);
+        balance.cash_available = balances_data.value("cashAvailableForTrading", 0.0);
+        balance.buying_power = balances_data.value("buyingPower", 0.0);
+        balance.day_trading_buying_power = balances_data.value("dayTradingBuyingPower", 0.0);
+        balance.margin_balance = balances_data.value("marginBalance", 0.0);
+        balance.margin_equity = balances_data.value("marginEquity", 0.0);
+        balance.long_market_value = balances_data.value("longMarketValue", 0.0);
+        balance.short_market_value = balances_data.value("shortMarketValue", 0.0);
+        balance.unsettled_cash = balances_data.value("unsettledCash", 0.0);
+        balance.maintenance_call = balances_data.value("maintenanceCall", 0.0);
+        balance.reg_t_call = balances_data.value("regTCall", 0.0);
+        balance.equity_percentage = balances_data.value("equityPercentage", 100.0);
+        balance.updated_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+        return balance;
+    } catch (json::exception const& e) {
+        return std::unexpected(std::string("Failed to parse balance: ") + e.what());
+    }
+}
+
+auto parseTransactionFromJson(json const& data, std::string const& account_id)
+    -> Result<Transaction> {
+    try {
+        Transaction txn;
+        txn.account_id = account_id;
+        txn.transaction_id = data.value("activityId", "");
+        txn.description = data.value("description", "");
+        txn.net_amount = data.value("netAmount", 0.0);
+
+        // Transaction type mapping
+        auto type_str = data.value("type", "");
+        if (type_str == "TRADE") {
+            txn.type = TransactionType::Trade;
+        } else if (type_str == "DIVIDEND_OR_INTEREST") {
+            txn.type = TransactionType::DividendOrInterest;
+        } else {
+            txn.type = TransactionType::Memorandum;
+        }
+
+        // Parse transaction items
+        if (data.contains("transactionItem")) {
+            auto const& item = data["transactionItem"];
+
+            if (item.contains("instrument")) {
+                txn.symbol = item["instrument"].value("symbol", "");
+                txn.asset_type = item["instrument"].value("assetType", "");
+            }
+
+            txn.instruction = static_cast<TransactionInstruction>(item.value("instruction", 0));
+            txn.quantity = item.value("amount", 0.0);
+            txn.price = item.value("price", 0.0);
+        }
+
+        // Fees
+        if (data.contains("fees")) {
+            auto const& fees = data["fees"];
+            txn.commission = fees.value("commission", 0.0);
+            txn.reg_fee = fees.value("regFee", 0.0);
+            txn.sec_fee = fees.value("secFee", 0.0);
+        }
+
+        // Dates
+        txn.transaction_date = data.value("transactionDate", 0LL);
+        txn.settlement_date = data.value("settlementDate", 0LL);
+
+        return txn;
+    } catch (json::exception const& e) {
+        return std::unexpected(std::string("Failed to parse transaction: ") + e.what());
+    }
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// AccountManager Implementation
+// ============================================================================
+
+class AccountManagerImpl {
+  public:
+    explicit AccountManagerImpl(std::shared_ptr<TokenManager> token_mgr, std::string db_path)
+        : token_mgr_{std::move(token_mgr)}, db_path_{std::move(db_path)}, read_only_mode_{true} {
+
+        // Open DuckDB connection
+        db_ = std::make_unique<duckdb::DuckDB>(db_path_);
+        conn_ = std::make_unique<duckdb::Connection>(*db_);
+
+        spdlog::info("AccountManager initialized with database: {}", db_path_);
+    }
+
+    ~AccountManagerImpl() = default;
+
+    // Rule of Five: Explicitly delete copy operations, default move operations
+    AccountManagerImpl(AccountManagerImpl const&) = delete;
+    auto operator=(AccountManagerImpl const&) -> AccountManagerImpl& = delete;
+    AccountManagerImpl(AccountManagerImpl&&) noexcept = default;
+    auto operator=(AccountManagerImpl&&) noexcept -> AccountManagerImpl& = default;
+
+    // ========================================================================
+    // Account Information
+    // ========================================================================
+
+    [[nodiscard]] auto getAccounts() -> Result<std::vector<Account>> {
+        spdlog::info("Fetching all accounts from Schwab API");
+
+        // Get access token
+        auto token_result = token_mgr_->getAccessToken();
+        if (!token_result) {
+            return std::unexpected(token_result.error());
+        }
+
+        // Make HTTP request
+        std::string url = "https://api.schwabapi.com/trader/v1/accounts";
+        auto response = makeHttpGetRequest(url, *token_result);
+
+        if (!response) {
+            return std::unexpected(response.error());
+        }
+
+        if (!response->isSuccess()) {
+            return std::unexpected(
+                std::format("HTTP error: {} - {}", response->status_code, response->body));
+        }
+
+        // Parse JSON response
+        try {
+            auto json_data = json::parse(response->body);
+            std::vector<Account> accounts;
+
+            if (json_data.is_array()) {
+                for (auto const& account_data : json_data) {
+                    auto account = parseAccountFromJson(account_data["securitiesAccount"]);
+                    if (account) {
+                        accounts.push_back(*account);
+                        spdlog::info("Found account: {} ({})", account->account_id,
+                                     account->account_type);
+                    }
+                }
+            }
+
+            // Cache accounts
+            std::lock_guard<std::mutex> lock(mutex_);
+            cached_accounts_ = accounts;
+
+            return accounts;
+
+        } catch (json::exception const& e) {
+            return std::unexpected(std::string("JSON parse error: ") + e.what());
+        }
+    }
+
+    [[nodiscard]] auto getAccount(std::string const& account_id) -> Result<Account> {
+        spdlog::info("Fetching account details for: {}", account_id);
+
+        // Get access token
+        auto token_result = token_mgr_->getAccessToken();
+        if (!token_result) {
+            return std::unexpected(token_result.error());
+        }
+
+        // Get account hash (in production, get from cached accounts or API)
+        std::string account_hash = getAccountHash(account_id);
+
+        // Make HTTP request
+        std::string url{
+            std::format("https://api.schwabapi.com/trader/v1/accounts/{}", account_hash)};
+        auto response = makeHttpGetRequest(url, *token_result);
+
+        if (!response) {
+            return std::unexpected(response.error());
+        }
+
+        if (!response->isSuccess()) {
+            return std::unexpected(
+                std::format("HTTP error: {} - {}", response->status_code, response->body));
+        }
+
+        // Parse JSON response
+        try {
+            auto json_data = json::parse(response->body);
+
+            if (json_data.contains("securitiesAccount")) {
+                return parseAccountFromJson(json_data["securitiesAccount"]);
+            }
+
+            return std::unexpected("Invalid account response format");
+
+        } catch (json::exception const& e) {
+            return std::unexpected(std::string("JSON parse error: ") + e.what());
+        }
+    }
+
+    // ========================================================================
+    // Position Management
+    // ========================================================================
+
+    [[nodiscard]] auto getPositions(std::string const& account_id)
+        -> Result<std::vector<Position>> {
+
+        spdlog::info("Fetching positions for account: {}", account_id);
+
+        // Get access token
+        auto token_result = token_mgr_->getAccessToken();
+        if (!token_result) {
+            return std::unexpected(token_result.error());
+        }
+
+        // Get account hash
+        std::string account_hash = getAccountHash(account_id);
+
+        // Make HTTP request
+        std::string url{
+            std::format("https://api.schwabapi.com/trader/v1/accounts/{}/positions", account_hash)};
+        auto response = makeHttpGetRequest(url, *token_result);
+
+        if (!response) {
+            return std::unexpected(response.error());
+        }
+
+        if (!response->isSuccess()) {
+            return std::unexpected(
+                std::format("HTTP error: {} - {}", response->status_code, response->body));
+        }
+
+        // Parse JSON response
+        try {
+            auto json_data = json::parse(response->body);
+            std::vector<Position> positions;
+
+            if (json_data.contains("securitiesAccount")) {
+                if (json_data["securitiesAccount"].contains("positions")) {
+                    for (auto const& pos_data : json_data["securitiesAccount"]["positions"]) {
+                        auto position = parsePositionFromJson(pos_data, account_id);
+                        if (position) {
+                            positions.push_back(*position);
+                        }
+                    }
+                }
+            }
+
+            spdlog::info("Fetched {} positions", positions.size());
+
+            return positions;
+
+        } catch (json::exception const& e) {
+            return std::unexpected(std::string("JSON parse error: ") + e.what());
+        }
+    }
+
+    // ========================================================================
+    // Position Classification (CRITICAL for trading constraints)
+    // ========================================================================
+
+    auto classifyExistingPositions(std::string const& account_id) -> Result<void> {
+        spdlog::info("=== POSITION CLASSIFICATION START ===");
+        spdlog::info("Classifying positions for account: {}", account_id);
+
+        // 1. Fetch all positions from Schwab API
+        auto schwab_positions_result = getPositions(account_id);
+        if (!schwab_positions_result) {
+            return std::unexpected(schwab_positions_result.error());
+        }
+
+        auto& schwab_positions = *schwab_positions_result;
+
+        int manual_count = 0;
+        int bot_count = 0;
+
+        // 2. For each position from Schwab
+        for (auto& pos : schwab_positions) {
+            // Query local database to see if we know about this position
+            auto local_pos = queryPositionFromDB(account_id, pos.symbol);
+
+            if (!local_pos) {
+                // Position exists in Schwab but NOT in our DB
+                // = PRE-EXISTING MANUAL POSITION
+                pos.markAsManual();
+                pos.opened_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+                // Insert into database as MANUAL
+                insertPositionToDB(pos);
+
+                spdlog::warn("CLASSIFIED {} as MANUAL (pre-existing position)", pos.symbol);
+                manual_count++;
+            } else {
+                // Position exists in our DB - keep existing classification
+                pos.is_bot_managed = local_pos->is_bot_managed;
+                pos.managed_by = local_pos->managed_by;
+                pos.opened_by = local_pos->opened_by;
+                pos.bot_strategy = local_pos->bot_strategy;
+                pos.opened_at = local_pos->opened_at;
+
+                // Update position data in DB
+                updatePositionInDB(pos);
+
+                if (pos.isBotManaged()) {
+                    spdlog::info("Position {} is BOT-managed ({})", pos.symbol, pos.bot_strategy);
+                    bot_count++;
+                } else {
+                    spdlog::info("Position {} is MANUAL", pos.symbol);
+                    manual_count++;
+                }
+            }
+        }
+
+        // 3. Log summary
+        spdlog::info("=== POSITION CLASSIFICATION COMPLETE ===");
+        spdlog::info("  Manual positions: {} (DO NOT TOUCH)", manual_count);
+        spdlog::info("  Bot-managed positions: {} (can trade)", bot_count);
+        spdlog::info("  Total positions: {}", schwab_positions.size());
+        spdlog::info("========================================");
+
+        return {};
+    }
+
+    // ========================================================================
+    // Balance Information
+    // ========================================================================
+
+    [[nodiscard]] auto getBalances(std::string const& account_id) -> Result<Balance> {
+        spdlog::info("Fetching balances for account: {}", account_id);
+
+        // Get access token
+        auto token_result = token_mgr_->getAccessToken();
+        if (!token_result) {
+            return std::unexpected(token_result.error());
+        }
+
+        // Get account hash
+        std::string account_hash = getAccountHash(account_id);
+
+        // Make HTTP request (account details includes balances)
+        std::string url{std::format(
+            "https://api.schwabapi.com/trader/v1/accounts/{}?fields=positions", account_hash)};
+        auto response = makeHttpGetRequest(url, *token_result);
+
+        if (!response) {
+            return std::unexpected(response.error());
+        }
+
+        if (!response->isSuccess()) {
+            return std::unexpected(
+                std::format("HTTP error: {} - {}", response->status_code, response->body));
+        }
+
+        // Parse JSON response
+        try {
+            auto json_data = json::parse(response->body);
+            auto balance = parseBalanceFromJson(json_data);
+
+            if (balance) {
+                // Store balance in database for historical tracking
+                insertBalanceToDB(account_id, *balance);
+            }
+
+            return balance;
+
+        } catch (json::exception const& e) {
+            return std::unexpected(std::string("JSON parse error: ") + e.what());
+        }
+    }
+
+    // ========================================================================
+    // Transaction History
+    // ========================================================================
+
+    [[nodiscard]] auto getTransactions(std::string const& account_id, std::string const& start_date,
+                                       std::string const& end_date)
+        -> Result<std::vector<Transaction>> {
+
+        spdlog::info("Fetching transactions for account: {} ({} to {})", account_id, start_date,
+                     end_date);
+
+        // Get access token
+        auto token_result = token_mgr_->getAccessToken();
+        if (!token_result) {
+            return std::unexpected(token_result.error());
+        }
+
+        // Get account hash
+        std::string account_hash = getAccountHash(account_id);
+
+        // Build URL with query parameters
+        std::string url{
+            std::format("https://api.schwabapi.com/trader/v1/accounts/{}/transactions?"
+                        "startDate={}&endDate={}&types=TRADE,DIVIDEND",
+                        account_hash, start_date, end_date)};
+
+        auto response = makeHttpGetRequest(url, *token_result);
+
+        if (!response) {
+            return std::unexpected(response.error());
+        }
+
+        if (!response->isSuccess()) {
+            return std::unexpected(
+                std::format("HTTP error: {} - {}", response->status_code, response->body));
+        }
+
+        // Parse JSON response
+        try {
+            auto json_data = json::parse(response->body);
+            std::vector<Transaction> transactions;
+
+            if (json_data.is_array()) {
+                for (auto const& txn_data : json_data) {
+                    auto txn = parseTransactionFromJson(txn_data, account_id);
+                    if (txn) {
+                        transactions.push_back(*txn);
+
+                        // Store in database
+                        insertTransactionToDB(*txn);
+                    }
+                }
+            }
+
+            spdlog::info("Fetched {} transactions", transactions.size());
+
+            return transactions;
+
+        } catch (json::exception const& e) {
+            return std::unexpected(std::string("JSON parse error: ") + e.what());
+        }
+    }
+
+  private:
+    // ========================================================================
+    // Helper Methods
+    // ========================================================================
+
+    [[nodiscard]] auto getAccountHash(std::string const& account_id) -> std::string {
+        // Check cached accounts first
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        for (auto const& acc : cached_accounts_) {
+            if (acc.account_id == account_id) {
+                return acc.account_hash;
+            }
+        }
+
+        // If not in cache, return the account_id
+        // In production, you would fetch accounts first
+        spdlog::warn("Account hash not cached for {}, using account_id", account_id);
+        return account_id;
+    }
+
+    // ========================================================================
+    // DuckDB Operations
+    // ========================================================================
+
+    auto queryPositionFromDB(std::string const& account_id, std::string const& symbol)
+        -> std::optional<Position> {
+
+        try {
+            std::string query = R"(
+                SELECT * FROM positions
+                WHERE account_id = ? AND symbol = ?
+                LIMIT 1
+            )";
+
+            auto stmt = conn_->Prepare(query);
+            auto result = stmt->Execute(account_id, symbol);
+
+            if (result->RowCount() == 0) {
+                return std::nullopt;
+            }
+
+            // Parse position from result
+            Position pos;
+            // (In real implementation, would parse all fields)
+            pos.account_id = result->GetValue(0, 0).ToString();
+            pos.symbol = result->GetValue(1, 0).ToString();
+            pos.is_bot_managed = result->GetValue(2, 0).GetValue<bool>();
+            pos.managed_by = result->GetValue(3, 0).ToString();
+            pos.opened_by = result->GetValue(4, 0).ToString();
+
+            return pos;
+
+        } catch (std::exception const& e) {
+            spdlog::error("Database query error: {}", e.what());
+            return std::nullopt;
+        }
+    }
+
+    auto insertPositionToDB(Position const& pos) -> void {
+        try {
+            std::string query = R"(
+                INSERT INTO positions (
+                    account_id, symbol, asset_type, cusip,
+                    quantity, long_quantity, short_quantity,
+                    average_cost, current_price, market_value, cost_basis,
+                    unrealized_pnl, unrealized_pnl_percent,
+                    day_pnl, day_pnl_percent, previous_close,
+                    is_bot_managed, managed_by, opened_by, bot_strategy, opened_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (account_id, symbol) DO UPDATE SET
+                    current_price = EXCLUDED.current_price,
+                    market_value = EXCLUDED.market_value,
+                    unrealized_pnl = EXCLUDED.unrealized_pnl,
+                    unrealized_pnl_percent = EXCLUDED.unrealized_pnl_percent,
+                    day_pnl = EXCLUDED.day_pnl,
+                    day_pnl_percent = EXCLUDED.day_pnl_percent,
+                    updated_at = CURRENT_TIMESTAMP
+            )";
+
+            auto stmt = conn_->Prepare(query);
+            stmt->Execute(pos.account_id, pos.symbol, pos.asset_type, pos.cusip, pos.quantity,
+                          pos.long_quantity, pos.short_quantity, pos.average_cost,
+                          pos.current_price, pos.market_value, pos.cost_basis, pos.unrealized_pnl,
+                          pos.unrealized_pnl_percent, pos.day_pnl, pos.day_pnl_percent,
+                          pos.previous_close, pos.is_bot_managed, pos.managed_by, pos.opened_by,
+                          pos.bot_strategy, pos.opened_at);
+
+            spdlog::debug("Inserted position into DB: {}", pos.symbol);
+
+        } catch (std::exception const& e) {
+            spdlog::error("Database insert error: {}", e.what());
+        }
+    }
+
+    auto updatePositionInDB(Position const& pos) -> void {
+        try {
+            std::string query = R"(
+                UPDATE positions SET
+                    current_price = ?,
+                    market_value = ?,
+                    cost_basis = ?,
+                    unrealized_pnl = ?,
+                    unrealized_pnl_percent = ?,
+                    day_pnl = ?,
+                    day_pnl_percent = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE account_id = ? AND symbol = ?
+            )";
+
+            auto stmt = conn_->Prepare(query);
+            stmt->Execute(pos.current_price, pos.market_value, pos.cost_basis, pos.unrealized_pnl,
+                          pos.unrealized_pnl_percent, pos.day_pnl, pos.day_pnl_percent,
+                          pos.account_id, pos.symbol);
+
+        } catch (std::exception const& e) {
+            spdlog::error("Database update error: {}", e.what());
+        }
+    }
+
+    auto insertBalanceToDB(std::string const& account_id, Balance const& balance) -> void {
+        try {
+            std::string query = R"(
+                INSERT INTO account_balances (
+                    account_id, total_equity, cash, cash_available,
+                    buying_power, day_trading_buying_power,
+                    margin_balance, margin_equity,
+                    long_market_value, short_market_value,
+                    unsettled_cash, maintenance_call, reg_t_call,
+                    equity_percentage, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            )";
+
+            auto stmt = conn_->Prepare(query);
+            stmt->Execute(account_id, balance.total_equity, balance.cash, balance.cash_available,
+                          balance.buying_power, balance.day_trading_buying_power,
+                          balance.margin_balance, balance.margin_equity, balance.long_market_value,
+                          balance.short_market_value, balance.unsettled_cash,
+                          balance.maintenance_call, balance.reg_t_call, balance.equity_percentage);
+
+        } catch (std::exception const& e) {
+            spdlog::error("Database insert balance error: {}", e.what());
+        }
+    }
+
+    auto insertTransactionToDB(Transaction const& txn) -> void {
+        try {
+            std::string query = R"(
+                INSERT INTO transactions (
+                    transaction_id, account_id, symbol, transaction_type,
+                    instruction, description, transaction_date, settlement_date,
+                    net_amount, gross_amount, quantity, price,
+                    commission, fees, reg_fee, sec_fee,
+                    asset_type, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (transaction_id) DO NOTHING
+            )";
+
+            auto stmt = conn_->Prepare(query);
+            stmt->Execute(txn.transaction_id, txn.account_id, txn.symbol,
+                          static_cast<int>(txn.type), static_cast<int>(txn.instruction),
+                          txn.description, txn.transaction_date, txn.settlement_date,
+                          txn.net_amount, txn.gross_amount, txn.quantity, txn.price, txn.commission,
+                          txn.fees, txn.reg_fee, txn.sec_fee, txn.asset_type);
+
+        } catch (std::exception const& e) {
+            spdlog::error("Database insert transaction error: {}", e.what());
+        }
+    }
+
+    // ========================================================================
+    // Member Variables
+    // ========================================================================
+
+    std::shared_ptr<TokenManager> token_mgr_;
+    std::string db_path_;
+    bool read_only_mode_;
+    mutable std::mutex mutex_;
+    std::vector<Account> cached_accounts_;
+
+    // DuckDB
+    std::unique_ptr<duckdb::DuckDB> db_;
+    std::unique_ptr<duckdb::Connection> conn_;
+};
+
+} // namespace bigbrother::schwab

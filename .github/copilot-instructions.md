@@ -122,7 +122,35 @@ uv run python scripts/phase5_shutdown.py
   - Max portfolio heat: 15%
   - Max concurrent: 2-3 positions
 
-#### 4. **Tax Tracking System**
+#### 4. **Schwab API C++23 Modules**
+- **Location:** `src/schwab_api/`
+- **Key Files:**
+  - `account_types.cppm` (307 lines) - Account, Balance, Position, Transaction data structures
+  - `schwab_api.cppm` - OAuth token management + AccountClient (lightweight wrapper)
+  - `account_manager.cppm` (1080 lines) - Full account management with analytics
+- **Module Hierarchy:**
+  ```
+  bigbrother.schwab.account_types (foundation)
+    └── bigbrother.schwab_api (OAuth + API wrapper)
+        └── bigbrother.schwab.account_manager (full implementation)
+  ```
+- **Key Features:**
+  - OAuth integration via TokenManager
+  - Thread-safe operations with mutex protection
+  - Error handling with `std::expected<T, std::string>`
+  - Position tracking and transaction history
+  - Portfolio analytics (value calculation, P&L)
+  - Database integration (pending DuckDB API migration)
+- **Technical Highlights:**
+  - **spdlog Integration**: Uses `SPDLOG_USE_STD_FORMAT` for C++23 compatibility
+  - **Error Propagation**: Converts `Error` struct to `std::string` for `std::expected`
+  - **Rule of Five**: Explicit move deletion due to mutex member
+  - **AccountClient vs AccountManager**: Lightweight fluent API vs full-featured management
+- **Migration:** Converted from header/implementation to unified C++23 modules
+  - See `docs/ACCOUNT_MANAGER_CPP23_MIGRATION.md` for complete migration details
+  - Build: Zero errors, zero warnings, 100% regression tests passing
+
+#### 5. **Tax Tracking System**
 - **Location:** `src/utils/tax.cppm`, `scripts/monitoring/`
 - **Key Files:**
   - `calculate_taxes.py` - Tax calculator with YTD tracking

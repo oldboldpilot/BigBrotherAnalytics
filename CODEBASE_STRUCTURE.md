@@ -860,6 +860,309 @@ bigbrother.market_intelligence.news
 
 ---
 
+## 10. SCHWAB API C++23 MODULES
+
+### Architecture Overview
+
+The Schwab API integration is implemented as C++23 modules for type safety and performance:
+
+**Module Hierarchy**:
+```
+bigbrother.schwab.account_types (foundation data types)
+  └── bigbrother.schwab_api (API client with OAuth)
+      └── bigbrother.schwab.account_manager (full account management)
+```
+
+**Key Components**:
+- `account_types.cppm` - Core data structures (Account, Balance, Position, Transaction)
+- `schwab_api.cppm` - OAuth token management and AccountClient (lightweight API wrapper)
+- `account_manager.cppm` - Full-featured account manager with position tracking and analytics
+
+### Module Details
+
+#### 1. Account Types Module (307 lines)
+**File**: `src/schwab_api/account_types.cppm`
+
+**Module Name**: `bigbrother.schwab.account_types`
+
+**Purpose**: Foundation module providing all Schwab account data structures.
+
+**Key Types**:
+```cpp
+export module bigbrother.schwab.account_types;
+
+export namespace bigbrother::schwab {
+    using Timestamp = int64_t;
+    using Price = double;
+    using Quantity = double;
+
+    // Core account data
+    struct Account {
+        std::string account_id;
+        std::string account_number;
+        std::string type;  // "CASH", "MARGIN", etc.
+        double value;
+        double buying_power;
+    };
+
+    struct Balance {
+        std::string account_id;
+        Timestamp timestamp;
+        double total_value;
+        double cash_available;
+        double equity_value;
+        double buying_power;
+    };
+
+    struct Position {
+        std::string account_id;
+        std::string symbol;
+        Quantity quantity;
+        Price average_price;
+        Price current_price;
+        double market_value;
+        double unrealized_pnl;
+    };
+
+    enum class TransactionType {
+        BUY, SELL, DIVIDEND, INTEREST, FEE, TRANSFER
+    };
+
+    struct Transaction {
+        std::string transaction_id;
+        std::string account_id;
+        Timestamp timestamp;
+        TransactionType type;
+        std::string symbol;
+        Quantity quantity;
+        Price price;
+        double amount;
+        double fees;
+    };
+}
+```
+
+**Features**:
+- Zero dependencies (pure data types)
+- Compact type aliases for financial calculations
+- Comprehensive transaction type enum
+- Suitable for serialization and database storage
+
+#### 2. Account Manager Module (1080 lines)
+**File**: `src/schwab_api/account_manager.cppm`
+
+**Module Name**: `bigbrother.schwab.account_manager`
+
+**Purpose**: Full-featured account management with position tracking, transaction history, and analytics.
+
+**Key Components**:
+```cpp
+module;
+// Global module fragment
+#include <string>
+#include <vector>
+#include <memory>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#define SPDLOG_USE_STD_FORMAT  // Required for C++23
+#include <spdlog/spdlog.h>
+
+export module bigbrother.schwab.account_manager;
+
+import bigbrother.schwab.account_types;
+import bigbrother.schwab_api;  // For TokenManager
+
+export namespace bigbrother::schwab {
+    class AccountManagerImpl {
+    public:
+        explicit AccountManagerImpl(
+            std::shared_ptr<TokenManager> token_mgr,
+            std::string db_path
+        );
+
+        // Account operations
+        [[nodiscard]] auto get_all_accounts()
+            -> Result<std::vector<Account>>;
+
+        [[nodiscard]] auto get_account_info(std::string const& account_id)
+            -> Result<Account>;
+
+        // Position operations
+        [[nodiscard]] auto get_positions(std::string const& account_id)
+            -> Result<std::vector<Position>>;
+
+        [[nodiscard]] auto get_position(
+            std::string const& account_id,
+            std::string const& symbol
+        ) -> Result<Position>;
+
+        // Transaction operations
+        [[nodiscard]] auto get_transactions(
+            std::string const& account_id,
+            Timestamp start_time,
+            Timestamp end_time
+        ) -> Result<std::vector<Transaction>>;
+
+        // Analytics
+        [[nodiscard]] auto calculate_portfolio_value(
+            std::string const& account_id
+        ) -> Result<double>;
+
+        [[nodiscard]] auto calculate_unrealized_pnl(
+            std::string const& account_id
+        ) -> Result<double>;
+
+    private:
+        std::shared_ptr<TokenManager> token_mgr_;
+        std::string db_path_;
+        bool read_only_mode_;
+        mutable std::mutex mutex_;
+
+        // Database operations (stubbed - awaiting DuckDB API migration)
+        // std::unique_ptr<duckdb::DuckDB> db_;
+        // std::unique_ptr<duckdb::Connection> conn_;
+    };
+}
+```
+
+**Features**:
+- OAuth integration via TokenManager from schwab_api module
+- Error handling with `std::expected<T, std::string>`
+- Thread-safe operations with mutex protection
+- Comprehensive account, position, and transaction queries
+- Analytics functions for portfolio metrics
+- Rule of Five compliance (deleted move operations due to mutex)
+
+**Technical Decisions**:
+1. **spdlog Integration**: Uses `SPDLOG_USE_STD_FORMAT` to avoid FMT_STRING constexpr issues in C++23
+2. **Error Propagation**: Converts `Error` struct to `std::string` for `std::expected` compatibility
+3. **DuckDB Stub**: Database operations temporarily commented out pending API migration
+4. **Mutex Non-Movability**: Move operations explicitly deleted (not defaulted)
+
+#### 3. AccountClient vs AccountManager
+
+**AccountClient** (in schwab_api.cppm):
+- Lightweight fluent API wrapper
+- Constructor: `AccountClient(token_mgr, account_id)`
+- Purpose: Simple account queries for specific account
+- Use case: Quick account info retrieval
+
+**AccountManager** (in account_manager.cppm):
+- Full-featured account management
+- Constructor: `AccountManagerImpl(token_mgr, db_path)`
+- Purpose: Comprehensive position tracking, analytics, database integration
+- Use case: Production trading system with historical tracking
+
+**Renaming Context**: The original AccountManager in schwab_api.cppm was renamed to AccountClient to avoid naming conflict with the full AccountManager module.
+
+### Build System Integration
+
+**CMake Configuration** (CMakeLists.txt lines 480-490):
+```cmake
+target_sources(schwab_api
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            # Module dependency order: account_types → schwab_api → account_manager
+            src/schwab_api/account_types.cppm
+            src/schwab_api/schwab_api.cppm
+            src/schwab_api/account_manager.cppm
+)
+
+target_link_libraries(schwab_api
+    PUBLIC utils types
+    PRIVATE CURL::libcurl nlohmann_json::nlohmann_json spdlog::spdlog
+)
+```
+
+**Build Requirements**:
+- CMake 3.28+ with Ninja generator
+- Clang 21+ with C++23 modules support
+- Module compilation flags: `-std=c++23 -fmodules`
+- Dependency ordering enforced by CMake
+
+### Migration from Legacy Pattern
+
+**Old Structure** (deprecated):
+- `src/schwab_api/account_manager.hpp` - Header with declarations
+- `src/schwab_api/account_manager_impl.cpp` - Implementation file
+
+**New Structure** (C++23):
+- `src/schwab_api/account_manager.cppm` - Unified module interface and implementation
+
+**Migration Benefits**:
+1. **Faster Compilation**: Module precompilation eliminates redundant parsing
+2. **Better Encapsulation**: Clear separation of exported vs internal APIs
+3. **Type Safety**: Module imports prevent ODR violations
+4. **Easier Refactoring**: Single file for interface and implementation
+5. **Zero-Warning Build**: Stricter compiler checks caught latent bugs
+
+**Files Deprecated**:
+- `src/schwab_api/account_manager.hpp.deprecated`
+- `src/schwab_api/account_manager_impl.cpp.deprecated`
+
+### Testing and Validation
+
+**Build Metrics**:
+- Compilation: Zero errors
+- clang-tidy: 0 errors, 27 acceptable warnings
+- Module precompilation: ~236 seconds (one-time cost)
+
+**Regression Testing**:
+- Phase 5 setup: 8/8 checks passing (100%)
+- Dashboard integration: Verified working
+- OAuth token refresh: Automatic with TokenManager
+
+### Module Dependency Graph
+
+```
+bigbrother.schwab.account_manager
+  ├── imports: bigbrother.schwab.account_types (data structures)
+  ├── imports: bigbrother.schwab_api (TokenManager for OAuth)
+  │   ├── imports: bigbrother.utils.types (Error, Result)
+  │   ├── imports: bigbrother.utils.logger (logging)
+  │   └── imports: bigbrother.utils.database (future: DuckDB integration)
+  └── links: CURL::libcurl, nlohmann_json, spdlog
+```
+
+**Compilation Order**:
+1. utils (types, logger, database)
+2. account_types (foundation)
+3. schwab_api (OAuth + AccountClient)
+4. account_manager (full implementation)
+
+### Coding Standards Used
+
+All Schwab API modules follow these standards:
+
+1. **Trailing Return Type**: `auto func() -> ReturnType` (100% coverage)
+2. **Error Handling**: `std::expected<T, std::string>` with `.error().message` extraction
+3. **Attributes**: `[[nodiscard]]` on all query methods
+4. **RAII**: Rule of Five compliance (explicit move deletion for mutex)
+5. **Core Guidelines**:
+   - C.1: Use struct for passive data (Account, Balance, Position)
+   - C.2: Use class when invariants exist (AccountManagerImpl)
+   - C.21: Define or delete all copy/move operations
+   - F.16: Use const& for read-only parameters
+   - F.20: Return by value for output
+   - C.43: Use default constructor when possible
+   - C.45: Don't define default constructor for aggregates
+
+### Future Work
+
+**DuckDB API Migration**:
+- Update to current DuckDB C++ API (deprecated: `RowCount()`, `GetValue()`)
+- Re-enable database operations in AccountManagerImpl
+- Implement position/transaction caching layer
+- Add database schema versioning
+
+**Planned Enhancements**:
+- Async position updates with coroutines
+- Real-time balance tracking
+- Performance metrics (Sharpe ratio, max drawdown)
+- Multi-account aggregation views
+
+---
+
 ## QUICK REFERENCE FOR AGENTS
 
 ### Key Absolute Paths

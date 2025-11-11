@@ -21,11 +21,19 @@ module;
 #include <curl/curl.h>
 #include <expected>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
+
+// NOTE: DuckDB direct C++ usage commented out due to C++23 module compilation issues
+// DuckDB's duckdb.hpp has incomplete type issues with QueryNode when used in modules
+// See: https://github.com/duckdb/duckdb/issues/xxxxx
+// Workaround: Python bindings handle database storage via pybind11
+// #include <duckdb.hpp>
 
 // Module declaration
 export module bigbrother.market_intelligence.news;
@@ -34,12 +42,14 @@ export module bigbrother.market_intelligence.news;
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
 import bigbrother.utils.database;
+import bigbrother.circuit_breaker;
 import bigbrother.market_intelligence.sentiment;
 
 export namespace bigbrother::market_intelligence {
 
 using namespace bigbrother::types;
 using namespace bigbrother::utils;
+using namespace bigbrother::circuit_breaker;
 using json = nlohmann::json;
 
 // ============================================================================
@@ -92,6 +102,12 @@ struct NewsAPIConfig {
     SourceQuality quality_filter{SourceQuality::Verified};
     std::vector<std::string> preferred_sources;
     std::vector<std::string> excluded_sources;
+
+    // Circuit breaker configuration
+    int circuit_breaker_failure_threshold{5};
+    int circuit_breaker_timeout_seconds{60};
+    int circuit_breaker_half_open_timeout_seconds{30};
+    int circuit_breaker_half_open_max_calls{3};
 };
 
 // ============================================================================
@@ -112,7 +128,14 @@ class NewsAPICollector {
      * @param config NewsAPI configuration
      */
     explicit NewsAPICollector(NewsAPIConfig config)
-        : config_(std::move(config)), sentiment_analyzer_() {
+        : config_(std::move(config)), sentiment_analyzer_(),
+          circuit_breaker_(CircuitConfig{
+              .failure_threshold = config_.circuit_breaker_failure_threshold,
+              .timeout = std::chrono::seconds(config_.circuit_breaker_timeout_seconds),
+              .half_open_timeout = std::chrono::seconds(config_.circuit_breaker_half_open_timeout_seconds),
+              .half_open_max_calls = config_.circuit_breaker_half_open_max_calls,
+              .enable_logging = true,
+              .name = "NewsAPI"}) {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         initializeSourceLists();
         Logger::getInstance().info("NewsAPI collector initialized");
@@ -120,6 +143,9 @@ class NewsAPICollector {
         Logger::getInstance().info("  Daily limit: {}", config_.requests_per_day);
         Logger::getInstance().info("  Quality filter: {}",
                                    static_cast<int>(config_.quality_filter));
+        Logger::getInstance().info("  Circuit breaker enabled: threshold={}, timeout={}s",
+                                   config_.circuit_breaker_failure_threshold,
+                                   config_.circuit_breaker_timeout_seconds);
     }
 
     /**
@@ -152,14 +178,25 @@ class NewsAPICollector {
         // Build API URL
         std::string url = buildAPIUrl(symbol, from_date, to_date);
 
-        // Call API directly
+        // Call API with circuit breaker protection
         try {
-            auto response = callNewsAPI(url);
+            // Wrap API call with circuit breaker
+            auto response = circuit_breaker_.call<json>([this, &url]() -> std::expected<json, std::string> {
+                auto result = callNewsAPI(url);
+
+                // Convert Error to string for circuit breaker compatibility
+                if (!result) {
+                    return std::unexpected(result.error().message);
+                }
+
+                return result.value();
+            });
 
             if (!response) {
+                // Circuit breaker error or API error
                 return std::unexpected(
                     Error::make(ErrorCode::NetworkError,
-                                "Failed to fetch news from API: " + response.error().message));
+                                "Failed to fetch news from API: " + response.error()));
             }
 
             // Parse response
@@ -248,13 +285,99 @@ class NewsAPICollector {
             return {}; // Success, nothing to store
         }
 
-        // NOTE: Database storage is handled by Python layer
-        // This C++ method provides the interface for future direct storage
-        Logger::getInstance().info("Prepared {} articles for storage (handled by Python layer)",
+        // NOTE: Direct DuckDB C++ storage implementation blocked by C++23 module issues
+        //
+        // TECHNICAL CONTEXT:
+        // DuckDB's duckdb.hpp header has incomplete type issues when used in C++23 modules:
+        // - Forward declaration of `duckdb::QueryNode` causes unique_ptr compilation errors
+        // - Issue manifests during module scanning phase, not user code compilation
+        // - Other .cppm files (orders_manager.cppm, resilient_database.cppm) use duckdb.hpp
+        //   successfully, but this file triggers the issue (possibly due to import dependencies)
+        //
+        // ATTEMPTED SOLUTIONS:
+        // 1. Reordering #include <duckdb.hpp> (before/after <chrono>) - failed
+        // 2. Removing unnecessary includes - failed
+        // 3. Using resilient_database wrapper - same issue (it also includes duckdb.hpp)
+        //
+        // CURRENT WORKAROUND:
+        // Python bindings handle database storage via pybind11 (see python_bindings/news_bindings.cpp)
+        // This C++ method validates parameters and delegates to Python for actual DB operations.
+        //
+        // FUTURE FIX:
+        // - Wait for DuckDB to fix C++23 module compatibility
+        // - OR create a separate .cpp file (not a module) for DuckDB operations
+        // - OR use C API (duckdb.h) instead of C++ API (duckdb.hpp)
+        //
+        // DATABASE SCHEMA (for reference):
+        // ```sql
+        // CREATE TABLE news_articles (
+        //     article_id VARCHAR PRIMARY KEY,
+        //     symbol VARCHAR NOT NULL,
+        //     title VARCHAR NOT NULL,
+        //     description TEXT,
+        //     content TEXT,
+        //     url VARCHAR,
+        //     source_name VARCHAR,
+        //     source_id VARCHAR,
+        //     author VARCHAR,
+        //     published_at TIMESTAMP NOT NULL,
+        //     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        //     sentiment_score DOUBLE,
+        //     sentiment_label VARCHAR,
+        //     positive_keywords TEXT[],
+        //     negative_keywords TEXT[]
+        // );
+        // ```
+        //
+        // IMPLEMENTATION PLAN (once DuckDB module issue is resolved):
+        // 1. Connect to DuckDB: auto db = std::make_unique<duckdb::DuckDB>(db_path);
+        // 2. Begin transaction: conn->Query("BEGIN TRANSACTION");
+        // 3. Batch insert with prepared statements
+        // 4. Handle duplicates: ON CONFLICT (article_id) DO NOTHING
+        // 5. Commit transaction: conn->Query("COMMIT");
+        // 6. Error handling: rollback on failure, continue on individual article errors
+
+        Logger::getInstance().info("Prepared {} articles for storage (delegated to Python layer)",
                                    articles.size());
         Logger::getInstance().debug("  Database path: {}", db_path);
+        Logger::getInstance().debug("  Note: Direct C++ DuckDB storage blocked by module issues");
 
-        return {}; // Success
+        return {}; // Success - Python bindings will handle actual storage
+    }
+
+    /**
+     * Get circuit breaker state
+     *
+     * @return Current circuit breaker state
+     */
+    [[nodiscard]] auto getCircuitBreakerState() const noexcept -> CircuitState {
+        return circuit_breaker_.getState();
+    }
+
+    /**
+     * Get circuit breaker statistics
+     *
+     * @return Circuit breaker statistics
+     */
+    [[nodiscard]] auto getCircuitBreakerStats() const -> CircuitStats {
+        return circuit_breaker_.getStats();
+    }
+
+    /**
+     * Check if circuit breaker is open
+     *
+     * @return true if circuit is open
+     */
+    [[nodiscard]] auto isCircuitBreakerOpen() const noexcept -> bool {
+        return circuit_breaker_.isOpen();
+    }
+
+    /**
+     * Manually reset circuit breaker to CLOSED state
+     * Use with caution - typically for manual intervention
+     */
+    auto resetCircuitBreaker() -> void {
+        circuit_breaker_.reset();
     }
 
   private:
@@ -505,6 +628,9 @@ class NewsAPICollector {
 
     NewsAPIConfig config_;
     SentimentAnalyzer sentiment_analyzer_;
+
+    // Circuit breaker for API protection
+    CircuitBreaker circuit_breaker_;
 
     // Source quality lists
     std::vector<std::string> premium_sources_;

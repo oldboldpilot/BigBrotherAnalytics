@@ -364,6 +364,56 @@ class Phase5Setup:
             print_warning("News features may not be available")
             return True  # Non-critical, don't fail setup
 
+    def fetch_news_articles(self):
+        """Fetch latest news articles"""
+        print_header("Step 3.6: News Articles Collection")
+
+        if self.quick:
+            print_info("Skipping in quick mode")
+            return True
+
+        # Check if API keys are available
+        config_file = self.base_dir / "configs" / "api_keys.yaml"
+        if not config_file.exists():
+            print_warning("API keys config not found - skipping news collection")
+            self.warnings.append("News API keys not configured")
+            return True
+
+        print_info("Fetching latest news articles (may take 20-30 seconds)...")
+
+        # Run news ingestion script (limit to 3 symbols for startup speed)
+        success, output = run_command(
+            f"cd {self.base_dir} && timeout 45 uv run python scripts/data_collection/news_ingestion.py --limit 3 2>&1 | tail -5",
+            "Fetching news articles"
+        )
+
+        if success:
+            # Count articles in database
+            try:
+                import duckdb
+                db_path = self.base_dir / "data" / "bigbrother.duckdb"
+                conn = duckdb.connect(str(db_path), read_only=True)
+                result = conn.execute("SELECT COUNT(*) FROM news_articles").fetchone()
+                article_count = result[0] if result else 0
+                conn.close()
+
+                if article_count > 0:
+                    print_success(f"News database contains {article_count} articles")
+                    self.checks_passed.append(f"News articles fetched ({article_count} total)")
+                else:
+                    print_info("No articles found - may need to run full news ingestion")
+                    self.warnings.append("News database empty (run news_ingestion.py manually)")
+            except Exception as e:
+                print_warning(f"Could not verify article count: {e}")
+                self.warnings.append("News article count verification failed")
+
+            return True
+        else:
+            self.warnings.append("News article fetching failed (non-critical)")
+            print_warning("News features may have limited data")
+            print_info("Run manually: uv run python scripts/data_collection/news_ingestion.py")
+            return True  # Non-critical, don't fail setup
+
     def verify_paper_trading_config(self):
         """Verify paper trading configuration"""
         print_header("Step 4: Paper Trading Configuration")
@@ -673,6 +723,7 @@ class Phase5Setup:
         if not self.quick:
             self.initialize_tax_database()
             self.initialize_news_database()
+            self.fetch_news_articles()
 
         self.verify_paper_trading_config()
         self.test_schwab_api()

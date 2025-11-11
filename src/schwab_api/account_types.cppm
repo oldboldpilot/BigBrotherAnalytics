@@ -1,15 +1,16 @@
 /**
- * BigBrotherAnalytics - Schwab API Account Types (C++23)
+ * BigBrotherAnalytics - Schwab API Account Types (C++23 Module)
  *
  * Comprehensive account data structures for Schwab API integration
  *
  * Author: Olumuyiwa Oluwasanmi
- * Date: 2025-11-09
+ * Date: 2025-11-10
+ * Module: bigbrother.schwab.account_types
  */
 
-#ifndef BIGBROTHER_SCHWAB_ACCOUNT_TYPES_HPP
-#define BIGBROTHER_SCHWAB_ACCOUNT_TYPES_HPP
+module;
 
+// Global module fragment for standard library headers
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -17,7 +18,9 @@
 #include <string>
 #include <vector>
 
-namespace bigbrother::schwab {
+export module bigbrother.schwab.account_types;
+
+export namespace bigbrother::schwab {
 
 using Timestamp = int64_t;
 using Price = double;
@@ -283,5 +286,3 @@ struct PositionRisk {
 };
 
 } // namespace bigbrother::schwab
-
-#endif // BIGBROTHER_SCHWAB_ACCOUNT_TYPES_HPP

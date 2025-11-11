@@ -771,6 +771,13 @@ def show_news_feed():
                 sentiment_label,
                 positive_keywords,
                 negative_keywords,
+                newsapi_sentiment_score,
+                newsapi_sentiment_label,
+                alphavantage_sentiment_score,
+                alphavantage_sentiment_label,
+                alphavantage_relevance,
+                sentiment_source,
+                selection_reason,
                 fetched_at
             FROM news_articles
             ORDER BY published_at DESC
@@ -779,7 +786,7 @@ def show_news_feed():
         news_df = conn.execute(query).df()
     except Exception as e:
         st.error(f"Error loading news: {e}")
-        st.info("If the table exists but is empty, run `uv run python scripts/data_collection/news_ingestion.py` to fetch news")
+        st.info("Run `uv run python scripts/data_collection/news_ingestion_multi_source.py` to fetch news with multi-source sentiment")
         return
 
     if news_df.empty:
@@ -822,7 +829,7 @@ def show_news_feed():
 
     # Filters
     st.subheader("🔍 Filters")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         symbols = ['All'] + sorted(news_df['symbol'].unique().tolist())
@@ -833,7 +840,15 @@ def show_news_feed():
         selected_sentiment = st.selectbox("Sentiment", sentiments, key='news_sentiment')
 
     with col3:
-        limit = st.slider("Number of Articles", 5, 50, 20, key='news_limit')
+        # Sentiment source filter
+        if 'sentiment_source' in news_df.columns:
+            sources = ['All'] + [s for s in news_df['sentiment_source'].dropna().unique().tolist() if s]
+            selected_source = st.selectbox("Sentiment Source", sources, key='news_source')
+        else:
+            selected_source = 'All'
+
+    with col4:
+        limit = st.slider("Articles", 5, 50, 20, key='news_limit')
 
     # Apply filters
     filtered_df = news_df.copy()
@@ -843,6 +858,9 @@ def show_news_feed():
 
     if selected_sentiment != 'All':
         filtered_df = filtered_df[filtered_df['sentiment_label'] == selected_sentiment]
+
+    if selected_source != 'All' and 'sentiment_source' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['sentiment_source'] == selected_source]
 
     filtered_df = filtered_df.head(limit)
 
@@ -914,10 +932,43 @@ def show_news_feed():
 
             with col2:
                 st.markdown(f"<h3 style='text-align: right; color: {sentiment_color};'>{sentiment_emoji} {row['sentiment_label'].upper()}</h3>", unsafe_allow_html=True)
-                st.metric("Score", f"{row['sentiment_score']:+.3f}", label_visibility="collapsed")
+                st.metric("Selected Score", f"{row['sentiment_score']:+.3f}", label_visibility="collapsed")
 
             if row['description']:
                 st.write(row['description'])
+
+            # Multi-source sentiment comparison (power-of-2-choices)
+            if pd.notna(row.get('newsapi_sentiment_score')) and pd.notna(row.get('alphavantage_sentiment_score')):
+                with st.expander("📊 Sentiment Comparison (Power-of-2-Choices)"):
+                    comp_col1, comp_col2, comp_col3 = st.columns(3)
+
+                    with comp_col1:
+                        st.metric(
+                            "NewsAPI (Keyword)",
+                            f"{row['newsapi_sentiment_score']:+.3f}",
+                            delta=row['newsapi_sentiment_label']
+                        )
+
+                    with comp_col2:
+                        st.metric(
+                            "AlphaVantage (AI)",
+                            f"{row['alphavantage_sentiment_score']:+.3f}",
+                            delta=row['alphavantage_sentiment_label']
+                        )
+
+                    with comp_col3:
+                        source_badge = "🔤" if row.get('sentiment_source') == 'newsapi_keyword' else "🤖"
+                        st.metric(
+                            f"{source_badge} Selected",
+                            f"{row['sentiment_score']:+.3f}",
+                            delta=row['sentiment_label']
+                        )
+
+                    if pd.notna(row.get('selection_reason')):
+                        st.caption(f"💡 Selection reason: {row['selection_reason']}")
+
+                    if pd.notna(row.get('alphavantage_relevance')):
+                        st.caption(f"🎯 Relevance to {row['symbol']}: {row['alphavantage_relevance']:.1%}")
 
             # Keywords
             if row['positive_keywords'] or row['negative_keywords']:

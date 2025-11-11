@@ -434,7 +434,7 @@ class HttpClient {
         -> Result<std::string> {
 
         CURL* curl = curl_easy_init();
-        if (!curl) {
+        if (curl == nullptr) {
             return makeError<std::string>(ErrorCode::NetworkError, "Failed to initialize CURL");
         }
 
@@ -452,7 +452,7 @@ class HttpClient {
         for (auto const& header : headers) {
             header_list = curl_slist_append(header_list, header.c_str());
         }
-        if (header_list) {
+        if (header_list != nullptr) {
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
         }
 
@@ -464,7 +464,7 @@ class HttpClient {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
         // Cleanup
-        if (header_list) {
+        if (header_list != nullptr) {
             curl_slist_free_all(header_list);
         }
         curl_easy_cleanup(curl);
@@ -1310,21 +1310,22 @@ class MarketDataClient {
 };
 
 // ============================================================================
-// Account Manager (Fluent API)
+// Account Client (Fluent API) - lightweight account accessor
+// Note: Renamed from AccountClient to avoid conflict with full AccountClient module
 // ============================================================================
 
-class AccountManager {
+class AccountClient {
   public:
-    explicit AccountManager(std::shared_ptr<TokenManager> token_mgr, std::string account_id = "")
+    explicit AccountClient(std::shared_ptr<TokenManager> token_mgr, std::string account_id = "")
         : token_mgr_{std::move(token_mgr)}, account_id_{std::move(account_id)},
           db_initialized_{false} {}
 
     // C.21: Rule of Five - non-copyable, non-movable due to mutex
-    AccountManager(AccountManager const&) = delete;
-    auto operator=(AccountManager const&) -> AccountManager& = delete;
-    AccountManager(AccountManager&&) noexcept = delete;
-    auto operator=(AccountManager&&) noexcept -> AccountManager& = delete;
-    ~AccountManager() = default;
+    AccountClient(AccountClient const&) = delete;
+    auto operator=(AccountClient const&) -> AccountClient& = delete;
+    AccountClient(AccountClient&&) noexcept = delete;
+    auto operator=(AccountClient&&) noexcept -> AccountClient& = delete;
+    ~AccountClient() = default;
 
     // ========================================================================
     // Initialization & Configuration
@@ -1348,7 +1349,7 @@ class AccountManager {
             createPositionTables();
             db_initialized_ = true;
 
-            Logger::getInstance().info("AccountManager database initialized: {}", db_path_);
+            Logger::getInstance().info("AccountClient database initialized: {}", db_path_);
             return {};
 
         } catch (std::exception const& e) {
@@ -1642,9 +1643,9 @@ class AccountManager {
 
         std::lock_guard<std::mutex> lock(mutex_);
 
-        size_t total = manual_positions_.size() + bot_managed_symbols_.size();
-        size_t manual = manual_positions_.size();
-        size_t bot_managed = bot_managed_symbols_.size();
+        size_t total{manual_positions_.size() + bot_managed_symbols_.size()};
+        size_t manual{manual_positions_.size()};
+        size_t bot_managed{bot_managed_symbols_.size()};
 
         return {total, manual, bot_managed};
     }
@@ -1796,7 +1797,7 @@ class OrderManager {
         return *this;
     }
 
-    [[nodiscard]] auto setAccountManager(AccountManager* account_mgr) -> OrderManager& {
+    [[nodiscard]] auto setAccountClient(AccountClient* account_mgr) -> OrderManager& {
         account_mgr_ = account_mgr;
         return *this;
     }
@@ -1960,10 +1961,10 @@ class OrderManager {
     [[nodiscard]] auto validateOrderAgainstManualPositions(Order const& order) const
         -> Result<void> {
 
-        if (!account_mgr_) {
+        if (account_mgr_ == nullptr) {
             // If no account manager is set, we can't check - allow but warn
             Logger::getInstance().warn(
-                "No AccountManager set - cannot verify manual positions for {}", order.symbol);
+                "No AccountClient set - cannot verify manual positions for {}", order.symbol);
             return {};
         }
 
@@ -1982,7 +1983,7 @@ class OrderManager {
      * Check if symbol is held as a manual (non-bot-managed) position
      */
     [[nodiscard]] auto isSymbolManuallyHeld(std::string const& symbol) const -> bool {
-        if (!account_mgr_)
+        if (account_mgr_ == nullptr)
             return false;
 
         // Get all positions
@@ -2011,9 +2012,9 @@ class OrderManager {
      * Check if account has sufficient buying power for the order
      */
     [[nodiscard]] auto checkBuyingPower(Order const& order) const -> Result<void> {
-        if (!account_mgr_) {
+        if (account_mgr_ == nullptr) {
             Logger::getInstance().warn(
-                "No AccountManager set - cannot verify buying power for order");
+                "No AccountClient set - cannot verify buying power for order");
             return {}; // Allow if we can't verify
         }
 
@@ -2058,7 +2059,7 @@ class OrderManager {
      * Check if we're within position count limits
      */
     [[nodiscard]] auto checkPositionLimits() const -> Result<void> {
-        if (!account_mgr_) {
+        if (account_mgr_ == nullptr) {
             return {}; // Can't check without account manager
         }
 
@@ -2160,7 +2161,7 @@ class OrderManager {
     int max_positions_;
 
     // Account manager for balance/position checks
-    AccountManager* account_mgr_{nullptr};
+    AccountClient* account_mgr_{nullptr};
 };
 
 // ============================================================================
@@ -2227,7 +2228,7 @@ class SchwabClient {
     // Fluent API accessors
     [[nodiscard]] auto marketData() -> MarketDataClient& { return market_data_; }
     [[nodiscard]] auto orders() -> OrderManager& { return orders_; }
-    [[nodiscard]] auto account() -> AccountManager& { return account_; }
+    [[nodiscard]] auto account() -> AccountClient& { return account_; }
     [[nodiscard]] auto websocket() -> WebSocketClient& { return websocket_; }
     [[nodiscard]] auto tokens() -> TokenManager& { return *token_mgr_; }
 
@@ -2235,7 +2236,7 @@ class SchwabClient {
     std::shared_ptr<TokenManager> token_mgr_;
     MarketDataClient market_data_;
     OrderManager orders_;
-    AccountManager account_;
+    AccountClient account_;
     WebSocketClient websocket_;
 };
 
