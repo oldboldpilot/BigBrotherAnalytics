@@ -411,11 +411,28 @@ class Phase5Setup:
 
         try:
             print("   Starting trading engine...", end=" ", flush=True)
-            # Start trading engine in background
+            # Use environment from ansible playbook (playbooks/complete-tier1-setup.yml)
+            # Matches: export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+            lib_paths = [
+                "/usr/local/lib",
+                os.environ.get("LD_LIBRARY_PATH", "")
+            ]
+            ld_library_path = ":".join(filter(None, lib_paths))
+
+            # Use compiler settings from ansible playbook
+            # Matches: export CC=/usr/local/bin/clang, export CXX=/usr/local/bin/clang++
+            env = {
+                **os.environ,
+                "CC": "/usr/local/bin/clang",
+                "CXX": "/usr/local/bin/clang++",
+                "LD_LIBRARY_PATH": ld_library_path,
+                "PATH": f"/usr/local/bin:{os.environ.get('PATH', '')}"
+            }
+
             subprocess.Popen(
                 [str(bigbrother_path)],
                 cwd=self.base_dir,
-                env={**os.environ, "LD_LIBRARY_PATH": "/usr/local/lib:" + os.environ.get("LD_LIBRARY_PATH", "")},
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True
