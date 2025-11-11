@@ -413,7 +413,9 @@ class Phase5Setup:
             print("   Starting trading engine...", end=" ", flush=True)
             # Use environment from ansible playbook (playbooks/complete-tier1-setup.yml)
             # Matches: export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+            # Also include x86_64-unknown-linux-gnu subdirectory for libomp.so
             lib_paths = [
+                "/usr/local/lib/x86_64-unknown-linux-gnu",
                 "/usr/local/lib",
                 os.environ.get("LD_LIBRARY_PATH", "")
             ]

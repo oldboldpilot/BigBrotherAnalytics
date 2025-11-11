@@ -70,6 +70,15 @@ configs/*.json
 *.crt
 secrets/
 
+# API keys and tokens (NEVER COMMIT)
+api_keys.yaml
+*_token.json
+*_tokens.json
+schwab_token*.json
+oauth_token*.json
+*_credentials.json
+*_secret*.json
+
 # Logs
 logs/
 *.log
