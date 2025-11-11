@@ -194,9 +194,27 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("Dashboard Controls")
-        auto_refresh = st.checkbox("Auto Refresh (30s)", value=False)
+
+        # Auto-refresh controls
+        auto_refresh = st.checkbox("🔄 Auto Refresh", value=True)
         if auto_refresh:
-            st.info("Dashboard will refresh every 30 seconds")
+            refresh_interval = st.selectbox(
+                "Refresh Interval",
+                options=[30, 60, 120, 300],
+                index=1,  # Default to 60 seconds
+                format_func=lambda x: f"{x} seconds" if x < 60 else f"{x//60} minute(s)"
+            )
+            st.info(f"Auto-refreshing every {refresh_interval}s")
+        else:
+            refresh_interval = None
+
+        # Manual refresh button
+        if st.button("🔃 Refresh Now"):
+            st.rerun()
+
+        # Last update timestamp
+        from datetime import datetime
+        st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
         st.divider()
         st.markdown("### Navigation")
@@ -235,10 +253,10 @@ def main():
     elif view == "Tax Implications":
         show_tax_implications(get_db_connection())
 
-    # Auto-refresh
-    if auto_refresh:
+    # Auto-refresh with configurable interval
+    if auto_refresh and refresh_interval:
         import time
-        time.sleep(30)
+        time.sleep(refresh_interval)
         st.rerun()
 
 def show_overview():
