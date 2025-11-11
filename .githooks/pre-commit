@@ -45,9 +45,9 @@ for file in $STAGED_CPP_FILES; do
     fi
 
     # Check for old-style function declarations
-    # Exclude: auto, operator, ~, control flow, explicit (constructors), object instantiations
+    # Exclude: auto, operator, ~, control flow, explicit (constructors), return statements, object instantiations
     old_style=$(grep -n "^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_:]*[[:space:]]\+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*(" "$file" | \
-                grep -v "auto\|operator\|~\|if\|while\|for\|switch\|template\|namespace\|explicit" | \
+                grep -v "auto\|operator\|~\|if\|while\|for\|switch\|template\|namespace\|explicit\|return" | \
                 grep -v "//" | \
                 grep -v "[A-Z][a-zA-Z0-9_:]*[[:space:]]\+[a-z][a-zA-Z0-9_]*[[:space:]]*(" | \
                 head -3) || true
@@ -167,11 +167,12 @@ if command -v clang-tidy &> /dev/null; then
 
         # Run clang-tidy with project config
         echo "  Checking $file..."
-        if ! clang-tidy "$file" -- -std=c++23 -I./src 2>&1 | grep -q "error:"; then
+        # Exclude system header errors (stdlib.h, etc.) as they're not code issues
+        if ! clang-tidy "$file" -- -std=c++23 -I./src 2>&1 | grep "error:" | grep -v "stdlib.h\|system header" | grep -q "."; then
             true  # No errors
         else
             echo -e "${RED}❌ $file: clang-tidy found errors${NC}"
-            clang-tidy "$file" -- -std=c++23 -I./src 2>&1 | grep "error:" | head -3
+            clang-tidy "$file" -- -std=c++23 -I./src 2>&1 | grep "error:" | grep -v "stdlib.h\|system header" | head -3
             tidy_violations=$((tidy_violations + 1))
         fi
     done
