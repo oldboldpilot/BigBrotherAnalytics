@@ -35,9 +35,10 @@ uv run python scripts/phase5_shutdown.py       # Graceful shutdown + reports
 
 ### Tax Configuration (2025)
 - **Filing Status:** Married Filing Jointly
+- **State:** California
 - **Base Income:** $300,000 (from other sources)
-- **Short-term rate:** 32.8% (24% federal + 5% state + 3.8% Medicare)
-- **Long-term rate:** 23.8% (15% federal + 5% state + 3.8% Medicare)
+- **Short-term rate:** 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
+- **Long-term rate:** 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
 - **YTD Tracking:** Incremental accumulation throughout 2025
 
 ---
@@ -210,8 +211,8 @@ uv run python scripts/phase5_shutdown.py       # Graceful shutdown + reports
 
 #### Features
 - **3% trading fee** on all transactions (buy + sell volume)
-- Short-term capital gains: 32.8% (24% federal + 5% state + 3.8% Medicare)
-- Long-term capital gains: 23.8% (15% federal + 5% state + 3.8% Medicare)
+- Short-term capital gains: 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
+- Long-term capital gains: 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
 - Wash sale detection (IRS 30-day rule)
 - After-tax P&L tracking
 
@@ -235,8 +236,8 @@ Trade: Buy $10,000, Sell $11,000 (held 10 days)
 ├─ Gross P&L: $1,000
 ├─ Trading Fees (3%): -$630
 ├─ P&L After Fees: $370
-├─ Tax (short-term, 32.8%): -$121.36
-└─ Net After-Tax: $248.64 (24.9% efficiency)
+├─ Tax (short-term, 37.1%, CA): -$137.27
+└─ Net After-Tax: $232.73 (23.3% efficiency)
 ```
 
 ### Production Readiness: 99%

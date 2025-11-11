@@ -118,7 +118,7 @@ This project prioritizes thorough planning and iterative refinement. We will:
 - **17 C++23 Modules** - Modern modular architecture (~10,000 lines)
 - **100% Trailing Return Syntax** - All new code uses `auto func() -> ReturnType`
 - **6 Fluent APIs** - Intuitive builder pattern throughout
-- **Tax-Aware Trading** - 32.8% effective tax rate calculated
+- **Tax-Aware Trading** - 37.1% effective tax rate calculated (California)
 - **Profitable After Tax** - +$4,463 (+14.88%) on $30k account
 - **65% Win Rate** - Exceeds 60% target
 - **Microsecond-level latency** - Validated in tests
@@ -181,16 +181,16 @@ uv run python scripts/phase5_shutdown.py
 
 ### Phase 5 Features
 - ✅ **Unified Setup** - Single script replaces 10+ commands
-- ✅ **Tax Tracking** - Married filing jointly ($300K base income)
-  - Short-term: 32.8% (24% federal + 5% state + 3.8% Medicare)
-  - Long-term: 23.8% (15% federal + 5% state + 3.8% Medicare)
+- ✅ **Tax Tracking** - Married filing jointly ($300K base income, California)
+  - Short-term: 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
+  - Long-term: 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
   - YTD incremental tracking throughout 2025
 - ✅ **End-of-Day Automation** - Reports, tax calculation, database backup
 - ✅ **Paper Trading** - $100 position limit, 2-3 concurrent positions
 - ✅ **Manual Position Protection** - Bot never touches existing holdings
 
 ### Success Criteria
-- **Win Rate:** ≥55% (profitable after 32.8% tax + 3% fees)
+- **Win Rate:** ≥55% (profitable after 37.1% tax + 3% fees)
 - **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
@@ -214,7 +214,7 @@ See [docs/PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md) for complete setu
 
 ### Tax Tracking & Reporting
 - **3% trading fee** calculation on all transactions
-- Short-term (32.8%) vs long-term (23.8%) capital gains tax
+- Short-term (37.1%) vs long-term (28.1%) capital gains tax (California)
 - Wash sale detection (IRS 30-day rule)
 - After-tax P&L tracking and reporting
 - Tax efficiency metrics
@@ -225,7 +225,7 @@ See [docs/PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md) for complete setu
 - **C++23 Modules:** 17 production-ready modules with modern features
 - **Trailing Return Syntax:** 100% coverage (`auto func() -> ReturnType`)
 - **Fluent APIs:** 6 comprehensive builders (Option, Correlation, Risk, Schwab, Strategy, Backtest, Tax)
-- **Tax-Aware Trading:** 32.8% effective tax rate calculated (federal + Medicare + state)
+- **Tax-Aware Trading:** 37.1% effective tax rate calculated (California: federal + Medicare + state)
 - **Performance Optimized:** 4.09x speedup, OpenMP + MPI, microsecond latency
 - **Production Hardening:** Error handling, circuit breakers, retry logic
 - **DuckDB-First:** Zero infrastructure setup

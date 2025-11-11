@@ -8,7 +8,7 @@ This directory contains the AI agent orchestration system for structured, high-q
 
 The AI orchestration system coordinates multiple specialized AI agents to handle complex development tasks with consistency, quality, and automation.
 
-> **Latest Update (2025-11-10):** **Phase 5 ACTIVE - Paper Trading Validation (Days 0-21)**. System is 100% production ready with unified setup/shutdown automation, tax tracking (married filing jointly, $300K base income, 32.8% ST / 23.8% LT), and complete Phase 4 hardening. All 20 autonomous agents across Phases 1-4 achieved 100% success rate. **Daily workflow: morning setup (10-15 sec), evening shutdown (graceful + reports)**. Paper trading limits: $100 position, 2-3 concurrent, ≥55% win rate target.
+> **Latest Update (2025-11-10):** **Phase 5 ACTIVE - Paper Trading Validation (Days 0-21)**. System is 100% production ready with unified setup/shutdown automation, tax tracking (married filing jointly, CA, $300K base income, 37.1% ST / 28.1% LT), and complete Phase 4 hardening. All 20 autonomous agents across Phases 1-4 achieved 100% success rate. **Daily workflow: morning setup (10-15 sec), evening shutdown (graceful + reports)**. Paper trading limits: $100 position, 2-3 concurrent, ≥55% win rate target.
 
 ### Orchestration Hierarchy
 

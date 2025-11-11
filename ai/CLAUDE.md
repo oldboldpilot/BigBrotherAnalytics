@@ -4,7 +4,7 @@
 **Phase:** Phase 5 - Paper Trading Validation (Days 0-21)
 **Status:** 100% Production Ready
 **Budget:** $100 position limit (paper trading validation)
-**Goal:** ≥55% win rate (profitable after 32.8% tax + 3% fees)
+**Goal:** ≥55% win rate (profitable after 37.1% tax + 3% fees)
 
 ## Core Architecture
 
@@ -66,9 +66,10 @@ uv run python scripts/phase5_shutdown.py
 
 ### Tax Configuration (2025)
 - **Filing Status:** Married Filing Jointly
+- **State:** California
 - **Base Income:** $300,000 (from other sources)
-- **Short-term:** 32.8% (24% federal + 5% state + 3.8% Medicare)
-- **Long-term:** 23.8% (15% federal + 5% state + 3.8% Medicare)
+- **Short-term:** 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
+- **Long-term:** 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
 - **YTD Tracking:** Incremental throughout 2025
 
 ### Phase 5 Complete (100% Production Ready)
@@ -84,7 +85,7 @@ uv run python scripts/phase5_shutdown.py
 - ✅ Monitoring & alerts (9 health checks, 27 types)
 
 ### Success Criteria
-- **Win Rate:** ≥55% (profitable after 32.8% tax + 3% fees)
+- **Win Rate:** ≥55% (profitable after 37.1% tax + 3% fees)
 - **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection

@@ -62,7 +62,7 @@ uv run python scripts/phase5_setup.py --skip-oauth
 - Verifies married filing jointly status
 - Confirms $300K base income
 - Validates tax rates: 24% ST / 15% LT federal
-- Calculates effective rates: 32.8% ST / 23.8% LT
+- Calculates effective rates: 37.1% ST / 28.1% LT
 
 ### 3. Database Initialization ✅
 - Creates tax tables if missing

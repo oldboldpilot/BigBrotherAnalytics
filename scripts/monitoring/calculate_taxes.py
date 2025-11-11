@@ -38,10 +38,10 @@ class TaxCalculator:
             self.track_wash_sales = config[9]
             self.wash_sale_window_days = config[10]
         else:
-            # Defaults
+            # Defaults (California rates)
             self.short_term_rate = 0.24
             self.long_term_rate = 0.15
-            self.state_tax_rate = 0.05
+            self.state_tax_rate = 0.093  # California 9.3%
             self.medicare_surtax = 0.038
             self.trading_fee_percent = 0.03
             self.track_wash_sales = True

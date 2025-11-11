@@ -41,9 +41,10 @@ uv run python scripts/phase5_shutdown.py
 
 **Tax Setup (2025):**
 - Filing Status: Married Filing Jointly
+- State: California
 - Base Income: $300,000 (from other sources)
-- Short-term: 32.8% (24% federal + 5% state + 3.8% Medicare)
-- Long-term: 23.8% (15% federal + 5% state + 3.8% Medicare)
+- Short-term: 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
+- Long-term: 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
 - YTD tracking: Incremental throughout 2025
 
 **Paper Trading Limits:**
@@ -53,7 +54,7 @@ uv run python scripts/phase5_shutdown.py
 - Manual position protection: 100% (bot never touches existing holdings)
 
 **Success Criteria:**
-- Win rate: ≥55% (profitable after 32.8% tax + 3% fees)
+- Win rate: ≥55% (profitable after 37.1% tax + 3% fees)
 - Tax accuracy: Real-time YTD cumulative tracking
 - Zero manual position violations
 
@@ -124,7 +125,7 @@ uv run python scripts/phase5_shutdown.py
   - `setup_tax_database.py` - Tax database initialization
 - **Features:**
   - 3% trading fee calculation
-  - Short-term (32.8%) vs long-term (23.8%) capital gains
+  - Short-term (37.1%) vs long-term (28.1%) capital gains (California)
   - Wash sale detection (IRS 30-day rule)
   - YTD incremental accumulation (2025)
   - Dashboard integration with P&L waterfall
@@ -280,7 +281,7 @@ uv run python scripts/phase5_setup.py --skip-oauth
 
 **Checks:**
 1. OAuth token status (expires 30 min, auto-refresh if possible)
-2. Tax configuration (married joint, $300K, 32.8%/23.8%)
+2. Tax configuration (married joint, CA, $300K, 37.1%/28.1%)
 3. Database initialization
 4. Paper trading configuration
 5. Schwab API connectivity (live SPY quote)
@@ -320,7 +321,7 @@ CREATE TABLE tax_config (
     id INTEGER PRIMARY KEY,
     short_term_rate DOUBLE NOT NULL,      -- 0.24 (24% federal)
     long_term_rate DOUBLE NOT NULL,       -- 0.15 (15% federal)
-    state_tax_rate DOUBLE NOT NULL,       -- 0.05 (5% state)
+    state_tax_rate DOUBLE NOT NULL,       -- 0.093 (9.3% California)
     medicare_surtax DOUBLE NOT NULL,      -- 0.038 (3.8% NIIT)
     trading_fee_rate DOUBLE NOT NULL,     -- 0.03 (3% trading fee)
     filing_status VARCHAR DEFAULT 'single',  -- 'married_joint'
