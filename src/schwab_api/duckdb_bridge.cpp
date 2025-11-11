@@ -31,7 +31,7 @@ struct DatabaseHandle::Impl {
     }
 
     ~Impl() {
-        if (db) {
+        if (db != nullptr) {
             duckdb_close(&db);
         }
     }
@@ -69,7 +69,7 @@ struct ConnectionHandle::Impl {
     }
 
     ~Impl() {
-        if (conn) {
+        if (conn != nullptr) {
             duckdb_disconnect(&conn);
         }
     }
@@ -99,7 +99,7 @@ auto ConnectionHandle::getImpl() const -> void const* {
 // ============================================================================
 
 QueryResultHandle::~QueryResultHandle() {
-    if (pImpl_) {
+    if (pImpl_ != nullptr) {
         auto* result = static_cast<duckdb_result*>(pImpl_);
         duckdb_destroy_result(result);
         delete result;
@@ -113,7 +113,7 @@ QueryResultHandle::QueryResultHandle(QueryResultHandle&& other) noexcept : pImpl
 
 auto QueryResultHandle::operator=(QueryResultHandle&& other) noexcept -> QueryResultHandle& {
     if (this != &other) {
-        if (pImpl_) {
+        if (pImpl_ != nullptr) {
             auto* result = static_cast<duckdb_result*>(pImpl_);
             duckdb_destroy_result(result);
             delete result;
@@ -141,7 +141,7 @@ auto QueryResultHandle::setImpl(void* impl) -> void {
 // ============================================================================
 
 PreparedStatementHandle::~PreparedStatementHandle() {
-    if (pImpl_) {
+    if (pImpl_ != nullptr) {
         auto* stmt = static_cast<duckdb_prepared_statement*>(pImpl_);
         duckdb_destroy_prepare(stmt);
         delete stmt;
@@ -157,7 +157,7 @@ PreparedStatementHandle::PreparedStatementHandle(PreparedStatementHandle&& other
 auto PreparedStatementHandle::operator=(PreparedStatementHandle&& other) noexcept
     -> PreparedStatementHandle& {
     if (this != &other) {
-        if (pImpl_) {
+        if (pImpl_ != nullptr) {
             auto* stmt = static_cast<duckdb_prepared_statement*>(pImpl_);
             duckdb_destroy_prepare(stmt);
             delete stmt;
@@ -232,7 +232,7 @@ auto prepareStatement(ConnectionHandle& conn, std::string const& query)
 auto bindString(PreparedStatementHandle& stmt, int index, std::string const& value) -> bool {
     try {
         auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
-        if (!duckdb_stmt)
+        if (duckdb_stmt == nullptr)
             return false;
 
         return duckdb_bind_varchar(*duckdb_stmt, index, value.c_str()) == DuckDBSuccess;
@@ -244,7 +244,7 @@ auto bindString(PreparedStatementHandle& stmt, int index, std::string const& val
 auto bindInt(PreparedStatementHandle& stmt, int index, int value) -> bool {
     try {
         auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
-        if (!duckdb_stmt)
+        if (duckdb_stmt == nullptr)
             return false;
 
         return duckdb_bind_int32(*duckdb_stmt, index, value) == DuckDBSuccess;
@@ -256,7 +256,7 @@ auto bindInt(PreparedStatementHandle& stmt, int index, int value) -> bool {
 auto bindDouble(PreparedStatementHandle& stmt, int index, double value) -> bool {
     try {
         auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
-        if (!duckdb_stmt)
+        if (duckdb_stmt == nullptr)
             return false;
 
         return duckdb_bind_double(*duckdb_stmt, index, value) == DuckDBSuccess;
@@ -268,7 +268,7 @@ auto bindDouble(PreparedStatementHandle& stmt, int index, double value) -> bool 
 auto bindInt64(PreparedStatementHandle& stmt, int index, int64_t value) -> bool {
     try {
         auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
-        if (!duckdb_stmt)
+        if (duckdb_stmt == nullptr)
             return false;
 
         return duckdb_bind_int64(*duckdb_stmt, index, value) == DuckDBSuccess;
@@ -280,7 +280,7 @@ auto bindInt64(PreparedStatementHandle& stmt, int index, int64_t value) -> bool 
 auto executeStatement(PreparedStatementHandle& stmt) -> bool {
     try {
         auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
-        if (!duckdb_stmt)
+        if (duckdb_stmt == nullptr)
             return false;
 
         duckdb_result result;
@@ -319,21 +319,21 @@ auto executeQueryWithResults(ConnectionHandle& conn, std::string const& query)
 
 auto getRowCount(QueryResultHandle const& result) -> size_t {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return 0;
     return duckdb_row_count(duckdb_res);
 }
 
 auto getColumnCount(QueryResultHandle const& result) -> size_t {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return 0;
     return duckdb_column_count(duckdb_res);
 }
 
 auto getColumnName(QueryResultHandle const& result, size_t col_idx) -> std::string {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return "";
 
     const char* name = duckdb_column_name(duckdb_res, col_idx);
@@ -342,7 +342,7 @@ auto getColumnName(QueryResultHandle const& result, size_t col_idx) -> std::stri
 
 auto hasError(QueryResultHandle const& result) -> bool {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return true;
 
     const char* error = duckdb_result_error(duckdb_res);
@@ -351,7 +351,7 @@ auto hasError(QueryResultHandle const& result) -> bool {
 
 auto getErrorMessage(QueryResultHandle const& result) -> std::string {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return "Invalid result handle";
 
     const char* error = duckdb_result_error(duckdb_res);
@@ -361,7 +361,7 @@ auto getErrorMessage(QueryResultHandle const& result) -> std::string {
 auto getValueAsString(QueryResultHandle const& result, size_t col_idx, size_t row_idx)
     -> std::string {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return "";
 
     auto value = duckdb_value_varchar(duckdb_res, col_idx, row_idx);
@@ -372,7 +372,7 @@ auto getValueAsString(QueryResultHandle const& result, size_t col_idx, size_t ro
 
 auto getValueAsInt(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int32_t {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return 0;
 
     return duckdb_value_int32(duckdb_res, col_idx, row_idx);
@@ -380,7 +380,7 @@ auto getValueAsInt(QueryResultHandle const& result, size_t col_idx, size_t row_i
 
 auto getValueAsInt64(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> int64_t {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return 0;
 
     return duckdb_value_int64(duckdb_res, col_idx, row_idx);
@@ -388,7 +388,7 @@ auto getValueAsInt64(QueryResultHandle const& result, size_t col_idx, size_t row
 
 auto getValueAsDouble(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> double {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return 0.0;
 
     return duckdb_value_double(duckdb_res, col_idx, row_idx);
@@ -396,7 +396,7 @@ auto getValueAsDouble(QueryResultHandle const& result, size_t col_idx, size_t ro
 
 auto getValueAsBool(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return false;
 
     return duckdb_value_boolean(duckdb_res, col_idx, row_idx);
@@ -404,7 +404,7 @@ auto getValueAsBool(QueryResultHandle const& result, size_t col_idx, size_t row_
 
 auto isValueNull(QueryResultHandle const& result, size_t col_idx, size_t row_idx) -> bool {
     auto* duckdb_res = static_cast<duckdb_result*>(const_cast<void*>(result.getImpl()));
-    if (!duckdb_res)
+    if (duckdb_res == nullptr)
         return true;
 
     return duckdb_value_is_null(duckdb_res, col_idx, row_idx);
