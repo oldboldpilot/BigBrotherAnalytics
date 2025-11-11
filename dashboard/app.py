@@ -27,8 +27,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Database connection
-DB_PATH = Path(__file__).parent.parent / "data" / "bigbrother.duckdb"
+# Database connection - Use absolute path to avoid issues when running from different directories
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "bigbrother.duckdb"
 
 @st.cache_resource
 def get_db_connection():
@@ -76,6 +76,32 @@ def load_positions_history():
         LIMIT 100
     """
     return conn.execute(query).df()
+
+def load_account_balances():
+    """Load account balances including liquidation value from database"""
+    conn = get_db_connection()
+    query = """
+        SELECT
+            account_id,
+            liquidation_value,
+            equity,
+            long_market_value,
+            margin_balance,
+            available_funds,
+            buying_power,
+            updated_at
+        FROM account_balances
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """
+    try:
+        result = conn.execute(query).df()
+        if not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+    except Exception:
+        # Table might not exist yet
+        return None
 
 def load_sectors():
     """Load sector information"""
@@ -308,8 +334,15 @@ def show_positions():
         st.metric("Losing", losing, delta=f"-{losing/total_positions*100:.1f}%", delta_color="inverse")
 
     with col4:
-        total_value = positions_df['market_value'].sum()
-        st.metric("Total Market Value", f"${total_value:,.2f}")
+        # Use liquidation value from account balances (accounts for margin)
+        account_balances = load_account_balances()
+        if account_balances and 'liquidation_value' in account_balances:
+            total_value = account_balances['liquidation_value']
+            st.metric("Total Portfolio Value", f"${total_value:,.2f}")
+        else:
+            # Fallback to sum of positions if account balances not available
+            total_value = positions_df['market_value'].sum()
+            st.metric("Total Market Value", f"${total_value:,.2f}")
 
     st.divider()
 
@@ -391,14 +424,21 @@ def show_pnl_analysis():
     col1, col2, col3, col4 = st.columns(4)
 
     total_pnl = positions_df['unrealized_pnl'].sum() if not positions_df.empty else 0
-    total_value = positions_df['market_value'].sum() if not positions_df.empty else 0
     avg_pnl = positions_df['unrealized_pnl'].mean() if not positions_df.empty else 0
+
+    # Use liquidation value from account balances (accounts for margin)
+    account_balances = load_account_balances()
+    if account_balances and 'liquidation_value' in account_balances:
+        total_value = account_balances['liquidation_value']
+    else:
+        # Fallback to sum of positions if account balances not available
+        total_value = positions_df['market_value'].sum() if not positions_df.empty else 0
 
     with col1:
         st.metric("Total Unrealized P&L", f"${total_pnl:,.2f}")
 
     with col2:
-        st.metric("Total Market Value", f"${total_value:,.2f}")
+        st.metric("Total Portfolio Value", f"${total_value:,.2f}")
 
     with col3:
         st.metric("Average P&L per Position", f"${avg_pnl:,.2f}")
@@ -970,17 +1010,55 @@ def show_news_feed():
                     if pd.notna(row.get('alphavantage_relevance')):
                         st.caption(f"🎯 Relevance to {row['symbol']}: {row['alphavantage_relevance']:.1%}")
 
-            # Keywords
-            if row['positive_keywords'] or row['negative_keywords']:
+            # Keywords - handle various data types safely
+            def has_content(val):
+                """Check if value has content, handling strings, lists, arrays"""
+                # Check for None first
+                if val is None:
+                    return False
+
+                # Handle numpy arrays and lists BEFORE pd.isna() call
+                import numpy as np
+                if isinstance(val, (np.ndarray, list, tuple)):
+                    try:
+                        return len(val) > 0
+                    except:
+                        return False
+
+                # Handle strings
+                if isinstance(val, str):
+                    return len(val.strip()) > 0
+
+                # Check for pandas NA/NaN for scalar values only
+                try:
+                    if pd.isna(val):
+                        return False
+                except (TypeError, ValueError):
+                    # If pd.isna fails, assume has content
+                    pass
+
+                # Default: try to get length
+                try:
+                    return len(val) > 0 if hasattr(val, '__len__') else bool(val)
+                except:
+                    return False
+
+            pos_kw = row.get('positive_keywords', '')
+            neg_kw = row.get('negative_keywords', '')
+            has_pos = has_content(pos_kw)
+            has_neg = has_content(neg_kw)
+            if has_pos or has_neg:
                 kw_col1, kw_col2 = st.columns(2)
 
                 with kw_col1:
-                    if row['positive_keywords'] and len(row['positive_keywords']) > 0:
-                        st.caption(f"✅ Positive: {', '.join(row['positive_keywords'][:5])}")
+                    if has_pos:
+                        keywords = row['positive_keywords'].split(',') if isinstance(row['positive_keywords'], str) else row['positive_keywords']
+                        st.caption(f"✅ Positive: {', '.join(keywords[:5])}")
 
                 with kw_col2:
-                    if row['negative_keywords'] and len(row['negative_keywords']) > 0:
-                        st.caption(f"❌ Negative: {', '.join(row['negative_keywords'][:5])}")
+                    if has_neg:
+                        keywords = row['negative_keywords'].split(',') if isinstance(row['negative_keywords'], str) else row['negative_keywords']
+                        st.caption(f"❌ Negative: {', '.join(keywords[:5])}")
 
             if row['author']:
                 st.caption(f"By {row['author']}")

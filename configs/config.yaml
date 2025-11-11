@@ -13,13 +13,12 @@ logging:
   console: true
   max_file_size_mb: 100
   max_files: 10
-# Real Details
 # Schwab API Configuration
 schwab:
-  client_id: "${SCHWAB_CLIENT_ID}"
-  client_secret: "${SCHWAB_CLIENT_SECRET}"
-  redirect_uri: "https://127.0.0.1:8182"
-  account_id: "${SCHWAB_ACCOUNT_ID}"
+  client_id: 8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa
+  client_secret: PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT
+  redirect_uri: https://127.0.0.1:8182
+  token_file: configs/schwab_tokens.json
   rate_limit_per_minute: 120
 
 # Trading Configuration
@@ -45,10 +44,11 @@ risk:
   min_win_probability: 0.60 # Minimum 60% win rate
 
 # Strategy Configuration
+# Phase 5: Conservative position sizing for validation ($500 max per position)
 strategies:
   delta_neutral_straddle:
     enabled: true
-    max_position_size: 1500.0
+    max_position_size: 500.0
     min_expected_return: 50.0
     min_win_probability: 0.60
     min_days_to_expiration: 7
@@ -60,7 +60,7 @@ strategies:
 
   delta_neutral_strangle:
     enabled: true
-    max_position_size: 1500.0
+    max_position_size: 500.0
     min_expected_return: 50.0
     min_win_probability: 0.55
     min_days_to_expiration: 14
@@ -73,7 +73,7 @@ strategies:
 
   volatility_arbitrage:
     enabled: true
-    max_position_size: 1500.0
+    max_position_size: 500.0
     min_iv_rv_spread: 0.05
     min_expected_return: 75.0
     lookback_period: 20

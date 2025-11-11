@@ -41,11 +41,13 @@ import bigbrother.employment.signals;
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 
 using namespace bigbrother;
@@ -87,10 +89,9 @@ class TradingEngine {
         // Load configuration
         utils::Logger::getInstance().info("Loading configuration from: {}", config_file);
 
-        if (!config_.load(config_file)) {
-            utils::Logger::getInstance().error("Failed to load configuration");
-            return false;
-        }
+        // Note: Config::load() is a stub - config values are hardcoded in config.cppm
+        // This avoids C++23 module/YAML-cpp linker issues
+        // TODO: Implement proper YAML loading after module system stabilizes
 
         // Initialize logger
         auto const log_file = config_.get<std::string>("logging.file", "logs/bigbrother.log");
@@ -163,6 +164,65 @@ class TradingEngine {
         oauth_config.client_id = client_id;
         oauth_config.client_secret = client_secret;
         oauth_config.redirect_uri = redirect_uri;
+
+        // Load OAuth token from file
+        auto const token_file = config_.get<std::string>("schwab.token_file", "configs/schwab_tokens.json");
+        utils::Logger::getInstance().info("Loading OAuth token from: {}", token_file);
+
+        // Simple JSON parsing without nlohmann (to avoid module conflicts)
+        auto extract_json_string_value = [](std::string const& json, std::string const& key) -> std::string {
+            auto key_pos = json.find("\"" + key + "\"");
+            if (key_pos == std::string::npos) return "";
+
+            auto colon_pos = json.find(":", key_pos);
+            if (colon_pos == std::string::npos) return "";
+
+            auto quote1_pos = json.find("\"", colon_pos);
+            if (quote1_pos == std::string::npos) return "";
+
+            auto quote2_pos = json.find("\"", quote1_pos + 1);
+            if (quote2_pos == std::string::npos) return "";
+
+            return json.substr(quote1_pos + 1, quote2_pos - quote1_pos - 1);
+        };
+
+        try {
+            std::ifstream token_stream(token_file);
+            if (!token_stream) {
+                utils::Logger::getInstance().error("Failed to open token file: {}", token_file);
+                utils::Logger::getInstance().warn("Continuing without OAuth token - API calls will fail with 401");
+            } else {
+                std::string token_json((std::istreambuf_iterator<char>(token_stream)),
+                                       std::istreambuf_iterator<char>());
+
+                auto access_token = extract_json_string_value(token_json, "access_token");
+                if (!access_token.empty()) {
+                    oauth_config.access_token = access_token;
+                    utils::Logger::getInstance().info("Loaded access_token from file");
+                }
+
+                auto refresh_token = extract_json_string_value(token_json, "refresh_token");
+                if (!refresh_token.empty()) {
+                    oauth_config.refresh_token = refresh_token;
+                    utils::Logger::getInstance().info("Loaded refresh_token from file");
+                }
+
+                auto expires_at_str = extract_json_string_value(token_json, "expires_at");
+                if (!expires_at_str.empty()) {
+                    // Parse ISO 8601 timestamp (format: "2025-11-11T01:06:48+00:00")
+                    std::tm tm = {};
+                    std::istringstream ss(expires_at_str);
+                    ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+                    if (!ss.fail()) {
+                        oauth_config.token_expiry = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                        utils::Logger::getInstance().info("Token expires at: {}", expires_at_str);
+                    }
+                }
+            }
+        } catch (std::exception const& e) {
+            utils::Logger::getInstance().error("Failed to parse token file: {}", e.what());
+            utils::Logger::getInstance().warn("Continuing without OAuth token - API calls will fail with 401");
+        }
 
         schwab_client_ = std::make_unique<schwab::SchwabClient>(oauth_config);
 
