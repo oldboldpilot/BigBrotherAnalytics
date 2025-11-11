@@ -189,8 +189,8 @@ class TaxCalculator:
             timestamp - INTERVAL '30 days' as entry_time
         FROM positions_history
         WHERE quantity > 0
-        LIMIT 0  -- Return empty set - no closed trades in history yet
         ORDER BY timestamp DESC
+        LIMIT 0  -- Return empty set - no closed trades in history yet
         """
 
         trades = []
@@ -218,12 +218,22 @@ class TaxCalculator:
 
         print("📊 Calculating taxes for all closed trades...")
 
+        # Get base income context
+        config = self.conn.execute("SELECT base_annual_income, tax_year FROM tax_config WHERE id = 1").fetchone()
+        base_income = config[0] if config and config[0] else 0.0
+        tax_year = config[1] if config and config[1] else 2025
+
+        if base_income > 0:
+            print(f"   Base {tax_year} income: ${base_income:,.0f} (from other sources)")
+            print(f"   Trading profits taxed at marginal rate: {self.effective_short_term_rate()*100:.1f}% (ST) / {self.effective_long_term_rate()*100:.1f}% (LT)")
+
         # 1. Get closed trades
         trades = self.get_closed_trades()
         print(f"   Found {len(trades)} closed trades")
 
         if not trades:
             print("   ℹ️  No closed trades to process")
+            print(f"   ℹ️  Taxes will accumulate as trades close throughout {tax_year}")
             return
 
         # 2. Detect wash sales
@@ -270,16 +280,30 @@ class TaxCalculator:
         # 5. Show summary
         summary = self.conn.execute("SELECT * FROM v_ytd_tax_summary").fetchone()
         if summary:
-            print(f"\n📈 YTD Tax Summary:")
-            print(f"   Gross P&L: ${summary[0]:,.2f}")
-            print(f"   Trading Fees (3%): ${summary[1]:,.2f}")
-            print(f"   P&L After Fees: ${summary[2]:,.2f}")
-            print(f"   Tax Owed: ${summary[3]:,.2f}")
-            print(f"   Net After Tax: ${summary[4]:,.2f}")
-            print(f"   Effective Tax Rate: {summary[5]*100:.1f}%")
-            print(f"   Total Trades: {summary[6]}")
+            # Get base income context
+            config = self.conn.execute("SELECT base_annual_income, tax_year FROM tax_config WHERE id = 1").fetchone()
+            base_income = config[0] if config and config[0] else 0.0
+            tax_year = config[1] if config and config[1] else 2025
+
+            print(f"\n📈 {tax_year} YTD Tax Summary (Cumulative):")
+            print(f"   ─────────────────────────────────")
+            if base_income > 0:
+                print(f"   Base income: ${base_income:,.0f} (from other sources)")
+            print(f"   Trading gross P&L: ${summary[0]:,.2f}")
+            print(f"   Trading fees (3%): ${summary[1]:,.2f}")
+            print(f"   P&L after fees: ${summary[2]:,.2f}")
+            print(f"   ─────────────────────────────────")
+            print(f"   Tax on trading profits: ${summary[3]:,.2f}")
+            print(f"   Net trading profit: ${summary[4]:,.2f}")
+            print(f"   ─────────────────────────────────")
+            if base_income > 0:
+                print(f"   Total {tax_year} income: ${base_income + summary[2]:,.2f}")
+            print(f"   Effective tax rate: {summary[5]*100:.1f}%")
+            print(f"   Total trades closed: {summary[6]}")
             if summary[7] > 0:
                 print(f"   ⚠️  Wash Sales: {summary[7]} (${summary[8]:,.2f} disallowed)")
+
+            print(f"\n💡 Tax will continue to accumulate as more trades close in {tax_year}")
 
     def close(self):
         """Close database connection"""
