@@ -34,12 +34,19 @@ uv run python scripts/phase5_setup.py
 **Time:** 2-3 minutes
 **Does:** Complete initialization + database setup
 
-### Quick Check (Daily)
+### Quick Check + Auto-Start (Daily - Recommended)
+```bash
+uv run python scripts/phase5_setup.py --quick --start-all
+```
+**Time:** 10-15 seconds
+**Does:** Verifies everything working + auto-starts dashboard & trading engine
+
+### Quick Check Only (Verification)
 ```bash
 uv run python scripts/phase5_setup.py --quick
 ```
 **Time:** 10-15 seconds
-**Does:** Verifies everything working, skips initialization
+**Does:** Verifies everything working, skips initialization, no auto-start
 
 ### Skip OAuth (If Offline)
 ```bash
@@ -53,10 +60,12 @@ uv run python scripts/phase5_setup.py --skip-oauth
 ## What It Checks
 
 ### 1. OAuth Token Management ✅
+- **Automatic token refresh** - No manual intervention needed!
 - Checks access token expiry (valid for 30 min)
 - Checks refresh token expiry (valid for 7 days)
-- Offers automatic token refresh if expired
+- Refreshes expired tokens automatically using Schwab API
 - Shows clear status with color coding
+- Only requires full re-auth if refresh token expired (every 7 days)
 
 ### 2. Tax Configuration ✅
 - Verifies married filing jointly status
@@ -204,16 +213,14 @@ Overall Status:
 
 ### Morning Pre-Market (Every Trading Day)
 ```bash
-# Quick check (10 seconds)
-uv run python scripts/phase5_setup.py --quick
+# Single command - verifies everything + auto-starts services (10-15 seconds)
+uv run python scripts/phase5_setup.py --quick --start-all
 ```
-**Expected:** All green checks, 100% success rate
+**Expected:** All green checks, 100% success rate, dashboard + trading engine running
 
-**If token expired:**
-```bash
-# Full setup with auto-refresh
-uv run python scripts/phase5_setup.py
-```
+**Token refresh:** Happens automatically! No manual intervention needed.
+- Expired access token? → Auto-refreshed in 2-3 seconds
+- Expired refresh token (every 7 days)? → Prompts for full re-auth
 
 ### First Time Setup
 ```bash
@@ -232,14 +239,16 @@ uv run python scripts/phase5_setup.py
 ## Troubleshooting
 
 ### OAuth Token Expired
-**Symptom:** Red ❌ on OAuth check
+**Symptom:** Red ❌ on OAuth check (rarely happens now - auto-refresh!)
 
-**Fix:**
+**Fix (Automatic):**
 ```bash
-# Automatic refresh (30 sec)
-uv run python scripts/phase5_setup.py
+# Script auto-refreshes expired tokens - just run it!
+uv run python scripts/phase5_setup.py --quick
+```
 
-# Or manual refresh
+**Manual Refresh (Only if automatic refresh fails):**
+```bash
 uv run python scripts/run_schwab_oauth_interactive.py
 ```
 
@@ -288,30 +297,22 @@ ls -la dashboard/app.py
 
 **Every morning before market open:**
 
-1. **Run quick check**
+1. **Single command - verifies and starts everything**
    ```bash
-   uv run python scripts/phase5_setup.py --quick
+   uv run python scripts/phase5_setup.py --quick --start-all
    ```
 
 2. **Verify 100% success rate**
-   - All 6 checks passed
+   - All 6 checks passed (including automatic token refresh if needed)
    - No warnings
    - Status: READY FOR PHASE 5
+   - Dashboard running at http://localhost:8501
+   - Trading engine running in background
 
 3. **If any issues:**
    - Fix immediately
    - Re-run check
    - Don't trade until 100% pass
-
-4. **Start dashboard**
-   ```bash
-   uv run streamlit run dashboard/app.py
-   ```
-
-5. **Start trading engine**
-   ```bash
-   ./build/bigbrother
-   ```
 
 **Every evening at market close:**
 
@@ -403,11 +404,13 @@ fi
 
 **Replace all these:**
 ```bash
-# OLD WAY - Morning Setup (multiple commands)
+# OLD WAY - Morning Setup (multiple commands, manual token refresh)
 uv run python /tmp/refresh_schwab_token.py
 uv run python scripts/monitoring/update_tax_config_ytd.py
 uv run python scripts/monitoring/setup_tax_database.py
 uv run python scripts/test_schwab_api_live.py
+uv run streamlit run dashboard/app.py
+./build/bigbrother
 # ... and 5 more commands
 
 # OLD WAY - Evening Shutdown (manual process)
@@ -418,16 +421,18 @@ killall streamlit
 
 **With these:**
 ```bash
-# NEW WAY - Morning Setup (one command)
-uv run python scripts/phase5_setup.py --quick
+# NEW WAY - Morning Setup (one command with automatic token refresh!)
+uv run python scripts/phase5_setup.py --quick --start-all
 
 # NEW WAY - Evening Shutdown (one command)
 uv run python scripts/phase5_shutdown.py
 ```
 
 **Phase 5 paper trading is now 10x easier:**
-- ✅ Morning: 1 command verifies all systems (10-15 seconds)
-- ✅ Evening: 1 command stops everything gracefully + reports
+- ✅ Morning: 1 command verifies all systems + auto-refreshes token + starts services (10-15 seconds)
+- ✅ Evening: 1 command stops everything gracefully + reports + backup
+- ✅ Token management: 100% automatic (no manual intervention for 7 days)
+- ✅ Health monitoring: Real-time token validation and system checks
 
 ---
 

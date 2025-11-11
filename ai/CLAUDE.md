@@ -63,17 +63,27 @@ cd BigBrotherAnalytics
 
 ### Daily Workflow (CRITICAL: Use `uv run python` for ALL Python commands)
 
-**Morning (Pre-Market):**
+**Morning (Pre-Market - Recommended):**
 ```bash
 cd /home/muyiwa/Development/BigBrotherAnalytics
 
-# Verify all systems (10-15 seconds)
-uv run python scripts/phase5_setup.py --quick
-
-# OR: Verify + auto-start everything
+# Single command - verifies all systems + auto-refreshes token + starts services (10-15 sec)
 uv run python scripts/phase5_setup.py --quick --start-all
 
-# Manual start (if not using --start-all):
+# Automatic features:
+# - OAuth token refresh (no manual intervention for 7 days)
+# - Kills duplicate processes (prevents port conflicts)
+# - Starts dashboard (http://localhost:8501)
+# - Starts trading engine (background)
+# - Comprehensive health checks
+```
+
+**Alternative (Manual Start):**
+```bash
+# Verify only (no auto-start)
+uv run python scripts/phase5_setup.py --quick
+
+# Manual start
 uv run streamlit run dashboard/app.py
 ./build/bigbrother
 ```
@@ -93,22 +103,25 @@ uv run python scripts/phase5_shutdown.py
 - **YTD Tracking:** Incremental throughout 2025
 
 ### Phase 5 Complete (100% Production Ready)
-- ✅ Unified setup script (replaces 10+ commands)
-- ✅ Tax tracking (married joint, YTD accumulation)
-- ✅ End-of-day automation (reports, tax calc, backup)
-- ✅ Paper trading config ($100 position limit)
-- ✅ Manual position protection (100% verified)
-- ✅ All tests passing (87/87, 100% success rate)
-- ✅ Complete documentation
-- ✅ Error handling & circuit breakers
-- ✅ Performance optimization (4.09x speedup)
-- ✅ Monitoring & alerts (9 health checks, 27 types)
+- ✅ **Unified setup script** (replaces 10+ commands, automatic OAuth refresh)
+- ✅ **Auto-start services** (--start-all flag starts dashboard + trading engine)
+- ✅ **Tax tracking** (married joint CA, YTD accumulation, 1.5% accurate fees)
+- ✅ **End-of-day automation** (reports, tax calc, backup)
+- ✅ **Paper trading config** ($100 position limit)
+- ✅ **Manual position protection** (100% verified)
+- ✅ **All tests passing** (87/87, 100% success rate)
+- ✅ **Complete documentation**
+- ✅ **Error handling & circuit breakers**
+- ✅ **Performance optimization** (4.09x speedup)
+- ✅ **Monitoring & alerts** (9 health checks, 27 types, token validation)
+- ✅ **Health monitoring** (real-time token validation, system status)
 
 ### Success Criteria
-- **Win Rate:** ≥55% (profitable after 37.1% tax + 3% fees)
+- **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
 - **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
+- **Token Management:** 100% automatic refresh (no manual intervention for 7 days)
 
 ## AI Orchestration System
 

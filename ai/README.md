@@ -9,11 +9,14 @@ This directory contains the AI agent orchestration system for structured, high-q
 The AI orchestration system coordinates multiple specialized AI agents to handle complex development tasks with consistency, quality, and automation.
 
 > **Latest Update (2025-11-10):** **Phase 5 ACTIVE - Paper Trading Validation (Days 0-21)**. System is 100% production ready with:
+> - **Automatic OAuth Token Refresh:** No manual intervention for 7 days (auto-refresh using Schwab API)
+> - **Auto-Start Services:** Single command starts dashboard + trading engine (--start-all flag)
 > - **Complete Portability:** One-command deployment via [bootstrap.sh](../scripts/bootstrap.sh) (fresh machine → production in 5-15 min)
 > - **Auto-detection:** Compilers, libraries, and paths detected automatically (works on any Unix system)
-> - **Tax Tracking:** California married filing jointly, $300K base income (37.1% ST / 28.1% LT effective rates)
+> - **Tax Tracking:** California married filing jointly, $300K base income (37.1% ST / 28.1% LT, 1.5% trading fees)
 > - **Unified Setup/Shutdown:** Morning setup (10-15 sec), evening shutdown (graceful + reports + backup)
 > - **Process Management:** Auto-kills duplicate processes, prevents port conflicts
+> - **Health Monitoring:** Real-time token validation, system status checks
 > - **Security:** API keys removed from git, comprehensive .gitignore patterns
 > - **Paper Trading:** $100 position limit, 2-3 concurrent, ≥55% win rate target
 > - All 20 autonomous agents across Phases 1-4 achieved 100% success rate.

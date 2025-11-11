@@ -16,9 +16,8 @@
 
 **Morning (Pre-Market):**
 ```bash
-uv run python scripts/phase5_setup.py --quick  # 10-15 seconds
-uv run streamlit run dashboard/app.py          # Start dashboard
-./build/bigbrother                              # Start trading
+# Single command - handles everything including token refresh!
+uv run python scripts/phase5_setup.py --quick --start-all
 ```
 
 **Evening (Market Close):**
@@ -27,11 +26,13 @@ uv run python scripts/phase5_shutdown.py       # Graceful shutdown + reports
 ```
 
 ### Phase 5 Status
-- ✅ **Unified Setup Script** - 100% success rate (6/6 checks)
-- ✅ **Tax Configuration** - Married filing jointly, $300K base income
+- ✅ **Unified Setup Script** - 100% success rate, automatic OAuth token refresh
+- ✅ **Tax Configuration** - Married filing jointly, $300K base income, CA
+- ✅ **Trading Fees** - 1.5% (accurate Schwab $0.65/contract)
 - ✅ **Shutdown Automation** - EOD reports, tax calc, database backup
 - ✅ **Paper Trading Config** - $100 position, 2-3 concurrent
 - ✅ **Manual Position Protection** - 4-layer protection verified
+- ✅ **Health Monitoring** - Token validation, system status checks
 
 ### Tax Configuration (2025)
 - **Filing Status:** Married Filing Jointly

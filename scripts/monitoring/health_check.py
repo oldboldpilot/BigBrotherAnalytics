@@ -52,60 +52,78 @@ def check_schwab_api() -> Dict[str, Any]:
         Dictionary with API health status
     """
     try:
-        # Check if API keys file exists
-        api_keys_file = BASE_DIR / "api_keys.yaml"
+        # Check for Schwab app configuration
+        schwab_app_config = BASE_DIR / "configs" / "schwab_app_config.yaml"
+        schwab_tokens = BASE_DIR / "configs" / "schwab_tokens.json"
 
-        if not api_keys_file.exists():
+        if not schwab_app_config.exists():
             return {
                 "status": STATUS_WARNING,
-                "message": "API keys file not found",
+                "message": "Schwab app configuration not found (configs/schwab_app_config.yaml)",
                 "last_check": datetime.now().isoformat()
             }
 
-        # Note: We can't actually test the API without implementing the full OAuth flow
-        # So we check if the keys file exists and has been recently modified
-        import yaml
-
-        with open(api_keys_file, 'r') as f:
-            keys = yaml.safe_load(f)
-
-        schwab_config = keys.get('schwab', {})
-        has_keys = all([
-            schwab_config.get('client_id'),
-            schwab_config.get('client_secret')
-        ])
-
-        if not has_keys:
+        # Check if OAuth tokens exist
+        if not schwab_tokens.exists():
             return {
                 "status": STATUS_WARNING,
-                "message": "Schwab API keys not configured",
+                "message": "Schwab OAuth tokens not found. Run: uv run python scripts/run_schwab_oauth_interactive.py",
                 "last_check": datetime.now().isoformat()
             }
 
-        # Check if there are recent orders in the database (indicates API is working)
-        if DB_PATH.exists():
-            try:
-                db = duckdb.connect(str(DB_PATH), read_only=True)
-                recent_positions = db.execute(
-                    "SELECT COUNT(*) FROM positions WHERE updated_at > NOW() - INTERVAL '24 hours'"
-                ).fetchone()[0]
-                db.close()
+        # Check token validity
+        try:
+            with open(schwab_tokens, 'r') as f:
+                token_data = json.load(f)
 
-                if recent_positions > 0:
+            expires_at = token_data.get('token', {}).get('expires_at')
+            refresh_token = token_data.get('token', {}).get('refresh_token')
+
+            if not expires_at:
+                return {
+                    "status": STATUS_WARNING,
+                    "message": "Token file missing expiration timestamp",
+                    "last_check": datetime.now().isoformat()
+                }
+
+            now = datetime.now().timestamp()
+            expires_dt = datetime.fromtimestamp(expires_at)
+
+            if now < expires_at:
+                # Token is valid
+                minutes_until_expiry = int((expires_at - now) / 60)
+                return {
+                    "status": STATUS_HEALTHY,
+                    "message": f"OAuth token valid (expires in {minutes_until_expiry} minutes)",
+                    "token_expires": expires_dt.isoformat(),
+                    "minutes_until_expiry": minutes_until_expiry,
+                    "last_check": datetime.now().isoformat()
+                }
+            else:
+                # Token expired
+                minutes_expired = int((now - expires_at) / 60)
+                if refresh_token:
                     return {
-                        "status": STATUS_HEALTHY,
-                        "message": "Recent positions found (API likely operational)",
-                        "recent_positions": recent_positions,
+                        "status": STATUS_WARNING,
+                        "message": f"OAuth token expired {minutes_expired} minutes ago (refresh available)",
+                        "token_expires": expires_dt.isoformat(),
+                        "has_refresh_token": True,
                         "last_check": datetime.now().isoformat()
                     }
-            except Exception as e:
-                pass
-
-        return {
-            "status": STATUS_HEALTHY,
-            "message": "API keys configured (cannot test connectivity without full OAuth)",
-            "last_check": datetime.now().isoformat()
-        }
+                else:
+                    return {
+                        "status": STATUS_DOWN,
+                        "message": f"OAuth token expired {minutes_expired} minutes ago (no refresh token)",
+                        "token_expires": expires_dt.isoformat(),
+                        "has_refresh_token": False,
+                        "last_check": datetime.now().isoformat()
+                    }
+        except Exception as e:
+            return {
+                "status": STATUS_WARNING,
+                "message": f"Error reading token file: {str(e)}",
+                "last_check": datetime.now().isoformat()
+            }
 
     except Exception as e:
         return {

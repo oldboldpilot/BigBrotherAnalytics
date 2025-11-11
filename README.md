@@ -178,14 +178,13 @@ See [GETTING_STARTED.md](./GETTING_STARTED.md) for detailed instructions.
 
 **Morning (Pre-Market):**
 ```bash
-# Verify all systems (10-15 seconds)
-uv run python scripts/phase5_setup.py --quick
+# Single command - handles everything including automatic token refresh!
+uv run python scripts/phase5_setup.py --quick --start-all
 
-# Start dashboard
-uv run streamlit run dashboard/app.py
-
-# Start trading engine
-./build/bigbrother
+# OR: Start services manually
+uv run python scripts/phase5_setup.py --quick  # Verify + auto-refresh token
+uv run streamlit run dashboard/app.py          # Start dashboard
+./build/bigbrother                              # Start trading engine
 ```
 
 **Evening (Market Close):**
@@ -195,17 +194,20 @@ uv run python scripts/phase5_shutdown.py
 ```
 
 ### Phase 5 Features
-- ✅ **Unified Setup** - Single script replaces 10+ commands
+- ✅ **Unified Setup** - Single script with automatic OAuth token refresh (10-15 sec)
+- ✅ **Auto-Start Services** - One command starts dashboard + trading engine
 - ✅ **Tax Tracking** - Married filing jointly ($300K base income, California)
   - Short-term: 37.1% (24% federal + 9.3% CA + 3.8% Medicare)
   - Long-term: 28.1% (15% federal + 9.3% CA + 3.8% Medicare)
+  - Trading fees: 1.5% (accurate Schwab $0.65/contract rate)
   - YTD incremental tracking throughout 2025
 - ✅ **End-of-Day Automation** - Reports, tax calculation, database backup
 - ✅ **Paper Trading** - $100 position limit, 2-3 concurrent positions
 - ✅ **Manual Position Protection** - Bot never touches existing holdings
+- ✅ **Health Monitoring** - Token validation, system status checks
 
 ### Success Criteria
-- **Win Rate:** ≥55% (profitable after 37.1% tax + 3% fees)
+- **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
 - **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
@@ -228,12 +230,13 @@ See [docs/PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md) for complete setu
 **Tests:** 87/87 passed (100% success rate)
 
 ### Tax Tracking & Reporting
-- **3% trading fee** calculation on all transactions
+- **1.5% trading fee** calculation on all transactions (accurate Schwab rate)
 - Short-term (37.1%) vs long-term (28.1%) capital gains tax (California)
 - Wash sale detection (IRS 30-day rule)
 - After-tax P&L tracking and reporting
 - Tax efficiency metrics
 - Dashboard with P&L waterfall visualization
+- Automatic OAuth token refresh (no manual intervention)
 
 ### Architecture Implemented:
 

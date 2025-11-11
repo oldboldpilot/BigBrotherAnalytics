@@ -3,20 +3,30 @@
 Phase 5 Setup - Complete Paper Trading Initialization
 
 One script to handle all Phase 5 setup tasks:
-- OAuth token management
+- OAuth token management (with automatic refresh)
 - Tax configuration verification
 - Database initialization
 - System health checks
 - Schwab API connectivity testing
 - Dashboard readiness verification
+- Optional auto-start of dashboard and trading engine
+
+Features:
+- Automatic token refresh when expired (uses refresh_token)
+- Complete system verification in one command
+- Portable across Unix systems (auto-detects paths)
+- Color-coded status output
+- Comprehensive final report
 
 Author: Olumuyiwa Oluwasanmi
 Date: 2025-11-10
 
 Usage:
-    uv run python scripts/phase5_setup.py
-    uv run python scripts/phase5_setup.py --skip-oauth  # Skip OAuth check
-    uv run python scripts/phase5_setup.py --quick      # Quick check only
+    uv run python scripts/phase5_setup.py                    # Full setup
+    uv run python scripts/phase5_setup.py --skip-oauth       # Skip OAuth check
+    uv run python scripts/phase5_setup.py --quick            # Quick verification
+    uv run python scripts/phase5_setup.py --start-all        # Setup + auto-start services
+    uv run python scripts/phase5_setup.py --quick --start-all # Quick check + start services
 """
 
 import json
@@ -27,6 +37,10 @@ import argparse
 from pathlib import Path
 from datetime import datetime, timezone
 import subprocess
+import shutil
+import yaml
+import requests
+import base64
 
 # Color output
 class Colors:
@@ -86,6 +100,81 @@ class Phase5Setup:
         self.checks_failed = []
         self.warnings = []
 
+    def refresh_oauth_token(self):
+        """Refresh expired OAuth token using refresh_token"""
+        try:
+            # Load app configuration
+            app_config_file = self.base_dir / "configs" / "schwab_app_config.yaml"
+            token_file = self.base_dir / "configs" / "schwab_tokens.json"
+
+            if not app_config_file.exists():
+                print_error(f"App config not found: {app_config_file}")
+                return False
+
+            with open(app_config_file, 'r') as f:
+                app_config = yaml.safe_load(f)
+
+            app_key = app_config['app_key']
+            app_secret = app_config['app_secret']
+
+            # Load current tokens
+            with open(token_file, 'r') as f:
+                token_data = json.load(f)
+
+            refresh_token = token_data['token']['refresh_token']
+
+            print_info("Refreshing OAuth token...")
+
+            # Prepare refresh request
+            token_url = "https://api.schwabapi.com/v1/oauth/token"
+
+            # Create Basic Auth header
+            credentials = f"{app_key}:{app_secret}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+
+            headers = {
+                "Authorization": f"Basic {encoded_credentials}",
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token
+            }
+
+            # Make refresh request
+            response = requests.post(token_url, headers=headers, data=data, timeout=10)
+
+            if response.status_code == 200:
+                new_tokens = response.json()
+
+                # Update token file
+                token_data['creation_timestamp'] = int(datetime.now().timestamp())
+                token_data['token']['access_token'] = new_tokens['access_token']
+                token_data['token']['refresh_token'] = new_tokens['refresh_token']
+                token_data['token']['expires_in'] = new_tokens['expires_in']
+                token_data['token']['expires_at'] = int(datetime.now().timestamp()) + new_tokens['expires_in']
+
+                # Save updated tokens
+                with open(token_file, 'w') as f:
+                    json.dump(token_data, f, indent=4)
+
+                expires_dt = datetime.fromtimestamp(token_data['token']['expires_at'])
+                minutes_valid = new_tokens['expires_in'] // 60
+
+                print_success(f"Token refreshed! Valid for {minutes_valid} minutes")
+                print(f"      New expiration: {expires_dt}")
+                return True
+            else:
+                print_error(f"Token refresh failed (status {response.status_code})")
+                if response.text:
+                    print(f"      Response: {response.text[:200]}")
+                return False
+
+        except Exception as e:
+            print_error(f"Token refresh error: {e}")
+            return False
+
     def check_oauth_tokens(self):
         """Check OAuth token status and offer refresh"""
         print_header("Step 1: OAuth Token Management")
@@ -119,22 +208,22 @@ class Phase5Setup:
                 self.warnings.append("OAuth token expired")
 
                 if not self.skip_oauth:
-                    print_info("Attempting automatic token refresh...")
-                    # Check if refresh script exists
-                    refresh_script = Path("/tmp/refresh_schwab_token.py")
-                    if refresh_script.exists():
-                        success, output = run_command(
-                            f"cd {self.base_dir} && uv run python /tmp/refresh_schwab_token.py",
-                            "Token refresh"
-                        )
-                        if success:
-                            print_success("Token refreshed successfully")
-                            self.checks_passed.append("OAuth token refreshed")
-                            return True
-
-                    print_warning("Automatic refresh failed - manual refresh needed:")
-                    print(f"   uv run python scripts/run_schwab_oauth_interactive.py")
-                    return False
+                    # Attempt automatic token refresh
+                    if self.refresh_oauth_token():
+                        self.checks_passed.append("OAuth token refreshed automatically")
+                        # Re-check token after refresh
+                        with open(token_file) as f:
+                            tokens = json.load(f)
+                        access_exp = datetime.fromtimestamp(tokens['token']['expires_at'], tz=timezone.utc)
+                        now = datetime.now(timezone.utc)
+                        hours_left = (access_exp - now).total_seconds() / 3600
+                        print_success(f"Token now valid for {hours_left:.1f} hours")
+                        return True
+                    else:
+                        print_warning("Automatic refresh failed - manual refresh needed:")
+                        print_info("Run: uv run python scripts/run_schwab_oauth_interactive.py")
+                        self.checks_failed.append("Token refresh failed")
+                        return False
 
             # Check refresh token
             if 'refresh_token_expires_at' in tokens['token']:
@@ -582,14 +671,19 @@ Examples:
   uv run python scripts/phase5_setup.py --start-dashboard  # Setup + start dashboard only
 
 This script performs:
-  1. OAuth token management and verification
-  2. Tax configuration check (married filing jointly, $300K base)
+  1. OAuth token management and verification (with automatic refresh)
+  2. Tax configuration check (married filing jointly, $300K base, CA)
   3. Database initialization (tax tables)
   4. Paper trading configuration verification
   5. Schwab API connectivity test
   6. System component verification
   7. Comprehensive status report
   8. (Optional) Start dashboard and trading engine
+
+Token Management:
+  - Automatically refreshes expired access tokens using refresh_token
+  - No manual intervention needed for expired tokens (< 30 min validity)
+  - Warns if refresh token is expired (requires full re-authentication)
         """
     )
 
