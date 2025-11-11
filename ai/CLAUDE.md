@@ -42,6 +42,25 @@
 
 **Timeline:** Days 0-21 | **Started:** November 10, 2025
 
+### Quick Start (New System Deployment)
+
+**🚀 One-Command Bootstrap (Fresh Machine → Production Ready in 5-15 min):**
+```bash
+git clone <repo>
+cd BigBrotherAnalytics
+./scripts/bootstrap.sh
+
+# This single script:
+# 1. Checks prerequisites (ansible, uv, git)
+# 2. Runs ansible playbook (Clang 21, libc++, OpenMP, MPI, DuckDB)
+# 3. Compiles C++ project
+# 4. Sets up Python environment
+# 5. Initializes database and tax configuration
+# 6. Verifies everything is working
+```
+
+**Result:** Complete portability - works on any Unix system without hardcoded paths.
+
 ### Daily Workflow (CRITICAL: Use `uv run python` for ALL Python commands)
 
 **Morning (Pre-Market):**
@@ -51,16 +70,17 @@ cd /home/muyiwa/Development/BigBrotherAnalytics
 # Verify all systems (10-15 seconds)
 uv run python scripts/phase5_setup.py --quick
 
-# Start dashboard
-uv run streamlit run dashboard/app.py
+# OR: Verify + auto-start everything
+uv run python scripts/phase5_setup.py --quick --start-all
 
-# Start trading engine
+# Manual start (if not using --start-all):
+uv run streamlit run dashboard/app.py
 ./build/bigbrother
 ```
 
 **Evening (Market Close):**
 ```bash
-# Graceful shutdown + reports
+# Graceful shutdown + reports + backup
 uv run python scripts/phase5_shutdown.py
 ```
 

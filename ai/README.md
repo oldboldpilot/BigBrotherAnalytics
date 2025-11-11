@@ -8,7 +8,15 @@ This directory contains the AI agent orchestration system for structured, high-q
 
 The AI orchestration system coordinates multiple specialized AI agents to handle complex development tasks with consistency, quality, and automation.
 
-> **Latest Update (2025-11-10):** **Phase 5 ACTIVE - Paper Trading Validation (Days 0-21)**. System is 100% production ready with unified setup/shutdown automation, tax tracking (married filing jointly, CA, $300K base income, 37.1% ST / 28.1% LT), and complete Phase 4 hardening. All 20 autonomous agents across Phases 1-4 achieved 100% success rate. **Daily workflow: morning setup (10-15 sec), evening shutdown (graceful + reports)**. Paper trading limits: $100 position, 2-3 concurrent, ≥55% win rate target.
+> **Latest Update (2025-11-10):** **Phase 5 ACTIVE - Paper Trading Validation (Days 0-21)**. System is 100% production ready with:
+> - **Complete Portability:** One-command deployment via [bootstrap.sh](../scripts/bootstrap.sh) (fresh machine → production in 5-15 min)
+> - **Auto-detection:** Compilers, libraries, and paths detected automatically (works on any Unix system)
+> - **Tax Tracking:** California married filing jointly, $300K base income (37.1% ST / 28.1% LT effective rates)
+> - **Unified Setup/Shutdown:** Morning setup (10-15 sec), evening shutdown (graceful + reports + backup)
+> - **Process Management:** Auto-kills duplicate processes, prevents port conflicts
+> - **Security:** API keys removed from git, comprehensive .gitignore patterns
+> - **Paper Trading:** $100 position limit, 2-3 concurrent, ≥55% win rate target
+> - All 20 autonomous agents across Phases 1-4 achieved 100% success rate.
 
 ### Orchestration Hierarchy
 
@@ -520,26 +528,44 @@ wc -l ai/**/*.md ai/*.md | tail -1  # Should be ~5,200 lines
 
 ### 5. Using on Different Machines
 
-**Laptop/Workstation:**
+**Quick Deployment (Recommended):**
 ```bash
 git clone https://github.com/oldboldpilot/BigBrotherAnalytics.git
 cd BigBrotherAnalytics
 
-# AI agents work immediately - no installation needed
-# Just reference ai/PROMPTS/*.md when working with AI assistants
+# One-command deployment (5-15 minutes)
+./scripts/bootstrap.sh
+
+# Complete! System is production ready with:
+# - Clang 21 toolchain
+# - C++23 project compiled
+# - Python environment configured
+# - Database initialized
+# - Tax rates configured (California, married filing jointly, $300K)
 ```
 
-**Production Server:**
+**Manual Deployment:**
 ```bash
 git clone https://github.com/oldboldpilot/BigBrotherAnalytics.git
 cd BigBrotherAnalytics
 
-# 1. AI agents work immediately
+# 1. AI agents work immediately - no installation needed
+# Just reference ai/PROMPTS/*.md when working with AI assistants
+
 # 2. Install development environment:
 ansible-playbook playbooks/complete-tier1-setup.yml
 
-# 3. Start implementing with AI agents:
-#    "Please implement correlation engine using ai/PROMPTS/file_creator.md"
+# 3. Build C++ project (auto-detects compilers and libraries):
+mkdir build && cd build
+cmake -G Ninja ..
+ninja
+
+# 4. Setup Python environment:
+cd .. && uv sync
+
+# 5. Initialize database:
+uv run python scripts/monitoring/setup_tax_database.py
+uv run python scripts/monitoring/update_tax_rates_california.py
 ```
 
 **Team Collaboration:**
@@ -547,6 +573,7 @@ ansible-playbook playbooks/complete-tier1-setup.yml
 - Consistent code generation standards across team
 - Shared workflows for features and bug fixes
 - Version controlled AI instructions (in git)
+- Portable build system (works on any Unix system after `git clone`)
 
 ---
 
