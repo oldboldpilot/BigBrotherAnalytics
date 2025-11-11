@@ -202,7 +202,7 @@ def main():
         st.markdown("### Navigation")
         view = st.radio(
             "Select View",
-            ["Overview", "Positions", "P&L Analysis", "Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"]
+            ["Overview", "Positions", "Bot Tax Lots", "P&L Analysis", "Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"]
         )
 
         st.divider()
@@ -218,6 +218,8 @@ def main():
         show_overview()
     elif view == "Positions":
         show_positions()
+    elif view == "Bot Tax Lots":
+        show_bot_tax_lots()
     elif view == "P&L Analysis":
         show_pnl_analysis()
     elif view == "Employment Signals":
@@ -405,6 +407,317 @@ def show_positions():
             color_continuous_scale=['red', 'yellow', 'green']
         )
         st.plotly_chart(fig, use_container_width=True)
+
+def show_bot_tax_lots():
+    """Display bot-managed tax lots with LIFO/FIFO/Tax-optimized strategies"""
+    st.header("🤖 Bot Tax Lots - Position Tracking")
+    st.markdown("Individual purchase lots for bot-managed positions with tax lot selection strategies")
+
+    conn = get_db_connection()
+
+    # Load tax lots data
+    try:
+        open_lots_df = conn.execute("SELECT * FROM v_open_tax_lots").df()
+        closed_lots_df = conn.execute("SELECT * FROM v_closed_tax_lots").df()
+        summary_df = conn.execute("SELECT * FROM v_tax_lots_summary").df()
+    except Exception as e:
+        st.error(f"Error loading tax lots: {e}")
+        st.info("Run: `uv run python scripts/setup_tax_lots_table.py` to create the tax_lots table")
+        return
+
+    # Summary metrics
+    st.subheader("📊 Tax Lot Summary")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    total_open_lots = len(open_lots_df) if not open_lots_df.empty else 0
+    total_closed_lots = len(closed_lots_df) if not closed_lots_df.empty else 0
+    total_cost_basis = summary_df['total_cost_basis'].sum() if not summary_df.empty else 0
+    total_realized_pnl = closed_lots_df['realized_pnl'].sum() if not closed_lots_df.empty else 0
+
+    with col1:
+        st.metric("Open Lots", total_open_lots)
+
+    with col2:
+        st.metric("Closed Lots", total_closed_lots)
+
+    with col3:
+        st.metric("Total Cost Basis", f"${total_cost_basis:,.2f}")
+
+    with col4:
+        st.metric("Realized P&L", f"${total_realized_pnl:,.2f}")
+
+    st.divider()
+
+    # Tab view for Open vs Closed lots
+    tab1, tab2, tab3 = st.tabs(["📈 Open Tax Lots", "💰 Closed Tax Lots", "📋 Lot Selection Strategy"])
+
+    with tab1:
+        st.subheader("Open Tax Lots")
+
+        if open_lots_df.empty:
+            st.info("No open bot-managed tax lots. Lots will appear when the bot opens positions.")
+        else:
+            # Add color coding for holding period
+            open_lots_df['tax_status'] = open_lots_df['is_long_term'].apply(
+                lambda x: '🟢 Long-term (>365 days)' if x else '🔴 Short-term (<365 days)'
+            )
+
+            # Format display columns
+            display_df = open_lots_df[[
+                'display_name', 'asset_type', 'quantity', 'entry_price', 'entry_date',
+                'holding_period_days', 'days_to_expiration', 'tax_status', 'cost_basis', 'strategy'
+            ]].copy()
+
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                column_config={
+                    "display_name": "Position",
+                    "asset_type": "Type",
+                    "quantity": st.column_config.NumberColumn("Quantity", format="%.2f"),
+                    "entry_price": st.column_config.NumberColumn("Entry Price", format="$%.2f"),
+                    "entry_date": st.column_config.DatetimeColumn("Entry Date", format="MM/DD/YY HH:mm"),
+                    "holding_period_days": "Days Held",
+                    "days_to_expiration": "Days to Exp",
+                    "tax_status": "Tax Status",
+                    "cost_basis": st.column_config.NumberColumn("Cost Basis", format="$%.2f"),
+                    "strategy": "Strategy"
+                }
+            )
+
+            # Breakdown by strategy
+            st.subheader("Tax Lot Breakdown by Strategy")
+            if not summary_df.empty:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    fig = px.pie(
+                        summary_df,
+                        names='strategy',
+                        values='total_cost_basis',
+                        title='Cost Basis by Strategy'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+                with col2:
+                    fig = px.bar(
+                        summary_df,
+                        x='symbol',
+                        y='total_lots',
+                        color='strategy',
+                        title='Number of Lots by Symbol'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+    with tab2:
+        st.subheader("Closed Tax Lots (Realized Gains/Losses)")
+
+        if closed_lots_df.empty:
+            st.info("No closed tax lots yet. Lots will appear when the bot closes positions.")
+        else:
+            # Add tax implications
+            closed_lots_df['tax_rate_est'] = closed_lots_df['is_long_term'].apply(
+                lambda x: '15-20%' if x else '24-37%'
+            )
+
+            display_df = closed_lots_df[[
+                'display_name', 'asset_type', 'quantity', 'entry_price', 'close_price',
+                'entry_date', 'close_date', 'close_type', 'realized_pnl',
+                'holding_period_days', 'tax_treatment', 'tax_rate_est', 'strategy'
+            ]].copy()
+
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                column_config={
+                    "display_name": "Position",
+                    "asset_type": "Type",
+                    "quantity": st.column_config.NumberColumn("Quantity", format="%.2f"),
+                    "entry_price": st.column_config.NumberColumn("Entry $", format="$%.2f"),
+                    "close_price": st.column_config.NumberColumn("Close $", format="$%.2f"),
+                    "entry_date": st.column_config.DatetimeColumn("Entry", format="MM/DD/YY"),
+                    "close_date": st.column_config.DatetimeColumn("Close", format="MM/DD/YY"),
+                    "close_type": "Close Type",
+                    "realized_pnl": st.column_config.NumberColumn("Realized P&L", format="$%.2f"),
+                    "holding_period_days": "Days Held",
+                    "tax_treatment": "Tax Treatment",
+                    "tax_rate_est": "Est. Tax Rate",
+                    "strategy": "Strategy"
+                }
+            )
+
+            # Tax summary
+            st.subheader("Tax Summary")
+            short_term_gains = closed_lots_df[~closed_lots_df['is_long_term']]['realized_pnl'].sum()
+            long_term_gains = closed_lots_df[closed_lots_df['is_long_term']]['realized_pnl'].sum()
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Short-term Gains", f"${short_term_gains:,.2f}")
+                st.caption("Taxed as ordinary income (24-37%)")
+
+            with col2:
+                st.metric("Long-term Gains", f"${long_term_gains:,.2f}")
+                st.caption("Preferential tax rate (15-20%)")
+
+            with col3:
+                total_gains = short_term_gains + long_term_gains
+                st.metric("Total Realized", f"${total_gains:,.2f}")
+
+    with tab3:
+        st.subheader("📋 Tax Lot Selection Strategies")
+
+        st.markdown("""
+        When closing a position, the bot can select which specific tax lots to sell using different strategies:
+
+        ### 🔴 FIFO (First In, First Out)
+        - Sells oldest lots first
+        - **Use when:** You want to maximize long-term capital gains treatment (held >365 days)
+        - **Tax benefit:** Lower tax rate on long-term gains (15-20% vs 24-37%)
+        - **Example:** Sell 6,078 QS shares purchased 2 years ago before selling today's 50 shares
+
+        ### 🔵 LIFO (Last In, First Out)
+        - Sells newest lots first
+        - **Use when:** You want to avoid disturbing long-term holdings
+        - **Tax benefit:** Preserve low cost basis lots for future gains
+        - **Example:** Sell today's 50 QS shares, keep the 6,078 shares from 2 years ago
+
+        ### 🟢 Tax-Loss Harvesting (TLH)
+        - Sells lots with highest losses first
+        - **Use when:** You want to offset capital gains for tax purposes
+        - **Tax benefit:** Reduce taxable income by up to $3,000/year
+        - **Example:** If you have $5K in gains, sell lots with $5K losses to offset
+
+        ### 🟡 Highest Cost (HIFO)
+        - Sells lots with highest cost basis first
+        - **Use when:** Current price is lower than purchase price (loss)
+        - **Tax benefit:** Maximize capital losses for tax deduction
+        - **Example:** Sell shares purchased at $20 (when current price is $15) to realize $5 loss
+
+        ### 🟣 Lowest Cost (LOFO)
+        - Sells lots with lowest cost basis first
+        - **Use when:** Current price is higher than purchase price (gain)
+        - **Tax benefit:** Maximize capital gains (useful if you're in low tax bracket)
+        - **Example:** Sell shares purchased at $5 (when current price is $15) to realize $10 gain
+
+        ### ⚡ Bot Default: LIFO
+        The bot uses **LIFO by default** to:
+        - ✅ Automatically separate bot trades from your manual positions
+        - ✅ Close the most recent bot positions first
+        - ✅ Preserve your long-term holdings untouched
+        - ✅ Simplify tax reporting (bot trades are separate lots)
+        """)
+
+        st.divider()
+
+        # Interactive lot selection simulator
+        st.subheader("🧮 Lot Selection Simulator")
+
+        if not open_lots_df.empty:
+            # Group by symbol
+            symbols = open_lots_df['symbol'].unique()
+            selected_symbol = st.selectbox("Select Symbol", symbols)
+
+            symbol_lots = open_lots_df[open_lots_df['symbol'] == selected_symbol].copy()
+            total_qty = symbol_lots['quantity'].sum()
+
+            qty_to_sell = st.number_input(
+                f"Quantity to Sell (max: {total_qty:.2f})",
+                min_value=0.0,
+                max_value=float(total_qty),
+                value=min(float(total_qty), 10.0),
+                step=1.0
+            )
+
+            current_price = st.number_input("Current Price ($)", value=15.0, step=0.01)
+
+            if st.button("Simulate Lot Selection"):
+                st.markdown("---")
+
+                # FIFO simulation
+                fifo_lots = symbol_lots.sort_values('entry_date').copy()
+                remaining = qty_to_sell
+                fifo_selected = []
+                for _, lot in fifo_lots.iterrows():
+                    if remaining <= 0:
+                        break
+                    qty = min(remaining, lot['quantity'])
+                    fifo_selected.append({
+                        'method': 'FIFO',
+                        'entry_date': lot['entry_date'],
+                        'quantity': qty,
+                        'entry_price': lot['entry_price'],
+                        'current_price': current_price,
+                        'pnl': (current_price - lot['entry_price']) * qty,
+                        'days_held': lot['holding_period_days']
+                    })
+                    remaining -= qty
+
+                # LIFO simulation
+                lifo_lots = symbol_lots.sort_values('entry_date', ascending=False).copy()
+                remaining = qty_to_sell
+                lifo_selected = []
+                for _, lot in lifo_lots.iterrows():
+                    if remaining <= 0:
+                        break
+                    qty = min(remaining, lot['quantity'])
+                    lifo_selected.append({
+                        'method': 'LIFO',
+                        'entry_date': lot['entry_date'],
+                        'quantity': qty,
+                        'entry_price': lot['entry_price'],
+                        'current_price': current_price,
+                        'pnl': (current_price - lot['entry_price']) * qty,
+                        'days_held': lot['holding_period_days']
+                    })
+                    remaining -= qty
+
+                # HIFO simulation
+                hifo_lots = symbol_lots.sort_values('entry_price', ascending=False).copy()
+                remaining = qty_to_sell
+                hifo_selected = []
+                for _, lot in hifo_lots.iterrows():
+                    if remaining <= 0:
+                        break
+                    qty = min(remaining, lot['quantity'])
+                    hifo_selected.append({
+                        'method': 'HIFO',
+                        'entry_date': lot['entry_date'],
+                        'quantity': qty,
+                        'entry_price': lot['entry_price'],
+                        'current_price': current_price,
+                        'pnl': (current_price - lot['entry_price']) * qty,
+                        'days_held': lot['holding_period_days']
+                    })
+                    remaining -= qty
+
+                # Display comparison
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.markdown("### FIFO (First In, First Out)")
+                    fifo_df = pd.DataFrame(fifo_selected)
+                    if not fifo_df.empty:
+                        st.dataframe(fifo_df[['entry_date', 'quantity', 'entry_price', 'pnl', 'days_held']])
+                        st.metric("Total P&L", f"${fifo_df['pnl'].sum():,.2f}")
+
+                with col2:
+                    st.markdown("### LIFO (Last In, First Out)")
+                    lifo_df = pd.DataFrame(lifo_selected)
+                    if not lifo_df.empty:
+                        st.dataframe(lifo_df[['entry_date', 'quantity', 'entry_price', 'pnl', 'days_held']])
+                        st.metric("Total P&L", f"${lifo_df['pnl'].sum():,.2f}")
+
+                with col3:
+                    st.markdown("### HIFO (Highest Cost)")
+                    hifo_df = pd.DataFrame(hifo_selected)
+                    if not hifo_df.empty:
+                        st.dataframe(hifo_df[['entry_date', 'quantity', 'entry_price', 'pnl', 'days_held']])
+                        st.metric("Total P&L", f"${hifo_df['pnl'].sum():,.2f}")
+
+        else:
+            st.info("No open tax lots available for simulation. Add mock data or wait for bot to open positions.")
 
 def show_pnl_analysis():
     """Display Component 2: P&L Charts"""
