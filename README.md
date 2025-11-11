@@ -92,11 +92,11 @@ This project prioritizes thorough planning and iterative refinement. We will:
 
 ## Current Status
 
-**Status:** 🟢 **99% Production Ready** - Phase 4 Complete
-**Phase:** Production Hardening + Tax Tracking
+**Status:** 🟢 **100% Production Ready** - Phase 5 Ready to Launch
+**Phase:** Paper Trading Validation (Days 0-21)
 **Last Updated:** November 10, 2025
 
-**STATUS: READY FOR PAPER TRADING ✅**
+**STATUS: PHASE 5 ACTIVE - PAPER TRADING READY ✅**
 
 ### ✅ All Systems Complete (12/12)
 
@@ -153,6 +153,49 @@ env LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
 ```
 
 See [GETTING_STARTED.md](./GETTING_STARTED.md) for detailed instructions.
+
+## Phase 5: Paper Trading Validation (Active 🚀)
+
+**Timeline:** Days 0-21 | **Started:** November 10, 2025
+**Documentation:** [PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md)
+
+### Daily Workflow
+
+**Morning (Pre-Market):**
+```bash
+# Verify all systems (10-15 seconds)
+uv run python scripts/phase5_setup.py --quick
+
+# Start dashboard
+uv run streamlit run dashboard/app.py
+
+# Start trading engine
+./build/bigbrother
+```
+
+**Evening (Market Close):**
+```bash
+# Graceful shutdown + EOD reports
+uv run python scripts/phase5_shutdown.py
+```
+
+### Phase 5 Features
+- ✅ **Unified Setup** - Single script replaces 10+ commands
+- ✅ **Tax Tracking** - Married filing jointly ($300K base income)
+  - Short-term: 32.8% (24% federal + 5% state + 3.8% Medicare)
+  - Long-term: 23.8% (15% federal + 5% state + 3.8% Medicare)
+  - YTD incremental tracking throughout 2025
+- ✅ **End-of-Day Automation** - Reports, tax calculation, database backup
+- ✅ **Paper Trading** - $100 position limit, 2-3 concurrent positions
+- ✅ **Manual Position Protection** - Bot never touches existing holdings
+
+### Success Criteria
+- **Win Rate:** ≥55% (profitable after 32.8% tax + 3% fees)
+- **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
+- **Tax Accuracy:** Real-time YTD cumulative tracking
+- **Zero Manual Position Violations:** 100% protection
+
+See [docs/PHASE5_SETUP_GUIDE.md](./docs/PHASE5_SETUP_GUIDE.md) for complete setup instructions.
 
 ## Phase 4: Production Hardening (Complete ✅)
 
