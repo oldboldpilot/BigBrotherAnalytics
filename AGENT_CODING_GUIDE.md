@@ -995,6 +995,97 @@ CMake + Ninja handles this automatically, but be aware:
 3. Feature modules (sentiment, news) build last
 4. Python bindings build after all C++ modules
 
+### DuckDB Bridge Library Pattern (MANDATORY for C++23 Modules)
+
+**Problem**: DuckDB's C++ API contains incomplete types (e.g., `duckdb::QueryNode`) that break C++23 module compilation when used in template instantiations like `std::unique_ptr<QueryNode>`.
+
+**Solution**: Use the DuckDB bridge library (`src/schwab_api/duckdb_bridge.{hpp,cpp}`) which provides a clean opaque handle interface using DuckDB's C API.
+
+**When to Use**:
+- ANY C++23 module (.cppm file) that needs DuckDB access
+- NEVER include `<duckdb.hpp>` directly in modules
+- Similar pattern to OpenMP/MPI libraries
+
+**How to Use in C++23 Modules**:
+
+```cpp
+// In global module fragment
+module;
+
+#include <memory>
+#include <string>
+#include "schwab_api/duckdb_bridge.hpp"  // Include bridge, not duckdb.hpp
+
+export module my_module;
+
+export namespace myproject {
+
+using namespace bigbrother::duckdb_bridge;
+
+class MyDatabaseUser {
+private:
+    std::unique_ptr<DatabaseHandle> db_;
+    std::unique_ptr<ConnectionHandle> conn_;
+
+public:
+    auto connect(std::string const& path) -> void {
+        // Use bridge functions
+        db_ = openDatabase(path);
+        conn_ = createConnection(*db_);
+    }
+
+    auto query(std::string const& sql) -> bool {
+        return executeQuery(*conn_, sql);
+    }
+
+    auto insert(std::string const& table, std::string const& value) -> bool {
+        auto stmt = prepareStatement(*conn_,
+            "INSERT INTO " + table + " (col) VALUES (?)");
+        if (!stmt) return false;
+
+        bindString(*stmt, 1, value);
+        return executeStatement(*stmt);
+    }
+};
+
+} // namespace
+```
+
+**Bridge API Reference**:
+
+```cpp
+// Database operations
+auto openDatabase(std::string const& path) -> std::unique_ptr<DatabaseHandle>;
+auto createConnection(DatabaseHandle& db) -> std::unique_ptr<ConnectionHandle>;
+
+// Query operations
+auto executeQuery(ConnectionHandle& conn, std::string const& query) -> bool;
+auto prepareStatement(ConnectionHandle& conn, std::string const& query)
+    -> std::unique_ptr<PreparedStatementHandle>;
+
+// Prepared statement operations
+auto bindString(PreparedStatementHandle& stmt, int index, std::string const& value) -> bool;
+auto bindInt(PreparedStatementHandle& stmt, int index, int value) -> bool;
+auto bindDouble(PreparedStatementHandle& stmt, int index, double value) -> bool;
+auto bindInt64(PreparedStatementHandle& stmt, int index, int64_t value) -> bool;
+auto executeStatement(PreparedStatementHandle& stmt) -> bool;
+```
+
+**Technical Details**:
+- Bridge uses DuckDB C API (`#include <duckdb.h>`) not C++ API
+- Opaque handle types hide implementation (PIMPL idiom)
+- Zero runtime overhead compared to direct DuckDB usage
+- Static library linked before modules in build order
+
+**CMake Integration**:
+```cmake
+# Bridge library is automatically linked to schwab_api
+target_link_libraries(schwab_api PUBLIC duckdb_bridge)
+```
+
+**Future Modules**:
+If you create new modules that need DuckDB (like `resilient_database.cppm` or `orders_manager.cppm`), they MUST use this bridge pattern to avoid incomplete type errors.
+
 ## Documentation Requirements
 
 Every module should have:

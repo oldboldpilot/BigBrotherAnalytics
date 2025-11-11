@@ -438,6 +438,40 @@ module.cppm → BMI (.pcm) → object.o → linked executable
 importing.cpp uses BMI (fast)
 ```
 
+### DuckDB Bridge Library (MANDATORY for C++23 Modules)
+
+⚠️ **CRITICAL**: C++23 modules CANNOT include `<duckdb.hpp>` directly due to incomplete types (`duckdb::QueryNode`).
+
+**Solution**: Use the DuckDB bridge library at `src/schwab_api/duckdb_bridge.{hpp,cpp}`
+
+```cpp
+// In global module fragment
+module;
+#include "schwab_api/duckdb_bridge.hpp"  // ✅ Use bridge
+// #include <duckdb.hpp>                  // ❌ NEVER in modules
+
+export module my_module;
+
+using namespace bigbrother::duckdb_bridge;
+
+class MyClass {
+    std::unique_ptr<DatabaseHandle> db_;
+    std::unique_ptr<ConnectionHandle> conn_;
+
+    auto connect() -> void {
+        db_ = openDatabase("data/bigbrother.duckdb");
+        conn_ = createConnection(*db_);
+        executeQuery(*conn_, "CREATE TABLE IF NOT EXISTS ...");
+    }
+};
+```
+
+**Bridge API**: `openDatabase()`, `createConnection()`, `executeQuery()`, `prepareStatement()`, `bindString/Int/Double()`, `executeStatement()`
+
+**Why**: DuckDB C API avoids incomplete type instantiation errors. Similar pattern to OpenMP/MPI.
+
+**See**: `AGENT_CODING_GUIDE.md` for complete bridge API reference and examples.
+
 ### Complete Reference
 
 **See:** `docs/CPP23_MODULES_GUIDE.md` - Comprehensive 1000+ line guide covering:

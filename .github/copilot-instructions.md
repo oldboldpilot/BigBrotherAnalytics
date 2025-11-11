@@ -295,6 +295,40 @@ throw std::runtime_error("Error");  // Only for unrecoverable errors
 7. **RAII:** No raw new/delete - use smart pointers and containers
 8. **Documentation:** All public APIs must have doc comments
 
+### DuckDB Bridge Library (MANDATORY for C++23 Modules)
+
+⚠️ **CRITICAL:** C++23 modules CANNOT include `<duckdb.hpp>` due to incomplete types (`duckdb::QueryNode`).
+
+**✅ CORRECT - Use DuckDB Bridge:**
+```cpp
+// In global module fragment
+module;
+#include "schwab_api/duckdb_bridge.hpp"  // Use bridge library
+
+export module my_module;
+
+using namespace bigbrother::duckdb_bridge;
+
+class MyClass {
+    std::unique_ptr<DatabaseHandle> db_;
+    std::unique_ptr<ConnectionHandle> conn_;
+
+    auto connect() -> void {
+        db_ = openDatabase("data/bigbrother.duckdb");
+        conn_ = createConnection(*db_);
+    }
+};
+```
+
+**❌ WRONG - Never Include DuckDB Directly:**
+```cpp
+#include <duckdb.hpp>  // ❌ Causes incomplete type errors in modules
+```
+
+**Bridge Functions:** `openDatabase()`, `createConnection()`, `executeQuery()`, `prepareStatement()`, `bindString/Int/Double()`, `executeStatement()`
+
+**See:** `AGENT_CODING_GUIDE.md` for complete API reference and examples.
+
 ---
 
 ## 🔴 CRITICAL: Package Management - Use `uv` NOT pip
