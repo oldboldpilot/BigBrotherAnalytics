@@ -1,0 +1,256 @@
+/**
+ * BigBrotherAnalytics - DuckDB Bridge Implementation
+ *
+ * Uses DuckDB's C API to avoid C++ template instantiation issues with
+ * incomplete types (QueryNode). The C API is simpler and more stable.
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-11
+ */
+
+#include "duckdb_bridge.hpp"
+
+#include <cstring>
+#include <duckdb.h> // Use C API instead of C++ API
+#include <stdexcept>
+#include <string>
+
+namespace bigbrother::duckdb_bridge {
+
+// ============================================================================
+// DatabaseHandle Implementation (C API)
+// ============================================================================
+
+struct DatabaseHandle::Impl {
+    duckdb_database db{nullptr};
+
+    explicit Impl(std::string const& path) {
+        if (duckdb_open(path.c_str(), &db) == DuckDBError) {
+            throw std::runtime_error("Failed to open database: " + path);
+        }
+    }
+
+    ~Impl() {
+        if (db) {
+            duckdb_close(&db);
+        }
+    }
+
+    // Rule of Five
+    Impl(Impl const&) = delete;
+    auto operator=(Impl const&) -> Impl& = delete;
+    Impl(Impl&&) noexcept = delete;
+    auto operator=(Impl&&) noexcept -> Impl& = delete;
+};
+
+DatabaseHandle::DatabaseHandle() = default;
+
+DatabaseHandle::~DatabaseHandle() = default;
+
+auto DatabaseHandle::getImpl() -> void* {
+    return &pImpl_->db;
+}
+
+auto DatabaseHandle::getImpl() const -> void const* {
+    return &pImpl_->db;
+}
+
+// ============================================================================
+// ConnectionHandle Implementation (C API)
+// ============================================================================
+
+struct ConnectionHandle::Impl {
+    duckdb_connection conn{nullptr};
+
+    explicit Impl(duckdb_database db) {
+        if (duckdb_connect(db, &conn) == DuckDBError) {
+            throw std::runtime_error("Failed to create connection");
+        }
+    }
+
+    ~Impl() {
+        if (conn) {
+            duckdb_disconnect(&conn);
+        }
+    }
+
+    // Rule of Five
+    Impl(Impl const&) = delete;
+    auto operator=(Impl const&) -> Impl& = delete;
+    Impl(Impl&&) noexcept = delete;
+    auto operator=(Impl&&) noexcept -> Impl& = delete;
+};
+
+ConnectionHandle::ConnectionHandle(DatabaseHandle& db)
+    : pImpl_(std::make_unique<Impl>(*static_cast<duckdb_database*>(db.getImpl()))) {}
+
+ConnectionHandle::~ConnectionHandle() = default;
+
+auto ConnectionHandle::getImpl() -> void* {
+    return &pImpl_->conn;
+}
+
+auto ConnectionHandle::getImpl() const -> void const* {
+    return &pImpl_->conn;
+}
+
+// ============================================================================
+// PreparedStatementHandle Implementation (C API)
+// ============================================================================
+
+PreparedStatementHandle::~PreparedStatementHandle() {
+    if (pImpl_) {
+        auto* stmt = static_cast<duckdb_prepared_statement*>(pImpl_);
+        duckdb_destroy_prepare(stmt);
+        delete stmt;
+        pImpl_ = nullptr;
+    }
+}
+
+PreparedStatementHandle::PreparedStatementHandle(PreparedStatementHandle&& other) noexcept
+    : pImpl_(other.pImpl_) {
+    other.pImpl_ = nullptr;
+}
+
+auto PreparedStatementHandle::operator=(PreparedStatementHandle&& other) noexcept
+    -> PreparedStatementHandle& {
+    if (this != &other) {
+        if (pImpl_) {
+            auto* stmt = static_cast<duckdb_prepared_statement*>(pImpl_);
+            duckdb_destroy_prepare(stmt);
+            delete stmt;
+        }
+        pImpl_ = other.pImpl_;
+        other.pImpl_ = nullptr;
+    }
+    return *this;
+}
+
+auto PreparedStatementHandle::getImpl() -> void* {
+    return pImpl_;
+}
+
+auto PreparedStatementHandle::getImpl() const -> void const* {
+    return pImpl_;
+}
+
+auto PreparedStatementHandle::setImpl(void* impl) -> void {
+    pImpl_ = impl;
+}
+
+// ============================================================================
+// Bridge Functions (C API)
+// ============================================================================
+
+auto openDatabase(std::string const& path) -> std::unique_ptr<DatabaseHandle> {
+    auto handle = std::make_unique<DatabaseHandle>();
+    handle->pImpl_ = std::make_unique<DatabaseHandle::Impl>(path);
+    return handle;
+}
+
+auto createConnection(DatabaseHandle& db) -> std::unique_ptr<ConnectionHandle> {
+    return std::make_unique<ConnectionHandle>(db);
+}
+
+auto executeQuery(ConnectionHandle& conn, std::string const& query) -> bool {
+    try {
+        auto* duckdb_conn = static_cast<duckdb_connection*>(conn.getImpl());
+
+        duckdb_result result;
+        auto state = duckdb_query(*duckdb_conn, query.c_str(), &result);
+
+        bool success = (state == DuckDBSuccess);
+        duckdb_destroy_result(&result);
+
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+auto prepareStatement(ConnectionHandle& conn, std::string const& query)
+    -> std::unique_ptr<PreparedStatementHandle> {
+    try {
+        auto* duckdb_conn = static_cast<duckdb_connection*>(conn.getImpl());
+
+        auto* stmt = new duckdb_prepared_statement;
+        if (duckdb_prepare(*duckdb_conn, query.c_str(), stmt) == DuckDBError) {
+            delete stmt;
+            return nullptr;
+        }
+
+        auto handle = std::make_unique<PreparedStatementHandle>();
+        handle->setImpl(stmt);
+        return handle;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+auto bindString(PreparedStatementHandle& stmt, int index, std::string const& value) -> bool {
+    try {
+        auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
+        if (!duckdb_stmt)
+            return false;
+
+        return duckdb_bind_varchar(*duckdb_stmt, index, value.c_str()) == DuckDBSuccess;
+    } catch (...) {
+        return false;
+    }
+}
+
+auto bindInt(PreparedStatementHandle& stmt, int index, int value) -> bool {
+    try {
+        auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
+        if (!duckdb_stmt)
+            return false;
+
+        return duckdb_bind_int32(*duckdb_stmt, index, value) == DuckDBSuccess;
+    } catch (...) {
+        return false;
+    }
+}
+
+auto bindDouble(PreparedStatementHandle& stmt, int index, double value) -> bool {
+    try {
+        auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
+        if (!duckdb_stmt)
+            return false;
+
+        return duckdb_bind_double(*duckdb_stmt, index, value) == DuckDBSuccess;
+    } catch (...) {
+        return false;
+    }
+}
+
+auto bindInt64(PreparedStatementHandle& stmt, int index, int64_t value) -> bool {
+    try {
+        auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
+        if (!duckdb_stmt)
+            return false;
+
+        return duckdb_bind_int64(*duckdb_stmt, index, value) == DuckDBSuccess;
+    } catch (...) {
+        return false;
+    }
+}
+
+auto executeStatement(PreparedStatementHandle& stmt) -> bool {
+    try {
+        auto* duckdb_stmt = static_cast<duckdb_prepared_statement*>(stmt.getImpl());
+        if (!duckdb_stmt)
+            return false;
+
+        duckdb_result result;
+        auto state = duckdb_execute_prepared(*duckdb_stmt, &result);
+
+        bool success = (state == DuckDBSuccess);
+        duckdb_destroy_result(&result);
+
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+} // namespace bigbrother::duckdb_bridge

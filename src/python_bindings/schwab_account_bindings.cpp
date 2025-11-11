@@ -15,10 +15,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
-#include "../schwab_api/account_types.hpp"
-#include "../schwab_api/account_manager.hpp"
-#include "../schwab_api/position_tracker.hpp"
-#include "../schwab_api/portfolio_analyzer.hpp"
+
+// Import C++23 modules
+import account_types;
+import account_manager;
+import position_tracker;
+import portfolio_analyzer;
 
 namespace py = pybind11;
 using namespace bigbrother::schwab;
