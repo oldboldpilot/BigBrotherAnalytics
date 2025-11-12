@@ -1721,12 +1721,14 @@ def show_news_feed():
         # Use JAX-accelerated groupby if available (5-20x faster)
         if JAX_AVAILABLE:
             sentiment_by_symbol = fast_groupby_mean(news_df, 'symbol', 'sentiment_score')
+            # Rename column to match pandas aggregation
+            sentiment_by_symbol = sentiment_by_symbol.rename(columns={'sentiment_score': 'mean'})
             # Add count manually since JAX version only does mean
             counts = news_df.groupby('symbol').size().reset_index(name='count')
             sentiment_by_symbol = sentiment_by_symbol.merge(counts, on='symbol')
         else:
             sentiment_by_symbol = news_df.groupby('symbol')['sentiment_score'].agg(['mean', 'count']).reset_index()
-        sentiment_by_symbol = sentiment_by_symbol.sort_values('mean' if JAX_AVAILABLE else 'mean', ascending=False)
+        sentiment_by_symbol = sentiment_by_symbol.sort_values('mean', ascending=False)
 
         fig = px.bar(
             sentiment_by_symbol,
