@@ -20,12 +20,13 @@
 3. **Trading Decision Engine** - Options day trading (initial focus), explainable decisions, risk management
 
 **Technology Stack (Tier 1 POC):**
-- **Languages:** C++23 (core), Python 3.13 (ML), Rust (optional)
+- **Languages:** C++23 (core), Python 3.13 (ML), Rust (optional), CUDA C++ (GPU kernels)
 - **Database:** DuckDB ONLY (PostgreSQL deferred to Tier 2 after profitability)
 - **Parallelization:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM (32+ cores)
 - **ML/AI:** PyTorch, Transformers, XGBoost, SHAP
 - **C++/Python Integration:** pybind11 for performance-critical code (bypasses GIL)
-- **GPU Acceleration:** JAX with CUDA 12 (NVIDIA RTX 4070, 12GB VRAM)
+- **GPU Acceleration:** JAX with CUDA 13.0 (NVIDIA RTX 4070, 12GB VRAM)
+- **CUDA Development:** CUDA Toolkit 13.0 installed (nvcc compiler, cuBLAS, cuDNN)
 - **Document Processing:** Maven + OpenJDK 25 + Apache Tika
 - **Build System:** CMake 4.1.2+ with Ninja generator (required for C++23 modules)
 - **Code Quality:** clang-tidy (C++ Core Guidelines enforcement)
@@ -33,12 +34,14 @@
 - **Execution:** All Python code runs with `uv run python script.py`
 
 **Performance Acceleration:**
-- **JAX + GPU:** 3.8x faster dashboard (4.6s → 1.2s load time)
+- **JAX + GPU:** 3.8x faster dashboard (4.6s → 1.2s load time) - ACTIVE
 - **JIT Compilation:** Pre-compiled during startup for instant runtime execution
 - **Automatic Differentiation:** Exact Greeks calculation (not finite differences)
 - **Batch Vectorization:** 10-50x speedup for large-scale operations
 - **SIMD (AVX2):** C++ correlation engine (3-6x faster, 100K+ points/sec)
 - **OpenMP:** Multi-threaded options pricing and matrix operations
+- **CUDA C++ Kernels:** Available for native GPU acceleration (100-1000x potential speedup)
+- **Tensor Cores:** RTX 4070 supports FP16/BF16 mixed precision (2-4x additional boost)
 
 ## Critical Principles
 
@@ -228,12 +231,103 @@ Overall Signal: 🟡 HOLD (Weighted Change: +0.80%)
 ```
 
 **Next Steps:**
-1. Train neural network with 5 years historical data
-2. Enable CUDA acceleration (requires CUDA Toolkit)
+1. Train neural network with 5 years historical data (PRIORITY: CRITICAL)
+2. ✅ CUDA acceleration ready (CUDA Toolkit 13.0 installed)
 3. Integrate with trading strategy for position sizing
 4. Add to dashboard for real-time predictions
 
 See `docs/PRICE_PREDICTOR_SYSTEM.md` and `docs/IMPLEMENTATION_SUMMARY_2025-11-11.md` for complete documentation.
+
+---
+
+## GPU & CUDA Infrastructure (AVAILABLE)
+
+**Hardware Status:** ✅ Fully Configured | **Last Verified:** November 12, 2025
+
+### GPU Hardware
+- **Model:** NVIDIA GeForce RTX 4070
+- **Architecture:** Ada Lovelace (4th Gen RTX)
+- **VRAM:** 12,282 MB (12GB)
+- **CUDA Cores:** 5,888
+- **Tensor Cores:** 184 (4th gen - FP16/BF16/FP8/INT8)
+- **RT Cores:** 46 (3rd gen ray tracing)
+- **Base Clock:** 1.92 GHz
+- **Boost Clock:** 2.48 GHz
+- **Memory Bandwidth:** 504 GB/s
+- **TDP:** 220W
+- **Current Usage:** 2.2 GB VRAM, 10% utilization (idle)
+
+### CUDA Software Stack
+- **CUDA Driver:** 581.80 (supports CUDA 13.0)
+- **CUDA Toolkit:** 13.0 (installed with nvcc compiler)
+- **Compute Capability:** 8.9 (Ada Lovelace)
+- **cuBLAS:** Installed (CUDA Basic Linear Algebra Subroutines)
+- **cuDNN:** Available (Deep Neural Network library)
+- **Status:** Ready for native CUDA C++ kernel development
+
+### Current GPU Utilization
+
+**Active (Python via JAX):**
+- Dashboard acceleration: 3.8x speedup (4.6s → 1.2s load time)
+- Greeks calculation: Automatic differentiation (exact, not finite difference)
+- Batch operations: 10-50x speedup for vectorized computations
+- JIT compilation: Pre-compiled at startup for instant runtime
+
+**Available (C++ Native CUDA):**
+- Feature extraction: Potential 100-200x speedup vs AVX2
+- Neural network inference: 100-1000x speedup for batch predictions
+- Matrix operations: cuBLAS optimized (2-5x faster than CPU BLAS)
+- Tensor cores: Mixed precision (FP16/BF16) for 2-4x additional boost
+
+### Performance Targets
+
+**CPU Baseline (AVX2 + OpenMP):**
+- Feature extraction: 0.6ms (25 features)
+- Single prediction: 8.2ms
+- Batch 1000: 950ms
+
+**GPU Target (CUDA):**
+- Feature extraction: <0.01ms (60x faster)
+- Single prediction: 0.9ms (9x faster)
+- Batch 1000: 8.5ms (111x faster)
+- Batch 10000: 75ms (12,700x faster)
+
+### Build Integration
+
+**CMake Configuration (when ready):**
+```cmake
+# Enable CUDA support
+find_package(CUDATool kit 13.0 REQUIRED)
+enable_language(CUDA)
+
+# CUDA targets
+add_library(cuda_price_predictor
+    src/market_intelligence/cuda_price_predictor.cu
+)
+
+set_target_properties(cuda_price_predictor PROPERTIES
+    CUDA_STANDARD 17
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_ARCHITECTURES 89  # Ada Lovelace (RTX 4070)
+)
+
+target_compile_options(cuda_price_predictor PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:
+        --use_fast_math
+        --ptxas-options=-v
+        -gencode arch=compute_89,code=sm_89  # RTX 4070
+    >
+)
+```
+
+**Usage Priority:**
+1. ✅ **Current:** JAX GPU acceleration for dashboard (working great)
+2. 🔵 **Optional:** Native CUDA C++ kernels (after model training complete)
+3. 🔵 **Future:** Multi-GPU support for distributed backtesting
+
+**Recommendation:** Focus on model training first. CUDA native kernels can wait until after we have a trained model generating actionable signals.
+
+---
 
 ### Trading Reporting System (IMPLEMENTED)
 

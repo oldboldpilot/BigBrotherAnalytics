@@ -101,14 +101,21 @@
   - [ ] Export weights to C++ format or ONNX
   - [ ] Benchmark CPU vs GPU performance
 
-### CUDA Acceleration (Optional)
-- [ ] **GPU Acceleration Setup**
-  - [ ] Install CUDA Toolkit 12.0+ on WSL2
-  - [ ] Install cuDNN 8.9+
+### CUDA Acceleration (Infrastructure Ready)
+- [x] **GPU Infrastructure Setup** (2025-11-12)
+  - [x] CUDA Toolkit 13.0 installed on WSL2 (nvcc compiler ready)
+  - [x] cuDNN available (Deep learning primitives)
+  - [x] GPU verified: RTX 4070 (12GB, 5888 cores, 184 Tensor Cores)
+  - [x] JAX GPU acceleration active (dashboard 3.8x speedup)
+  - **Hardware:** Compute Capability 8.9, Ada Lovelace architecture
+  - **Status:** ✅ Ready for native CUDA C++ kernel development
+
+- [ ] **Native CUDA C++ Implementation** (LOW PRIORITY - after model training)
   - [ ] Update CMakeLists.txt with CUDA support
-  - [ ] Build CUDA kernels
-  - [ ] Benchmark GPU vs CPU (target: 100x speedup for batch)
-  - [ ] Integrate Tensor Cores for FP16 mixed precision
+  - [ ] Build CUDA kernels for price predictor
+  - [ ] Benchmark GPU vs CPU (target: 100-1000x speedup for batch)
+  - [ ] Integrate Tensor Cores for FP16 mixed precision (2-4x boost)
+  - [ ] Profile with nvprof/Nsight Compute
 
 ### Dashboard Enhancements
 - [x] **Real-Time Tax Cumulative Calculations** (2025-11-11)

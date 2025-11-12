@@ -97,6 +97,38 @@ uv run python scripts/phase5_shutdown.py
 
 ---
 
+## GPU & CUDA Infrastructure
+
+**Hardware:** NVIDIA GeForce RTX 4070 (12GB VRAM, 5888 CUDA cores, 184 Tensor Cores)
+**CUDA Version:** 13.0 (driver 581.80, toolkit installed with nvcc)
+**Compute Capability:** 8.9 (Ada Lovelace architecture)
+**Status:** ✅ Fully configured and operational
+
+### Current GPU Usage
+- **JAX Acceleration:** Dashboard performance (3.8x speedup: 4.6s → 1.2s)
+- **Auto-differentiation:** Greeks calculation (exact, not finite difference)
+- **Batch Operations:** 10-50x speedup for vectorized computations
+- **VRAM Usage:** 2.2GB / 12GB (18% - plenty of headroom)
+
+### Available for Development
+- **Native CUDA C++:** nvcc compiler ready for custom kernels
+- **cuBLAS:** Linear algebra operations (2-5x faster than CPU BLAS)
+- **cuDNN:** Deep learning primitives
+- **Tensor Cores:** FP16/BF16 mixed precision (2-4x boost on top of CUDA)
+- **Performance Target:** 100-1000x speedup for batch ML inference
+
+### Build Integration
+```cmake
+# Enable CUDA (when needed)
+find_package(CUDAToolkit 13.0 REQUIRED)
+enable_language(CUDA)
+set(CMAKE_CUDA_ARCHITECTURES 89)  # RTX 4070
+```
+
+**Priority:** Model training first, CUDA C++ optimization later (after trained model exists)
+
+---
+
 ## Project Architecture
 
 ### Core Components
