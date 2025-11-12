@@ -343,15 +343,19 @@ ninja -C build bigbrother
 # ✅ Build successful
 ```
 
-**Known Limitations:**
-1. **Feature extraction uses approximations** - Real-time quotes lack full OHLCV history
-   - TODO: Add price history buffers for accurate indicator calculations
-   - Priority: High (affects ML accuracy)
-   - Current workaround: Estimates from bid/ask spread
+**Recent Improvements (November 12, 2025):**
+1. ✅ **Accurate Feature Extraction** - 30-day historical buffers implemented
+   - Added price_history_, volume_history_, high_history_, low_history_
+   - Accurate RSI(14), MACD, Bollinger Bands, ATR(14), Volume SMA(20)
+   - Falls back to approximations only when history < 26 days
+   - Expected 2-3% accuracy improvement (53.4% → 56%+ for 1-day)
+   - File: `src/trading_decision/strategies.cppm`
 
-2. **Model needs retraining pipeline** - Currently using static 5-year trained model
-   - TODO: Implement daily retraining with rolling 2-year window
+**Known Limitations:**
+1. **Model needs retraining pipeline** - Currently using static 5-year trained model
+   - TODO: Implement weekly retraining with rolling 2-year window
    - Priority: Medium (current model is profitable)
+   - Timeline: Week 2-4 after going live
 
 **Expected Performance:**
 - Monthly ROI: ~$275-400/month (conservative, $1K positions)

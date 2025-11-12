@@ -16,9 +16,11 @@ module;
 
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -1209,7 +1211,14 @@ class MLPredictorStrategy : public IStrategy {
         std::vector<std::string> symbols = {"SPY", "QQQ", "IWM", "DIA"};
 
         for (auto const& symbol : symbols) {
-            // Extract features from market data
+            // Update price/volume history from current market data
+            auto quote_it = context.current_quotes.find(symbol);
+            if (quote_it != context.current_quotes.end()) {
+                auto const& quote = quote_it->second;
+                updateHistory(symbol, quote.last, quote.volume);
+            }
+
+            // Extract features from market data (will use historical buffers if available)
             auto features = extractFeatures(context, symbol);
             if (!features) {
                 continue;
@@ -1285,8 +1294,8 @@ class MLPredictorStrategy : public IStrategy {
     /**
      * Extract features from market data
      *
-     * TODO: Implement full feature extraction
-     * For now, returns stub data
+     * Uses historical price/volume buffers for accurate technical indicators.
+     * Falls back to approximations when insufficient history available.
      */
     [[nodiscard]] auto extractFeatures(StrategyContext const& context, std::string const& symbol)
         -> std::optional<bigbrother::market_intelligence::PriceFeatures> {
@@ -1299,58 +1308,130 @@ class MLPredictorStrategy : public IStrategy {
         }
 
         auto const& quote = quote_it->second;
-
-        // Extract data from schwab::Quote (has: bid, ask, last, volume)
-        bigbrother::market_intelligence::PriceFeatures features;
-
-        // Use available fields
         float const last_price = static_cast<float>(quote.last);
         float const bid_price = static_cast<float>(quote.bid);
         float const ask_price = static_cast<float>(quote.ask);
-        float const spread = ask_price - bid_price;
+        float const current_volume = static_cast<float>(quote.volume);
 
-        // OHLCV approximations (schwab::Quote doesn't have full OHLCV)
-        features.close = last_price;
-        features.open = last_price;  // Approximation
-        features.high = ask_price;   // Use ask as high approximation
-        features.low = bid_price;    // Use bid as low approximation
-        features.volume = static_cast<float>(quote.volume);
+        // Check if we have sufficient historical data (26 days for MACD)
+        auto price_hist_it = price_history_.find(symbol);
+        auto volume_hist_it = volume_history_.find(symbol);
 
-        // Returns - use bid/ask spread as volatility proxy
-        // TODO: Maintain price history for actual returns
-        float const volatility_estimate = spread / last_price;
-        features.return_1d = volatility_estimate * 0.5f;  // Rough estimate
-        features.return_5d = volatility_estimate * 2.0f;
-        features.return_20d = volatility_estimate * 5.0f;
+        bool const has_full_history =
+            price_hist_it != price_history_.end() &&
+            volume_hist_it != volume_history_.end() &&
+            price_hist_it->second.size() >= 26 &&
+            volume_hist_it->second.size() >= 20;
 
-        // Technical indicators (simplified without historical data)
-        float const price_range = spread;
-        float const price_position = (last_price - bid_price) / (spread + 0.0001f);
-        features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f;  // Centered around 50
+        bigbrother::market_intelligence::PriceFeatures features;
 
-        // MACD approximation
-        features.macd = volatility_estimate * last_price * 0.01f;
-        features.macd_signal = features.macd * 0.7f;
-        features.macd_histogram = features.macd - features.macd_signal;
+        if (has_full_history) {
+            // Use accurate feature extraction with historical data
+            auto const& price_hist = price_hist_it->second;
+            auto const& volume_hist = volume_hist_it->second;
 
-        // Bollinger Bands approximation
-        features.bb_middle = last_price;
-        features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
-        features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
-        features.bb_position = price_position;
+            // Convert deque to vector for span (most recent first)
+            std::vector<float> price_vec(price_hist.begin(), price_hist.end());
+            std::vector<float> volume_vec(volume_hist.begin(), volume_hist.end());
 
-        // ATR approximation (use spread as proxy)
-        features.atr_14 = price_range;
+            // Create spans
+            std::span<float const> price_span(price_vec);
+            std::span<float const> volume_span(volume_vec);
 
-        // Volume features (assume current volume is average)
-        features.volume_sma20 = features.volume;
-        features.volume_ratio = 1.0f;
+            // OHLCV data (use current quote + historical high/low if available)
+            features.close = last_price;
+            features.open = price_vec[0];  // Today's open (same as current in our model)
+            features.high = ask_price;     // Approximate from bid/ask
+            features.low = bid_price;
+            features.volume = current_volume;
 
-        // Extended features
-        features.momentum_5d = features.return_5d;
+            // Returns from historical prices
+            features.return_1d = (price_vec[0] - price_vec[1]) / price_vec[1];
+            if (price_vec.size() >= 6) {
+                features.return_5d = (price_vec[0] - price_vec[5]) / price_vec[5];
+            } else {
+                features.return_5d = features.return_1d * 5.0f;  // Approximation
+            }
+            if (price_vec.size() >= 21) {
+                features.return_20d = (price_vec[0] - price_vec[20]) / price_vec[20];
+            } else {
+                features.return_20d = features.return_1d * 20.0f;  // Approximation
+            }
 
-        Logger::getInstance().debug("Extracted features for {}: price={:.2f}, volume={:.0f}, spread={:.4f}",
-            symbol, last_price, features.volume, spread);
+            // Technical indicators using FeatureExtractor static methods
+            features.rsi_14 = bigbrother::market_intelligence::FeatureExtractor::calculateRSI(
+                price_span.subspan(0, std::min(size_t(14), price_vec.size())));
+
+            auto [macd, signal, hist] = bigbrother::market_intelligence::FeatureExtractor::calculateMACD(price_span);
+            features.macd = macd;
+            features.macd_signal = signal;
+            features.macd_histogram = hist;
+
+            auto [bb_upper, bb_middle, bb_lower] =
+                bigbrother::market_intelligence::FeatureExtractor::calculateBollingerBands(
+                    price_span.subspan(0, std::min(size_t(20), price_vec.size())));
+            features.bb_upper = bb_upper;
+            features.bb_middle = bb_middle;
+            features.bb_lower = bb_lower;
+            features.bb_position = (last_price - bb_lower) / (bb_upper - bb_lower + 0.0001f);
+
+            features.atr_14 = bigbrother::market_intelligence::FeatureExtractor::calculateATR(
+                price_span.subspan(0, std::min(size_t(14), price_vec.size())));
+
+            // Volume features - calculate SMA manually
+            float volume_sum = 0.0f;
+            size_t volume_count = std::min(size_t(20), volume_vec.size());
+            for (size_t i = 0; i < volume_count; ++i) {
+                volume_sum += volume_vec[i];
+            }
+            features.volume_sma20 = volume_sum / static_cast<float>(volume_count);
+            features.volume_ratio = current_volume / (features.volume_sma20 + 0.0001f);
+
+            // Extended features
+            features.momentum_5d = features.return_5d;
+
+            Logger::getInstance().debug(
+                "Extracted features (accurate) for {}: price={:.2f}, rsi={:.2f}, macd={:.4f}, history_size={}",
+                symbol, last_price, features.rsi_14, features.macd, price_vec.size());
+
+        } else {
+            // Fall back to approximations (first few days)
+            float const spread = ask_price - bid_price;
+            float const volatility_estimate = spread / last_price;
+            float const price_position = (last_price - bid_price) / (spread + 0.0001f);
+
+            // OHLCV approximations
+            features.close = last_price;
+            features.open = last_price;
+            features.high = ask_price;
+            features.low = bid_price;
+            features.volume = current_volume;
+
+            // Returns - use bid/ask spread as volatility proxy
+            features.return_1d = volatility_estimate * 0.5f;
+            features.return_5d = volatility_estimate * 2.0f;
+            features.return_20d = volatility_estimate * 5.0f;
+
+            // Technical indicators (simplified)
+            features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f;  // Centered around 50
+            features.macd = volatility_estimate * last_price * 0.01f;
+            features.macd_signal = features.macd * 0.7f;
+            features.macd_histogram = features.macd - features.macd_signal;
+            features.bb_middle = last_price;
+            features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
+            features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
+            features.bb_position = price_position;
+            features.atr_14 = spread;
+            features.volume_sma20 = current_volume;
+            features.volume_ratio = 1.0f;
+            features.momentum_5d = features.return_5d;
+
+            size_t hist_size = price_hist_it != price_history_.end() ?
+                price_hist_it->second.size() : 0;
+            Logger::getInstance().warn(
+                "Using approximate features for {} (insufficient history: {} days, need 26)",
+                symbol, hist_size);
+        }
 
         return features;
     }
@@ -1388,6 +1469,66 @@ class MLPredictorStrategy : public IStrategy {
             << "20d=" << (pred.day_20_change * 100) << "%";
         return oss.str();
     }
+
+    /**
+     * Update price and volume history for a symbol
+     *
+     * @param symbol Symbol to update
+     * @param price Current price (close/last)
+     * @param volume Current volume
+     * @param high Today's high (optional, defaults to price)
+     * @param low Today's low (optional, defaults to price)
+     */
+    auto updateHistory(
+        std::string const& symbol,
+        double price,
+        double volume,
+        double high = 0.0,
+        double low = 0.0) -> void {
+
+        // Initialize high/low if not provided
+        if (high == 0.0) high = price;
+        if (low == 0.0) low = price;
+
+        // Add to price history (keep last 30 days)
+        auto& price_hist = price_history_[symbol];
+        price_hist.push_front(static_cast<float>(price));
+        if (price_hist.size() > 30) {
+            price_hist.pop_back();
+        }
+
+        // Add to volume history (keep last 30 days)
+        auto& volume_hist = volume_history_[symbol];
+        volume_hist.push_front(static_cast<float>(volume));
+        if (volume_hist.size() > 30) {
+            volume_hist.pop_back();
+        }
+
+        // Add to high history
+        auto& high_hist = high_history_[symbol];
+        high_hist.push_front(static_cast<float>(high));
+        if (high_hist.size() > 30) {
+            high_hist.pop_back();
+        }
+
+        // Add to low history
+        auto& low_hist = low_history_[symbol];
+        low_hist.push_front(static_cast<float>(low));
+        if (low_hist.size() > 30) {
+            low_hist.pop_back();
+        }
+
+        Logger::getInstance().debug(
+            "Updated history for {}: price={:.2f}, volume={:.0f}, buffer_size={}",
+            symbol, price, volume, price_hist.size());
+    }
+
+  private:
+    // Price history buffers (30 days per symbol, most recent first)
+    std::unordered_map<std::string, std::deque<float>> price_history_;
+    std::unordered_map<std::string, std::deque<float>> volume_history_;
+    std::unordered_map<std::string, std::deque<float>> high_history_;
+    std::unordered_map<std::string, std::deque<float>> low_history_;
 };
 
 // ============================================================================
