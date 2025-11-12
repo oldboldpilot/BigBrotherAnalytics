@@ -90,7 +90,7 @@ uv run python scripts/phase5_setup.py --skip-oauth
 
 ### 4. Paper Trading Configuration ✅
 - Verifies paper trading enabled
-- Shows trading limits ($100 max position)
+- Shows trading limits ($2,000 max position)
 - Confirms conservative settings
 
 ### 4.5. Schwab Portfolio Sync ✅ (NEW)

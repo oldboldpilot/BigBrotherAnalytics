@@ -111,26 +111,32 @@
   - [ ] Integrate Tensor Cores for FP16 mixed precision
 
 ### Dashboard Enhancements
-- [ ] **Real-Time Tax Cumulative Calculations**
-  - [ ] Add YTD cumulative tax display
-  - [ ] Show tax liability by strategy
-  - [ ] Display effective tax rate
-  - [ ] Tax-adjusted returns view
-  - [ ] Wash sale tracking
-  - [ ] Tax lot LIFO/FIFO visualization
+- [x] **Real-Time Tax Cumulative Calculations** (2025-11-11)
+  - [x] Add YTD cumulative tax display
+  - [x] Show tax liability by strategy
+  - [x] Display effective tax rate
+  - [x] Tax-adjusted returns view
+  - [x] Wash sale tracking
+  - [x] Tax lot LIFO/FIFO visualization
+  - **File**: `dashboard/tax_tracking_view.py` (23KB, 650 lines)
+  - **Features**: 4 tabs (Overview, Tax Breakdown, Wash Sales, Strategy Analysis)
 
-- [ ] **FRED Rates Integration**
-  - [ ] Add Treasury rates widget to dashboard
-  - [ ] Display yield curve chart
-  - [ ] Show rate history and trends
-  - [ ] Auto-refresh from C++ backend
+- [x] **FRED Rates Integration** (2025-11-11)
+  - [x] Add Treasury rates widget to dashboard
+  - [x] Display yield curve chart
+  - [x] Show rate history and trends
+  - [x] Auto-refresh from C++ backend
+  - **Integration**: Added to `dashboard/app.py`
+  - **Features**: Live rates with 1-hour caching, yield curve, 2Y-10Y spread
 
-- [ ] **Price Predictions View**
-  - [ ] Multi-horizon forecast charts
-  - [ ] Confidence score visualization
-  - [ ] Trading signal indicators
-  - [ ] Symbol-specific predictions
-  - [ ] Batch prediction for watchlist
+- [x] **Price Predictions View** (2025-11-11)
+  - [x] Multi-horizon forecast charts (1-day, 5-day, 20-day)
+  - [x] Confidence score visualization
+  - [x] Trading signal indicators (STRONG_BUY → STRONG_SELL)
+  - [x] Symbol-specific predictions
+  - [x] Batch prediction for watchlist
+  - **File**: `dashboard/price_predictions_view.py` (22KB, 600+ lines)
+  - **Features**: 25 features, 4 tabs, neural network architecture
 
 ---
 
