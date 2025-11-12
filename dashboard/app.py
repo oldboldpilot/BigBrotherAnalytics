@@ -435,8 +435,8 @@ def show_fred_rates():
         )
 
         # Add horizontal gridlines
-        fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-        fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
 
         st.plotly_chart(fig, use_container_width=True)
 
