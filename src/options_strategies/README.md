@@ -1,9 +1,9 @@
 # Options Strategies Implementation Guide
 
-**Status:** Foundation + Tier 1 + Tier 2 Part 1 Complete
-**Completed:** 8 strategies (4 single leg + 4 vertical spreads)
-**Remaining:** 44 strategies across 6 files
-**Estimated Time:** 4-6 additional sessions
+**Status:** Foundation + Tier 1 + Tier 2 Complete
+**Completed:** 16 strategies (31% of total)
+**Remaining:** 36 strategies across 5 files
+**Estimated Time:** 3-4 additional sessions
 
 ---
 
@@ -14,9 +14,10 @@
 | base.cppm | 400 | ✅ Complete | Base classes & interfaces |
 | simd_utils.cppm | 590 | ✅ Complete | AVX2 Black-Scholes & All Greeks |
 | single_leg.cppm | 550 | ✅ Complete | 4 strategies (Tier 1) |
-| vertical_spreads.cppm | 740 | ✅ Complete | 4 vertical spread strategies (Tier 2) |
+| vertical_spreads.cppm | 740 | ✅ Complete | 4 vertical spreads (Tier 2.1) |
+| straddles_strangles.cppm | 1470 | ✅ Complete | 8 volatility strategies (Tier 2.2) |
 
-**Total:** 2,280 lines of production-ready C++23 code with AVX2 optimization
+**Total:** 3,750 lines of production-ready C++23 code with AVX2 optimization
 
 ---
 
