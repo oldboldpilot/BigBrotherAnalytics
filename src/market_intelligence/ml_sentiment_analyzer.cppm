@@ -42,10 +42,11 @@ export module bigbrother.market_intelligence.ml_sentiment;
 
 import bigbrother.utils.types;
 
+export namespace bigbrother::ml {
+
 using bigbrother::types::Error;
 using bigbrother::types::ErrorCode;
-
-export namespace bigbrother::ml {
+using bigbrother::types::Result;
 
 /**
  * ML sentiment analysis result

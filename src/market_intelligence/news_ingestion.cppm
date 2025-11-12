@@ -181,12 +181,12 @@ class NewsAPICollector {
         // Call API with circuit breaker protection
         try {
             // Wrap API call with circuit breaker
-            auto response = circuit_breaker_.call<json>([this, &url]() -> std::expected<json, std::string> {
+            auto response = circuit_breaker_.call<json>([this, &url]() -> Result<json> {
                 auto result = callNewsAPI(url);
 
-                // Convert Error to string for circuit breaker compatibility
+                // Return Result<json> directly (std::expected<json, Error>)
                 if (!result) {
-                    return std::unexpected(result.error().message);
+                    return std::unexpected(result.error());
                 }
 
                 return result.value();
@@ -196,7 +196,7 @@ class NewsAPICollector {
                 // Circuit breaker error or API error
                 return std::unexpected(
                     Error::make(ErrorCode::NetworkError,
-                                "Failed to fetch news from API: " + response.error()));
+                                "Failed to fetch news from API: " + response.error().message));
             }
 
             // Parse response

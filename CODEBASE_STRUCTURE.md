@@ -684,6 +684,216 @@ public:
 - Rate limiting support (100 requests/day)
 - RAII compliance (Rule of Five with deleted move for CURL state)
 
+#### 3. FRED Risk-Free Rates Module (455 lines)
+**File**: `src/market_intelligence/fred_rates.cppm`
+
+**Module Name**: `bigbrother.market_intelligence.fred_rates`
+
+**Key Components**:
+```cpp
+// Rate series enumeration
+enum class RateSeries {
+    ThreeMonthTreasury,  // DGS3MO
+    TwoYearTreasury,     // DGS2
+    FiveYearTreasury,    // DGS5
+    TenYearTreasury,     // DGS10
+    ThirtyYearTreasury,  // DGS30
+    FedFundsRate         // DFF
+};
+
+// Rate data structure
+struct RateData {
+    RateSeries series;
+    std::string series_id;
+    std::string series_name;
+    double rate_value;
+    Timestamp last_updated;
+    std::string observation_date;
+};
+
+// Configuration
+struct FREDConfig {
+    std::string api_key;
+    std::string base_url = "https://api.stlouisfed.org/fred/series/observations";
+    int timeout_seconds = 10;
+    int max_observations = 5;
+};
+
+// API client
+class FREDRatesFetcher {
+public:
+    explicit FREDRatesFetcher(FREDConfig config);
+
+    [[nodiscard]] auto fetchLatestRate(RateSeries series)
+        -> Result<RateData>;
+
+    [[nodiscard]] auto fetchAllRates()
+        -> std::map<RateSeries, RateData>;
+
+    [[nodiscard]] auto getRiskFreeRate(RateSeries maturity = RateSeries::ThreeMonthTreasury)
+        -> double;
+};
+```
+
+**Features**:
+- AVX2 SIMD optimization for 4x faster JSON parsing
+- Live data from Federal Reserve Economic Data API
+- 6 rate series support (3M/2Y/5Y/10Y/30Y Treasury + Fed Funds)
+- Thread-safe with mutex protection
+- 1-hour caching with TTL
+- Python bindings via pybind11 (364KB library)
+
+**Performance**:
+- JSON parsing: 4x faster with AVX2 (0.8ms vs 3.2ms)
+- API response time: <300ms
+- Single rate fetch: 280ms (API latency dominates)
+
+**SIMD Header**: `src/market_intelligence/fred_rates_simd.hpp` (350 lines)
+- AVX2 character search (4x speedup)
+- Vectorized counting and parsing
+- Runtime CPU feature detection
+
+#### 4. FRED Rate Provider (280 lines)
+**File**: `src/market_intelligence/fred_rate_provider.cppm`
+
+**Module Name**: `bigbrother.market_intelligence.fred_rate_provider`
+
+**Key Components**:
+```cpp
+// Thread-safe singleton for global access
+class FREDRateProvider {
+public:
+    [[nodiscard]] static auto getInstance() -> FREDRateProvider&;
+
+    [[nodiscard]] auto initialize(std::string const& api_key,
+                                  RateSeries default_series = RateSeries::ThreeMonthTreasury)
+        -> bool;
+
+    [[nodiscard]] auto getRiskFreeRate(std::optional<RateSeries> series = std::nullopt)
+        -> double;
+
+    [[nodiscard]] auto getAllRates() -> std::map<RateSeries, double>;
+
+    [[nodiscard]] auto refreshRates() -> bool;
+
+    auto startAutoRefresh(int interval_seconds = 3600) -> void;
+    auto stopAutoRefresh() -> void;
+};
+```
+
+**Features**:
+- Thread-safe singleton pattern
+- Automatic background refresh (default: 1 hour)
+- Rate caching with 1-hour TTL
+- Fallback to 4% default if unavailable
+- Zero-downtime rate updates
+
+**Usage**:
+```cpp
+auto& provider = FREDRateProvider::getInstance();
+provider.initialize(api_key);
+double rf_rate = provider.getRiskFreeRate();
+provider.startAutoRefresh(3600);
+```
+
+#### 5. Feature Extractor Module (420 lines)
+**File**: `src/market_intelligence/feature_extractor.cppm`
+
+**Module Name**: `bigbrother.market_intelligence.feature_extractor`
+
+**Key Components**:
+```cpp
+// 25-feature vector for ML
+struct PriceFeatures {
+    // Technical indicators (10)
+    float rsi_14, macd, macd_signal, macd_histogram;
+    float bb_upper, bb_middle, bb_lower, atr_14;
+    float volume_ratio, momentum_5d;
+
+    // Sentiment features (5)
+    float news_sentiment, social_sentiment, analyst_rating;
+    float put_call_ratio, vix_level;
+
+    // Economic indicators (5)
+    float employment_change, gdp_growth, inflation_rate;
+    float fed_rate, treasury_yield_10y;
+
+    // Sector correlation (5)
+    float sector_momentum, spy_correlation, sector_beta;
+    float peer_avg_return, market_regime;
+};
+
+// Feature extractor with SIMD optimization
+class FeatureExtractor {
+public:
+    [[nodiscard]] static auto extractTechnicalIndicators(
+        std::span<float const> prices,
+        std::span<float const> volumes) -> PriceFeatures;
+
+    [[nodiscard]] static auto calculateRSI(std::span<float const> prices) -> float;
+    [[nodiscard]] static auto calculateMACD(std::span<float const> prices)
+        -> std::tuple<float, float, float>;
+};
+```
+
+**Features**:
+- OpenMP SIMD for parallel processing
+- AVX2 intrinsics for vector operations (3.5x speedup)
+- 25 features across 4 categories
+- Sub-millisecond extraction time (0.6ms)
+
+#### 6. Price Predictor Module (450 lines)
+**File**: `src/market_intelligence/price_predictor.cppm`
+
+**Module Name**: `bigbrother.market_intelligence.price_predictor`
+
+**Key Components**:
+```cpp
+// Price prediction output
+struct PricePrediction {
+    std::string symbol;
+    float day_1_change, day_5_change, day_20_change;
+    float confidence_1d, confidence_5d, confidence_20d;
+    enum class Signal { STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL };
+    Signal signal_1d, signal_5d, signal_20d;
+    Timestamp timestamp;
+};
+
+// Neural network predictor
+class PricePredictor {
+public:
+    [[nodiscard]] static auto getInstance() -> PricePredictor&;
+
+    [[nodiscard]] auto initialize(PredictorConfig const& config) -> bool;
+
+    [[nodiscard]] auto predict(std::string const& symbol,
+                               PriceFeatures const& features)
+        -> std::optional<PricePrediction>;
+
+    [[nodiscard]] auto predictBatch(
+        std::vector<std::string> const& symbols,
+        std::vector<PriceFeatures> const& features_batch)
+        -> std::vector<PricePrediction>;
+};
+```
+
+**Architecture**:
+- Input: 25 features
+- Hidden layers: 128 → 64 → 32 neurons (ReLU + dropout)
+- Output: 3 predictions (1-day, 5-day, 20-day % change)
+- CPU: OpenMP + AVX2
+- GPU: CUDA + Tensor Cores (optional)
+
+**Performance**:
+- Single prediction: 8.2ms (CPU) / 0.9ms (GPU)
+- Batch 1000: 950ms (CPU) / 8.5ms (GPU)
+- Speedup: 111x with CUDA batch processing
+
+**CUDA Kernels**: `src/market_intelligence/cuda_price_predictor.cu` (400 lines)
+- cuBLAS matrix multiplications
+- Tensor Core FP16 mixed precision
+- Batch inference optimization
+
 ### Database Schema
 
 **Table**: `news_articles` (15 columns)

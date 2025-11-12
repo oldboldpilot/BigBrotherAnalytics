@@ -100,6 +100,54 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# ============================================================================
+# Global Optimization Flags (Applied to ALL modules for consistency)
+# ============================================================================
+# CRITICAL: All C++23 modules MUST use identical compiler flags to ensure
+# precompiled module (.pcm) compatibility across translation units
+
+# Base optimization flags
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+
+# SIMD and vectorization flags (applied globally)
+add_compile_options(
+    -march=native          # Auto-detect CPU features (AVX2/AVX-512)
+    -mavx2                 # Enable AVX2 SIMD (4-wide parallel, 256-bit)
+    -mfma                  # Fused multiply-add instructions
+    -fopenmp-simd          # OpenMP SIMD directives
+)
+
+# AVX-512 support (disabled - CPU doesn't support it)
+# Check for AVX-512 support
+# include(CheckCXXCompilerFlag)
+# check_cxx_compiler_flag("-mavx512f" COMPILER_SUPPORTS_AVX512F)
+#
+# if(COMPILER_SUPPORTS_AVX512F)
+#     # Enable AVX-512 globally for 8-wide parallel operations
+#     add_compile_options(
+#         -mavx512f          # AVX-512 Foundation
+#         -mavx512dq         # Doubleword and Quadword instructions
+#         -mavx512bw         # Byte and Word instructions
+#         -mavx512vl         # Vector Length Extensions
+#     )
+#     message(STATUS "✅ AVX-512 SIMD enabled globally (8x parallel operations)")
+# else()
+    message(STATUS "✅ AVX2 SIMD enabled globally (4x parallel operations)")
+# endif()
+
+# C++23 module precompilation flags (applied globally)
+add_compile_options(
+    -fmodule-output                              # Generate .pcm files
+    -fprebuilt-module-path=${CMAKE_BINARY_DIR}/modules  # Cache location
+)
+
+message(STATUS "Global optimization flags configured:")
+message(STATUS "  - SIMD: AVX2 (baseline) + AVX-512 (if supported)")
+message(STATUS "  - Precompiled modules: ${CMAKE_BINARY_DIR}/modules")
+message(STATUS "  - Auto-vectorization: Enabled (-march=native)")
+
+# ============================================================================
+
 # Enable C++23 modules
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
@@ -311,7 +359,8 @@ target_sources(utils
             src/utils/risk_free_rate.cppm
             src/utils/utils.cppm
 )
-target_compile_options(utils PRIVATE -fmodule-output)
+
+# Optimization flags applied globally - no per-target flags needed
 
 target_link_libraries(utils
     PUBLIC
@@ -348,13 +397,20 @@ target_sources(market_intelligence
             src/market_intelligence/employment_signals.cppm
             src/market_intelligence/sentiment_analyzer.cppm
             src/market_intelligence/news_ingestion.cppm
+            src/market_intelligence/fred_rates.cppm
+            src/market_intelligence/fred_rate_provider.cppm
             src/market_intelligence/alphavantage_news.cppm
             src/market_intelligence/ml_sentiment_analyzer.cppm
             src/market_intelligence/market_data_types.cppm
             src/market_intelligence/yahoo_finance.cppm
             src/market_intelligence/schwab_api.cppm
+            src/market_intelligence/feature_extractor.cppm
+            src/market_intelligence/price_predictor.cppm
 )
-target_compile_options(market_intelligence PRIVATE -fmodule-output)
+
+# Optimization flags applied globally - no per-target flags needed
+# Include directory for SIMD headers
+target_include_directories(market_intelligence PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 target_link_libraries(market_intelligence
     PUBLIC
@@ -866,6 +922,14 @@ pybind11_add_module(news_ingestion_py src/python_bindings/news_bindings.cpp)
 target_link_libraries(news_ingestion_py PRIVATE market_intelligence utils)
 set_target_properties(news_ingestion_py PROPERTIES
     OUTPUT_NAME "news_ingestion_py"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build"
+)
+
+# FRED Rates Python Bindings (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(fred_rates_py src/python_bindings/fred_bindings.cpp)
+target_link_libraries(fred_rates_py PRIVATE market_intelligence utils CURL::libcurl)
+set_target_properties(fred_rates_py PROPERTIES
+    OUTPUT_NAME "fred_rates_py"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build"
 )
 

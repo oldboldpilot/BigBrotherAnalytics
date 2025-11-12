@@ -73,6 +73,8 @@ uv run python scripts/phase5_shutdown.py
 - **[CODING_STANDARDS.md](../docs/CODING_STANDARDS.md)** - C++23 coding standards
 - **[NEWS_INGESTION_SYSTEM.md](../docs/NEWS_INGESTION_SYSTEM.md)** - News ingestion architecture and implementation
 - **[NEWS_INGESTION_QUICKSTART.md](../docs/NEWS_INGESTION_QUICKSTART.md)** - Quick start guide for news system
+- **[PRICE_PREDICTOR_SYSTEM.md](../docs/PRICE_PREDICTOR_SYSTEM.md)** - FRED rates + ML price predictor (800 lines)
+- **[IMPLEMENTATION_SUMMARY_2025-11-11.md](../docs/IMPLEMENTATION_SUMMARY_2025-11-11.md)** - FRED + Predictor delivery report
 
 ### Architecture Documents
 - **[employment_signals_architecture.md](../docs/employment_signals_architecture.md)** - Employment signal system design
