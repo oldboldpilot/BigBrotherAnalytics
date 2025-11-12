@@ -29,6 +29,9 @@ from pathlib import Path
 from datetime import datetime
 import sys
 
+# Import session state manager
+from session_state import SessionState
+
 # Color output
 class Colors:
     HEADER = '\033[95m'
@@ -64,6 +67,7 @@ class Phase5Shutdown:
         self.shutdown_time = datetime.now()
         self.processes_stopped = []
         self.processes_failed = []
+        self.session_state = SessionState(self.base_dir)
 
     def confirm_shutdown(self):
         """Ask user to confirm shutdown"""
@@ -83,43 +87,54 @@ class Phase5Shutdown:
         return response.lower() in ['yes', 'y']
 
     def find_processes(self):
-        """Find all Phase 5 related processes"""
+        """Find processes to shut down using session state"""
         print_header("Step 1: Identifying Running Processes")
 
-        process_patterns = [
-            ("bigbrother", "Trading Engine"),
-            ("streamlit", "Dashboard"),
-            ("news_ingestion", "News Ingestion"),
-            ("token_refresh_service", "Token Refresh Service"),
-            ("python.*phase5", "Phase 5 Scripts"),
-        ]
+        # Get categorized processes from session state
+        categorized = self.session_state.get_processes_to_shutdown()
 
-        found_processes = []
+        started_by_us = categorized['started_by_us']
+        pre_existing = categorized['pre_existing']
+        new_unknown = categorized['new_unknown']
 
-        for pattern, description in process_patterns:
-            matching_procs = []
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    cmdline = ' '.join(proc.info['cmdline'] or [])
-                    if pattern in cmdline or pattern in proc.info['name']:
-                        matching_procs.append({
-                            'pid': proc.info['pid'],
-                            'name': proc.info['name'],
-                            'cmdline': cmdline[:80],
-                            'description': description
-                        })
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+        processes_to_stop = []
 
-            if matching_procs:
-                print(f"\n{Colors.BOLD}{description}:{Colors.END}")
-                for proc in matching_procs:
-                    print(f"   PID {proc['pid']:6d} | {proc['name']:15s} | {proc['cmdline']}")
-                    found_processes.append(proc)
+        # Show processes we started (WILL shut down)
+        if started_by_us:
+            print(f"\n{Colors.GREEN}{Colors.BOLD}Processes Started By Us (will shutdown):{Colors.END}")
+            for proc in started_by_us:
+                print(f"   PID {proc['pid']:6d} | {proc['name']:15s} | {proc['description']}")
+                print(f"            {proc['cmdline']}")
+                processes_to_stop.append(proc)
+        else:
+            print_info("No processes were started by us this session")
+
+        # Show pre-existing processes (will NOT shut down)
+        if pre_existing:
+            print(f"\n{Colors.YELLOW}{Colors.BOLD}Pre-Existing Processes (skipping):{Colors.END}")
+            for proc in pre_existing:
+                print(f"   PID {proc['pid']:6d} | {proc['name']:15s} | {proc['description']}")
+                print(f"            (Running before session started - will not shut down)")
+
+        # Handle unknown processes (ask user)
+        if new_unknown:
+            print(f"\n{Colors.YELLOW}{Colors.BOLD}Unknown New Processes (not tracked):{Colors.END}")
+            for proc in new_unknown:
+                print(f"   PID {proc['pid']:6d} | {proc['name']:15s} | {proc['description']}")
+                print(f"            {proc['cmdline']}")
+
+            if not self.force:
+                print(f"\n{Colors.YELLOW}These processes were not started by setup script.{Colors.END}")
+                response = input(f"{Colors.YELLOW}Shut them down anyway? (yes/no): {Colors.END}")
+                if response.lower() in ['yes', 'y']:
+                    processes_to_stop.extend(new_unknown)
+                else:
+                    print_info("Skipping unknown processes")
             else:
-                print_info(f"No {description.lower()} processes found")
+                # In force mode, shut down unknown processes too
+                processes_to_stop.extend(new_unknown)
 
-        return found_processes
+        return processes_to_stop
 
     def stop_process(self, proc_info, timeout=10):
         """Stop a single process gracefully"""
@@ -379,6 +394,11 @@ class Phase5Shutdown:
         self.calculate_taxes()
         self.backup_database()
         self.cleanup_temp_files()
+
+        # Clear session state after successful shutdown
+        if len(self.processes_failed) == 0:
+            self.session_state.clear_session()
+            print_info("Session state cleared")
 
         return self.generate_shutdown_summary()
 

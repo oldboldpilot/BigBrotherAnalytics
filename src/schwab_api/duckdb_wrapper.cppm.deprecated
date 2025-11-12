@@ -1,0 +1,27 @@
+/**
+ * BigBrotherAnalytics - DuckDB Wrapper Module (C++23)
+ *
+ * Thin wrapper to export only the DuckDB types we need,
+ * avoiding incomplete type issues with C++23 modules.
+ *
+ * This module includes <duckdb.hpp> in its global fragment
+ * and exports only the complete types used by position_tracker
+ * and portfolio_analyzer.
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-11
+ */
+
+module;
+
+// Include DuckDB in global module fragment
+// This is safe here because we're creating a dedicated wrapper
+#include <duckdb.hpp>
+
+export module duckdb_wrapper;
+
+// Export the DuckDB namespace and types we actually use
+export namespace duckdb {
+    using ::duckdb::DuckDB;
+    using ::duckdb::Connection;
+}

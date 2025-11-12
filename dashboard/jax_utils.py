@@ -440,6 +440,94 @@ def calculate_sentiment_stats(news_df: pd.DataFrame) -> Dict[str, float]:
 
 
 # ============================================================================
+# Advanced: Large-Scale Batch Greeks Recalculation
+# ============================================================================
+
+def recalculate_greeks_batch(options_df: pd.DataFrame,
+                            spot_col: str = 'current_price',
+                            strike_col: str = 'strike_price',
+                            time_col: str = 'days_to_expiry',
+                            vol_col: str = 'implied_volatility',
+                            rate_col: str = 'risk_free_rate',
+                            type_col: str = 'option_type') -> pd.DataFrame:
+    """
+    Recalculate Greeks for all options using batch optimization (1000+ options)
+
+    This is useful for:
+    - Updating Greeks with latest market data
+    - What-if analysis with different parameters
+    - Verification of stored Greeks
+
+    Uses large-scale batch processing (up to 5000+ options at once).
+
+    Args:
+        options_df: DataFrame with option parameters
+        spot_col, strike_col, etc: Column names for parameters
+
+    Returns:
+        DataFrame with recalculated Greeks columns added
+    """
+    if options_df.empty:
+        return options_df
+
+    try:
+        # Import batch optimization
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        from jax_batch_optimization import price_options_adaptive_batch
+
+        # Extract parameters
+        spots = options_df[spot_col].values
+        strikes = options_df[strike_col].values
+
+        # Convert days to years
+        if 'days_to_expiry' in options_df.columns:
+            times = options_df['days_to_expiry'].values / 365.0
+        elif 'time_to_expiry' in options_df.columns:
+            times = options_df['time_to_expiry'].values
+        else:
+            # Fallback: calculate from expiration date
+            times = np.ones(len(options_df)) * 0.25  # Default 3 months
+
+        # Default volatility and rate if not available
+        if vol_col in options_df.columns:
+            vols = options_df[vol_col].values
+        else:
+            vols = np.ones(len(options_df)) * 0.30  # Default 30%
+
+        if rate_col in options_df.columns:
+            rates = options_df[rate_col].values
+        else:
+            rates = np.ones(len(options_df)) * 0.04  # Default 4%
+
+        # Option type
+        is_calls = (options_df[type_col].str.upper() == 'CALL').values
+
+        # Batch calculate Greeks
+        results = price_options_adaptive_batch(
+            spots, strikes, times, vols, rates, is_calls,
+            with_greeks=True
+        )
+
+        # Add to DataFrame (create new columns with '_calc' suffix to avoid overwriting)
+        result_df = options_df.copy()
+        result_df['calculated_price'] = results['prices']
+        result_df['calculated_delta'] = results['deltas']
+        result_df['calculated_gamma'] = results['gammas']
+        result_df['calculated_theta'] = results['thetas']
+        result_df['calculated_vega'] = results['vegas']
+        result_df['calculated_rho'] = results['rhos']
+
+        return result_df
+
+    except ImportError:
+        # Fallback: return original DataFrame
+        print("⚠️  Batch optimization not available for Greeks recalculation")
+        return options_df
+
+
+# ============================================================================
 # Utility Functions
 # ============================================================================
 
@@ -465,6 +553,16 @@ def warm_up_dashboard_jax():
 
     # Warm up time series
     _ = calculate_returns(dummy_arr)
+
+    # Warm up batch optimization if available
+    try:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        from jax_batch_optimization import warm_up_batch_functions
+        warm_up_batch_functions()
+    except ImportError:
+        pass  # Batch optimization not available
 
 
 # Pre-warm up on import

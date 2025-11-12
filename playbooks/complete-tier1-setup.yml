@@ -442,6 +442,28 @@
       args:
         creates: "/usr/local/lib/libduckdb.so"
 
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4.6: ONNX Runtime (ML Inference Engine)
+    # ═══════════════════════════════════════════════════════════
+    # Install ONNX Runtime for ML model inference (DistilRoBERTa sentiment analysis)
+    # Provides both CPU and GPU (CUDA) inference capabilities
+
+    - name: Install ONNX Runtime C++ library (Ubuntu)
+      apt:
+        name:
+          - libonnxruntime-dev        # C++ development headers
+          - libonnxruntime1.21         # Shared library
+        state: latest
+      when: ansible_os_family == "Debian"
+
+    - name: Install ONNX Runtime C++ library (RHEL)
+      dnf:
+        name:
+          - onnxruntime-devel          # C++ development headers
+        state: latest
+      when: ansible_os_family == "RedHat"
+      ignore_errors: yes  # May not be available in all repos
+
     - name: Create Berkeley components directory
       file:
         path: "{{ install_prefix }}"
@@ -802,7 +824,8 @@
           shap lime captum \
           vllm \
           spacy \
-          nltk
+          nltk \
+          onnx onnxruntime-gpu
       become_user: "{{ user }}"
 
     - name: Download spaCy English model

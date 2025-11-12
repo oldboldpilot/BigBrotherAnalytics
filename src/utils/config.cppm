@@ -125,71 +125,77 @@ class Config {
 
   private:
     // C.41: Private constructor for singleton
-    Config();
-    ~Config();
+    Config() = default;
+    ~Config() = default;
 
     // C.21: Allow move for implementation flexibility
     Config(Config&&) noexcept = default;
     auto operator=(Config&&) noexcept -> Config& = default;
-
-    // R.1: RAII - Implementation handles resource management
-    // NOTE: Using inline stub implementation (pImpl removed for now)
-    std::unordered_map<std::string, std::string> config_map_;
 };
-
-// Inline stub implementations (temporary until proper YAML config implemented)
-inline Config::Config() = default;
-inline Config::~Config() = default;
 
 inline auto Config::getInstance() noexcept -> Config& {
     static Config instance;
     return instance;
 }
 
+// TEMPORARY: Hardcoded config for Phase 5 testing
+// TODO: Fix C++23 modules + pImpl + templates properly later
+template <typename T>
+inline auto Config::get(std::string const& key, T const& default_value) const -> T {
+    // Hardcoded Schwab credentials for Phase 5
+    if constexpr (std::is_same_v<T, std::string>) {
+        if (key == "schwab.client_id") return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
+        if (key == "schwab.client_secret") return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
+        if (key == "schwab.redirect_uri") return "https://127.0.0.1:8182";
+        if (key == "schwab.token_file") return "configs/schwab_tokens.json";
+    }
+    return default_value;
+}
+
+template <typename T>
+inline auto Config::get(std::string const& key) const -> std::optional<T> {
+    // Hardcoded Schwab credentials for Phase 5
+    if constexpr (std::is_same_v<T, std::string>) {
+        if (key == "schwab.client_id") return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
+        if (key == "schwab.client_secret") return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
+        if (key == "schwab.redirect_uri") return "https://127.0.0.1:8182";
+        if (key == "schwab.token_file") return "configs/schwab_tokens.json";
+    }
+    return std::nullopt;
+}
+
+template <typename T>
+inline auto Config::set(std::string const& key, T&& value) -> void {
+    // Stub for now
+}
+
+// Non-template stub implementations (config hardcoded above)
 inline auto Config::load(std::string const& config_file_path) -> bool {
-    // Stub - returns true (config loading via Python/YAML later)
-    return true;
+    return true; // Config is hardcoded, so this is a no-op
 }
 
 inline auto Config::reload() -> bool {
     return true;
 }
 
-template <typename T>
-inline auto Config::get(std::string const& key, T const& default_value) const -> T {
-    // Stub - always returns default value for now
-    return default_value;
-}
-
-template <typename T>
-inline auto Config::get(std::string const& key) const -> std::optional<T> {
-    // Stub - always returns nullopt for now
-    return std::nullopt;
-}
-
 inline auto Config::has(std::string const& key) const noexcept -> bool {
-    return config_map_.find(key) != config_map_.end();
+    return false; // Not used in current code
 }
 
 inline auto Config::keys(std::string const& section) const -> std::vector<std::string> {
     return {};
 }
 
-template <typename T>
-inline auto Config::set(std::string const& key, T&& value) -> void {
-    // Stub implementation
-}
-
 inline auto Config::save(std::string const& config_file_path) const -> bool {
-    return true;
+    return false;
 }
 
 inline auto Config::clear() noexcept -> void {
-    config_map_.clear();
+    // No-op
 }
 
 inline auto Config::toString() const -> std::string {
-    return "{}";
+    return "{hardcoded config}";
 }
 
 /**

@@ -57,13 +57,15 @@ auto black_scholes_put(double spot, double strike, double volatility,
 }
 
 auto calculate_greeks(double spot, double strike, double volatility,
-                     double time_to_expiry, double risk_free_rate) -> Greeks {
+                     double time_to_expiry, double risk_free_rate,
+                     bool is_call = true, bool is_american = true,
+                     int steps = 100) -> Greeks {
     auto result = TrinomialTreeModel::greeks(
         spot, strike, risk_free_rate, time_to_expiry, volatility,
         0.0,  // dividend yield
-        true,  // call option
-        true,  // American style
-        100    // steps
+        is_call,
+        is_american,
+        steps
     );
 
     if (!result) {
@@ -154,13 +156,16 @@ PYBIND11_MODULE(bigbrother_options, m) {
           py::arg("spot"), py::arg("strike"), py::arg("volatility"),
           py::arg("time_to_expiry"), py::arg("risk_free_rate") = 0.041);
 
-    // Greeks calculation (GIL-FREE)
+    // Greeks calculation (GIL-FREE, OpenMP-accelerated)
     m.def("calculate_greeks",
-          [](double spot, double strike, double vol, double T, double r) {
+          [](double spot, double strike, double vol, double T, double r,
+             bool is_call, bool is_american, int steps) {
               py::gil_scoped_release release;  // GIL-FREE for multi-threading
-              return calculate_greeks(spot, strike, vol, T, r);
+              return calculate_greeks(spot, strike, vol, T, r, is_call, is_american, steps);
           },
-          "Calculate option Greeks (GIL-free, thread-safe)",
+          "Calculate option Greeks using OpenMP-accelerated trinomial tree (GIL-free, thread-safe)",
           py::arg("spot"), py::arg("strike"), py::arg("volatility"),
-          py::arg("time_to_expiry"), py::arg("risk_free_rate") = 0.041);
+          py::arg("time_to_expiry"), py::arg("risk_free_rate") = 0.041,
+          py::arg("is_call") = true, py::arg("is_american") = true,
+          py::arg("steps") = 100);
 }

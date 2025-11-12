@@ -35,6 +35,7 @@ module;
 #include <algorithm>
 #include <expected>
 #include <optional>
+#include <omp.h>
 
 // Module declaration
 export module bigbrother.pricing.trinomial_tree;
@@ -358,49 +359,90 @@ public:
 
         double const V = *price_result;
 
-        // Delta: ∂V/∂S (using finite difference)
-        double const dS = S * 0.01;  // 1% bump
-        auto price_up = price(S + dS, K, r, T, sigma, q, is_call, is_american, steps);
-        auto price_down = price(S - dS, K, r, T, sigma, q, is_call, is_american, steps);
+        // Perturbation sizes
+        double const dS = S * 0.01;  // 1% bump for Delta/Gamma
+        double const dT = std::min(T, 1.0 / 365.0);  // 1 day for Theta
+        double const dsigma = 0.01;  // 1% for Vega
+        double const dr = 0.01;  // 1% for Rho
 
-        if (!price_up || !price_down) {
-            return std::unexpected("Failed to calculate delta");
+        // Calculate all Greeks in parallel using OpenMP
+        // Each section computes one Greek independently
+        std::optional<double> price_up_opt, price_down_opt, price_later_opt,
+                             price_vol_up_opt, price_rate_up_opt;
+
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            {
+                // For Delta and Gamma: S + dS
+                auto result = price(S + dS, K, r, T, sigma, q, is_call, is_american, steps);
+                if (result) price_up_opt = *result;
+            }
+
+            #pragma omp section
+            {
+                // For Delta and Gamma: S - dS
+                auto result = price(S - dS, K, r, T, sigma, q, is_call, is_american, steps);
+                if (result) price_down_opt = *result;
+            }
+
+            #pragma omp section
+            {
+                // For Theta: T - dT (1 day earlier)
+                auto result = price(S, K, r, T - dT, sigma, q, is_call, is_american, steps);
+                if (result) price_later_opt = *result;
+            }
+
+            #pragma omp section
+            {
+                // For Vega: sigma + dsigma
+                auto result = price(S, K, r, T, sigma + dsigma, q, is_call, is_american, steps);
+                if (result) price_vol_up_opt = *result;
+            }
+
+            #pragma omp section
+            {
+                // For Rho: r + dr
+                auto result = price(S, K, r + dr, T, sigma, q, is_call, is_american, steps);
+                if (result) price_rate_up_opt = *result;
+            }
         }
 
-        double const delta = (*price_up - *price_down) / (2.0 * dS);
-
-        // Gamma: ∂²V/∂S²
-        double const gamma = (*price_up - 2.0 * V + *price_down) / (dS * dS);
-
-        // Theta: ∂V/∂t (use smaller time step)
-        double const dT = std::min(T, 1.0 / 365.0);  // 1 day
-        auto price_later = price(S, K, r, T - dT, sigma, q, is_call, is_american, steps);
-
-        if (!price_later) {
+        // Check all calculations succeeded
+        if (!price_up_opt || !price_down_opt) {
+            return std::unexpected("Failed to calculate delta/gamma");
+        }
+        if (!price_later_opt) {
             return std::unexpected("Failed to calculate theta");
         }
-
-        double const theta = (*price_later - V) / dT * (1.0 / 365.0);  // Per day
-
-        // Vega: ∂V/∂σ (per 1% change)
-        double const dsigma = 0.01;
-        auto price_vol_up = price(S, K, r, T, sigma + dsigma, q, is_call, is_american, steps);
-
-        if (!price_vol_up) {
+        if (!price_vol_up_opt) {
             return std::unexpected("Failed to calculate vega");
         }
-
-        double const vega = (*price_vol_up - V) / dsigma / 100.0;  // Per 1%
-
-        // Rho: ∂V/∂r (per 1% change)
-        double const dr = 0.01;
-        auto price_rate_up = price(S, K, r + dr, T, sigma, q, is_call, is_american, steps);
-
-        if (!price_rate_up) {
+        if (!price_rate_up_opt) {
             return std::unexpected("Failed to calculate rho");
         }
 
-        double const rho = (*price_rate_up - V) / dr / 100.0;  // Per 1%
+        // Compute Greeks from results
+        double const price_up = *price_up_opt;
+        double const price_down = *price_down_opt;
+        double const price_later = *price_later_opt;
+        double const price_vol_up = *price_vol_up_opt;
+        double const price_rate_up = *price_rate_up_opt;
+
+        // Delta: ∂V/∂S (central difference)
+        double const delta = (price_up - price_down) / (2.0 * dS);
+
+        // Gamma: ∂²V/∂S² (second-order central difference)
+        double const gamma = (price_up - 2.0 * V + price_down) / (dS * dS);
+
+        // Theta: ∂V/∂t (per day, negative because time decay)
+        double const theta = (price_later - V) / dT * (1.0 / 365.0);  // Per day
+
+        // Vega: ∂V/∂σ (per 1% change in volatility)
+        double const vega = (price_vol_up - V) / dsigma / 100.0;  // Per 1%
+
+        // Rho: ∂V/∂r (per 1% change in interest rate)
+        double const rho = (price_rate_up - V) / dr / 100.0;  // Per 1%
 
         return Greeks{delta, gamma, theta, vega, rho};
     }

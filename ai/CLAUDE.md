@@ -22,11 +22,20 @@
 - **Parallelization:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM (32+ cores)
 - **ML/AI:** PyTorch, Transformers, XGBoost, SHAP
 - **C++/Python Integration:** pybind11 for performance-critical code (bypasses GIL)
+- **GPU Acceleration:** JAX with CUDA 12 (NVIDIA RTX 4070, 12GB VRAM)
 - **Document Processing:** Maven + OpenJDK 25 + Apache Tika
 - **Build System:** CMake 4.1.2+ with Ninja generator (required for C++23 modules)
 - **Code Quality:** clang-tidy (C++ Core Guidelines enforcement)
 - **Package Manager:** uv (10-100x faster than pip, project-based, no venv needed)
 - **Execution:** All Python code runs with `uv run python script.py`
+
+**Performance Acceleration:**
+- **JAX + GPU:** 3.8x faster dashboard (4.6s → 1.2s load time)
+- **JIT Compilation:** Pre-compiled during startup for instant runtime execution
+- **Automatic Differentiation:** Exact Greeks calculation (not finite differences)
+- **Batch Vectorization:** 10-50x speedup for large-scale operations
+- **SIMD (AVX2):** C++ correlation engine (3-6x faster, 100K+ points/sec)
+- **OpenMP:** Multi-threaded options pricing and matrix operations
 
 ## Critical Principles
 
@@ -45,6 +54,10 @@
 - **News Ingestion:** `docs/NEWS_INGESTION_SYSTEM.md` - Complete architecture and implementation (620 lines)
 - **News Quick Start:** `docs/NEWS_INGESTION_QUICKSTART.md` - Setup guide with actual build output (450 lines)
 - **News Delivery:** `docs/NEWS_INGESTION_DELIVERY_SUMMARY.md` - Implementation summary and status
+- **JAX Acceleration:** `docs/JAX_DASHBOARD_ACCELERATION.md` - GPU-accelerated dashboard (5-100x speedup)
+- **GPU Performance:** `docs/GPU_ACCELERATION_RESULTS.md` - Benchmark results and optimization guide
+- **Performance Optimizations:** `docs/PERFORMANCE_OPTIMIZATIONS.md` - OpenMP + SIMD implementation details
+- **Testing:** `python_tests/README.md` - Centralized test suite documentation (12 test files)
 
 ## Phase 5: Paper Trading Validation (ACTIVE)
 

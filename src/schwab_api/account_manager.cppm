@@ -32,13 +32,10 @@ module;
 #include <curl/curl.h>
 // TODO: Re-enable when DuckDB API updated
 // #include <duckdb.hpp>
-// C++23 modules: Use std::format instead of fmt for spdlog
-#define SPDLOG_USE_STD_FORMAT
-#include <spdlog/spdlog.h>
-
 export module bigbrother.schwab.account_manager;
 
 // Import other modules
+import bigbrother.utils.logger;
 import bigbrother.schwab.account_types;
 import bigbrother.schwab_api;  // For TokenManager
 
@@ -706,7 +703,7 @@ class AccountManagerImpl {
         // db_ = std::make_unique<duckdb::DuckDB>(db_path_);
         // conn_ = std::make_unique<duckdb::Connection>(*db_);
 
-        spdlog::info("AccountManager initialized with database: {}", db_path_);
+        bigbrother::utils::Logger::getInstance().info("AccountManager initialized with database: {}", db_path_);
     }
 
     ~AccountManagerImpl() = default;
@@ -722,7 +719,7 @@ class AccountManagerImpl {
     // ========================================================================
 
     [[nodiscard]] auto getAccounts() -> Result<std::vector<Account>> {
-        spdlog::info("Fetching all accounts from Schwab API");
+        bigbrother::utils::Logger::getInstance().info("Fetching all accounts from Schwab API");
 
         // Get access token
         auto token_result = token_mgr_->getAccessToken();
@@ -753,7 +750,7 @@ class AccountManagerImpl {
                     auto account = parseAccountFromJson(account_data["securitiesAccount"]);
                     if (account) {
                         accounts.push_back(*account);
-                        spdlog::info("Found account: {} ({})", account->account_id,
+                        bigbrother::utils::Logger::getInstance().info("Found account: {} ({})", account->account_id,
                                      account->account_type);
                     }
                 }
@@ -771,7 +768,7 @@ class AccountManagerImpl {
     }
 
     [[nodiscard]] auto getAccount(std::string const& account_id) -> Result<Account> {
-        spdlog::info("Fetching account details for: {}", account_id);
+        bigbrother::utils::Logger::getInstance().info("Fetching account details for: {}", account_id);
 
         // Get access token
         auto token_result = token_mgr_->getAccessToken();
@@ -818,7 +815,7 @@ class AccountManagerImpl {
     [[nodiscard]] auto getPositions(std::string const& account_id)
         -> Result<std::vector<Position>> {
 
-        spdlog::info("Fetching positions for account: {}", account_id);
+        bigbrother::utils::Logger::getInstance().info("Fetching positions for account: {}", account_id);
 
         // Get access token
         auto token_result = token_mgr_->getAccessToken();
@@ -859,7 +856,7 @@ class AccountManagerImpl {
                 }
             }
 
-            spdlog::info("Fetched {} positions", positions.size());
+            bigbrother::utils::Logger::getInstance().info("Fetched {} positions", positions.size());
 
             return positions;
 
@@ -873,8 +870,8 @@ class AccountManagerImpl {
     // ========================================================================
 
     auto classifyExistingPositions(std::string const& account_id) -> Result<void> {
-        spdlog::info("=== POSITION CLASSIFICATION START ===");
-        spdlog::info("Classifying positions for account: {}", account_id);
+        bigbrother::utils::Logger::getInstance().info("=== POSITION CLASSIFICATION START ===");
+        bigbrother::utils::Logger::getInstance().info("Classifying positions for account: {}", account_id);
 
         // 1. Fetch all positions from Schwab API
         auto schwab_positions_result = getPositions(account_id);
@@ -903,7 +900,7 @@ class AccountManagerImpl {
                 // Insert into database as MANUAL
                 // insertPositionToDB(pos); // TODO: Re-implement with current DuckDB API
 
-                spdlog::warn("CLASSIFIED {} as MANUAL (pre-existing position)", pos.symbol);
+                bigbrother::utils::Logger::getInstance().warn("CLASSIFIED {} as MANUAL (pre-existing position)", pos.symbol);
                 manual_count++;
             } else {
                 // Position exists in our DB - keep existing classification
@@ -917,21 +914,21 @@ class AccountManagerImpl {
                 // updatePositionInDB(pos); // TODO: Re-implement with current DuckDB API
 
                 if (pos.isBotManaged()) {
-                    spdlog::info("Position {} is BOT-managed ({})", pos.symbol, pos.bot_strategy);
+                    bigbrother::utils::Logger::getInstance().info("Position {} is BOT-managed ({})", pos.symbol, pos.bot_strategy);
                     bot_count++;
                 } else {
-                    spdlog::info("Position {} is MANUAL", pos.symbol);
+                    bigbrother::utils::Logger::getInstance().info("Position {} is MANUAL", pos.symbol);
                     manual_count++;
                 }
             }
         }
 
         // 3. Log summary
-        spdlog::info("=== POSITION CLASSIFICATION COMPLETE ===");
-        spdlog::info("  Manual positions: {} (DO NOT TOUCH)", manual_count);
-        spdlog::info("  Bot-managed positions: {} (can trade)", bot_count);
-        spdlog::info("  Total positions: {}", schwab_positions.size());
-        spdlog::info("========================================");
+        bigbrother::utils::Logger::getInstance().info("=== POSITION CLASSIFICATION COMPLETE ===");
+        bigbrother::utils::Logger::getInstance().info("  Manual positions: {} (DO NOT TOUCH)", manual_count);
+        bigbrother::utils::Logger::getInstance().info("  Bot-managed positions: {} (can trade)", bot_count);
+        bigbrother::utils::Logger::getInstance().info("  Total positions: {}", schwab_positions.size());
+        bigbrother::utils::Logger::getInstance().info("========================================");
 
         return {};
     }
@@ -941,7 +938,7 @@ class AccountManagerImpl {
     // ========================================================================
 
     [[nodiscard]] auto getBalances(std::string const& account_id) -> Result<Balance> {
-        spdlog::info("Fetching balances for account: {}", account_id);
+        bigbrother::utils::Logger::getInstance().info("Fetching balances for account: {}", account_id);
 
         // Get access token
         auto token_result = token_mgr_->getAccessToken();
@@ -992,7 +989,7 @@ class AccountManagerImpl {
                                        std::string const& end_date)
         -> Result<std::vector<Transaction>> {
 
-        spdlog::info("Fetching transactions for account: {} ({} to {})", account_id, start_date,
+        bigbrother::utils::Logger::getInstance().info("Fetching transactions for account: {} ({} to {})", account_id, start_date,
                      end_date);
 
         // Get access token
@@ -1038,7 +1035,7 @@ class AccountManagerImpl {
                 }
             }
 
-            spdlog::info("Fetched {} transactions", transactions.size());
+            bigbrother::utils::Logger::getInstance().info("Fetched {} transactions", transactions.size());
 
             return transactions;
 
@@ -1064,7 +1061,7 @@ class AccountManagerImpl {
 
         // If not in cache, return the account_id
         // In production, you would fetch accounts first
-        spdlog::warn("Account hash not cached for {}, using account_id", account_id);
+        bigbrother::utils::Logger::getInstance().warn("Account hash not cached for {}, using account_id", account_id);
         return account_id;
     }
     // ========================================================================

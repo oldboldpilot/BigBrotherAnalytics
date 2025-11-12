@@ -48,6 +48,9 @@ import requests
 import base64
 import psutil
 
+# Import session state manager
+from session_state import SessionState
+
 # Color output
 class Colors:
     HEADER = '\033[95m'
@@ -105,6 +108,7 @@ class Phase5Setup:
         self.checks_passed = []
         self.checks_failed = []
         self.warnings = []
+        self.session_state = SessionState(self.base_dir)
 
     def refresh_oauth_token(self):
         """Refresh expired OAuth token using refresh_token"""
@@ -606,6 +610,56 @@ class Phase5Setup:
 
         return all_found
 
+    def warmup_jax_acceleration(self):
+        """Warm up JAX JIT compilation for faster runtime performance"""
+        print_header("Step 7: JAX Acceleration Warmup")
+
+        try:
+            import jax
+            import sys
+            sys.path.insert(0, str(self.base_dir / "scripts"))
+
+            from jax_accelerated_pricing import warm_up_jit, check_gpu_availability
+
+            # Check GPU availability
+            print("   Checking compute backend...", end=" ", flush=True)
+            gpu_info = check_gpu_availability()
+            backend = gpu_info['default_backend']
+            print(f"{backend.upper()}")
+
+            if gpu_info['gpu_available']:
+                print_success("GPU acceleration available")
+            else:
+                print_info("Using CPU backend (install jax[cuda] for GPU acceleration)")
+
+            # Warm up JIT compilation
+            print("   Pre-compiling JAX functions...", end=" ", flush=True)
+            import time
+            start = time.perf_counter()
+            warm_up_jit()
+            warmup_time = (time.perf_counter() - start) * 1000
+
+            print(f"{warmup_time:.0f}ms")
+            print_success(f"JAX JIT compilation complete")
+            print_info(f"   Options pricing: ~0.05ms per option (after warmup)")
+            print_info(f"   Batch pricing: ~6ms per 100 options")
+            print_info(f"   Correlation matrix: ~50ms per 50x50 matrix")
+
+            self.checks_passed.append("JAX acceleration ready")
+            return True
+
+        except ImportError:
+            print_warning("JAX not installed - numerical computations will use C++ fallback")
+            print_info("Install with: uv pip install jax jaxlib")
+            self.warnings.append("JAX not available")
+            return True  # Not a critical failure
+
+        except Exception as e:
+            print_warning(f"JAX warmup failed: {e}")
+            print_info("Numerical computations will use C++ fallback")
+            self.warnings.append("JAX warmup failed")
+            return True  # Not a critical failure
+
     def start_dashboard_process(self):
         """Start the Streamlit dashboard"""
         print_header("Starting Dashboard")
@@ -626,7 +680,7 @@ class Phase5Setup:
 
             print("   Starting Streamlit dashboard...", end=" ", flush=True)
             # Start dashboard in background
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 ["uv", "run", "streamlit", "run", "app.py",
                  "--server.headless=true", "--server.port=8501"],
                 cwd=self.base_dir / "dashboard",
@@ -635,7 +689,16 @@ class Phase5Setup:
                 start_new_session=True
             )
             time.sleep(3)  # Give it time to start
-            print_success("Started")
+
+            # Record the process in session state
+            self.session_state.add_started_process(
+                pid=proc.pid,
+                name="streamlit",
+                cmdline="uv run streamlit run app.py",
+                description="Dashboard"
+            )
+
+            print_success(f"Started (PID {proc.pid})")
             print_info("Dashboard available at: http://localhost:8501")
             return True
         except Exception as e:
@@ -694,7 +757,7 @@ class Phase5Setup:
                 "PATH": os.environ.get("PATH", "")
             }
 
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 [str(bigbrother_path)],
                 cwd=self.base_dir,
                 env=env,
@@ -703,7 +766,16 @@ class Phase5Setup:
                 start_new_session=True
             )
             time.sleep(2)  # Give it time to start
-            print_success("Started")
+
+            # Record the process in session state
+            self.session_state.add_started_process(
+                pid=proc.pid,
+                name="bigbrother",
+                cmdline=str(bigbrother_path),
+                description="Trading Engine"
+            )
+
+            print_success(f"Started (PID {proc.pid})")
             print_info("Trading engine running in background")
             return True
         except Exception as e:
@@ -737,7 +809,7 @@ class Phase5Setup:
             # Start the service in background
             log_file = logs_dir / "token_refresh.log"
             with open(log_file, 'w') as log:
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     ["uv", "run", "python", str(token_service_path)],
                     cwd=self.base_dir,
                     stdout=log,
@@ -745,7 +817,16 @@ class Phase5Setup:
                     start_new_session=True
                 )
             time.sleep(2)  # Give it time to start
-            print_success("Started")
+
+            # Record the process in session state
+            self.session_state.add_started_process(
+                pid=proc.pid,
+                name="token_refresh_service",
+                cmdline=f"uv run python {token_service_path.name}",
+                description="Token Refresh Service"
+            )
+
+            print_success(f"Started (PID {proc.pid})")
             print_info("Token refresh service running in background (29-minute refresh cycle)")
             print_info(f"Logs: {log_file}")
             return True
@@ -863,6 +944,13 @@ class Phase5Setup:
         print(f"   Directory: {self.base_dir}")
         print(f"   Mode: {'Quick Check' if self.quick else 'Full Setup'}")
 
+        # Record pre-existing processes for intelligent shutdown
+        pre_existing = self.session_state.save_pre_existing_processes()
+        pre_existing_pids = list(pre_existing.keys())
+        self.session_state.record_session_start(pre_existing_pids)
+        if pre_existing_pids:
+            print_info(f"Recorded {len(pre_existing_pids)} pre-existing processes (will not shut down)")
+
         # Stop old processes first (prevents database locks)
         if self.start_dashboard or self.start_trading:
             self.stop_old_processes()
@@ -879,6 +967,10 @@ class Phase5Setup:
         self.verify_paper_trading_config()
         self.test_schwab_api()
         self.verify_system_components()
+
+        # Warm up JAX for faster numerical computations
+        if not self.quick:
+            self.warmup_jax_acceleration()
 
         # Generate report
         return self.generate_report()

@@ -229,7 +229,7 @@ bool Config::reload() {
     return pImpl->reload();
 }
 
-bool Config::has(const std::string& key) const {
+bool Config::has(const std::string& key) const noexcept {
     return pImpl->has(key);
 }
 
@@ -241,123 +241,11 @@ bool Config::save(const std::string& config_file_path) const {
     return pImpl->save(config_file_path);
 }
 
-void Config::clear() {
+void Config::clear() noexcept {
     pImpl->clear();
 }
 
-Config& Config::getInstance() {
-    static Config instance;
-    return instance;
-}
-
-// Template specializations
-template<>
-std::optional<std::string> Config::get<std::string>(const std::string& key) const {
-    return pImpl->get<std::string>(key);
-}
-
-template<>
-std::optional<int> Config::get<int>(const std::string& key) const {
-    return pImpl->get<int>(key);
-}
-
-template<>
-std::optional<long> Config::get<long>(const std::string& key) const {
-    return pImpl->get<long>(key);
-}
-
-template<>
-std::optional<double> Config::get<double>(const std::string& key) const {
-    return pImpl->get<double>(key);
-}
-
-template<>
-std::optional<bool> Config::get<bool>(const std::string& key) const {
-    auto value = pImpl->get<std::string>(key);
-    if (!value) {
-        return std::nullopt;
-    }
-
-    std::string v = *value;
-    std::transform(v.begin(), v.end(), v.begin(), ::tolower);
-
-    if (v == "true" || v == "1" || v == "yes" || v == "on") {
-        return true;
-    } else if (v == "false" || v == "0" || v == "no" || v == "off") {
-        return false;
-    }
-
-    return std::nullopt;
-}
-
-template<>
-std::optional<std::vector<std::string>> Config::get<std::vector<std::string>>(const std::string& key) const {
-    auto value = pImpl->get<std::string>(key);
-    if (!value) {
-        return std::nullopt;
-    }
-
-    std::vector<std::string> result;
-    std::istringstream iss(*value);
-    std::string item;
-
-    // Split by comma
-    while (std::getline(iss, item, ',')) {
-        // Trim whitespace
-        item.erase(0, item.find_first_not_of(" \t"));
-        item.erase(item.find_last_not_of(" \t") + 1);
-        if (!item.empty()) {
-            result.push_back(item);
-        }
-    }
-
-    return result;
-}
-
-template<>
-std::string Config::get<std::string>(const std::string& key, const std::string& default_value) const {
-    return pImpl->get<std::string>(key, default_value);
-}
-
-template<>
-int Config::get<int>(const std::string& key, const int& default_value) const {
-    return pImpl->get<int>(key, default_value);
-}
-
-template<>
-long Config::get<long>(const std::string& key, const long& default_value) const {
-    return pImpl->get<long>(key, default_value);
-}
-
-template<>
-double Config::get<double>(const std::string& key, const double& default_value) const {
-    return pImpl->get<double>(key, default_value);
-}
-
-template<>
-bool Config::get<bool>(const std::string& key, const bool& default_value) const {
-    return pImpl->get<bool>(key, default_value);
-}
-
-template<>
-void Config::set<std::string>(const std::string& key, const std::string& value) {
-    pImpl->set<std::string>(key, value);
-}
-
-template<>
-void Config::set<int>(const std::string& key, const int& value) {
-    pImpl->set<int>(key, value);
-}
-
-template<>
-void Config::set<double>(const std::string& key, const double& value) {
-    pImpl->set<double>(key, value);
-}
-
-template<>
-void Config::set<bool>(const std::string& key, const bool& value) {
-    pImpl->set<std::string>(key, value ? "true" : "false");
-}
+// Template implementations and getInstance() are in the module interface (config.cppm)
 
 } // namespace utils
 } // namespace bigbrother

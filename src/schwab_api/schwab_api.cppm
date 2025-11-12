@@ -1023,11 +1023,23 @@ class MarketDataClient {
 
             if (data.contains(symbol)) {
                 auto const& q = data[symbol];
-                quote.bid = q.value("bidPrice", 0.0);
-                quote.ask = q.value("askPrice", 0.0);
-                quote.last = q.value("lastPrice", 0.0);
-                quote.volume = q.value("totalVolume", 0);
-                quote.timestamp = q.value("quoteTime", 0);
+
+                // Try "extended" section first (for regular market hours)
+                if (q.contains("extended") && q["extended"].is_object()) {
+                    auto const& ext = q["extended"];
+                    quote.bid = ext.value("bidPrice", 0.0);
+                    quote.ask = ext.value("askPrice", 0.0);
+                    quote.last = ext.value("lastPrice", 0.0);
+                    quote.volume = ext.value("totalVolume", 0);
+                    quote.timestamp = ext.value("quoteTime", 0);
+                } else {
+                    // Fallback to regular quote section
+                    quote.bid = q.value("bidPrice", 0.0);
+                    quote.ask = q.value("askPrice", 0.0);
+                    quote.last = q.value("lastPrice", 0.0);
+                    quote.volume = q.value("totalVolume", 0);
+                    quote.timestamp = q.value("quoteTime", 0);
+                }
 
                 // Validate quote has valid data
                 if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
@@ -1054,7 +1066,7 @@ class MarketDataClient {
             chain.status = data.value("status", "");
 
             // Parse underlying price
-            if (data.contains("underlying")) {
+            if (data.contains("underlying") && !data["underlying"].is_null()) {
                 auto const& underlying = data["underlying"];
                 chain.underlying_price = underlying.value("last", 0.0);
             } else {
@@ -1079,7 +1091,7 @@ class MarketDataClient {
                             opt_quote.contract.type = OptionType::Call;
                             opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
                             opt_quote.contract.expiration =
-                                contract_data.value("expirationDate", 0L);
+                                contract_data.value("lastTradingDay", 0L);
                             opt_quote.contract.contract_size =
                                 contract_data.value("multiplier", 100);
 
@@ -1089,7 +1101,7 @@ class MarketDataClient {
                             opt_quote.quote.ask = contract_data.value("ask", 0.0);
                             opt_quote.quote.last = contract_data.value("last", 0.0);
                             opt_quote.quote.volume = contract_data.value("totalVolume", 0);
-                            opt_quote.quote.timestamp = contract_data.value("quoteTime", 0L);
+                            opt_quote.quote.timestamp = contract_data.value("quoteTimeInLong", 0L);
 
                             // Parse greeks
                             opt_quote.greeks.delta = contract_data.value("delta", 0.0);
@@ -1126,7 +1138,7 @@ class MarketDataClient {
                             opt_quote.contract.type = OptionType::Put;
                             opt_quote.contract.strike = contract_data.value("strikePrice", 0.0);
                             opt_quote.contract.expiration =
-                                contract_data.value("expirationDate", 0L);
+                                contract_data.value("lastTradingDay", 0L);
                             opt_quote.contract.contract_size =
                                 contract_data.value("multiplier", 100);
 
@@ -1136,7 +1148,7 @@ class MarketDataClient {
                             opt_quote.quote.ask = contract_data.value("ask", 0.0);
                             opt_quote.quote.last = contract_data.value("last", 0.0);
                             opt_quote.quote.volume = contract_data.value("totalVolume", 0);
-                            opt_quote.quote.timestamp = contract_data.value("quoteTime", 0L);
+                            opt_quote.quote.timestamp = contract_data.value("quoteTimeInLong", 0L);
 
                             // Parse greeks
                             opt_quote.greeks.delta = contract_data.value("delta", 0.0);
