@@ -294,13 +294,41 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python3")
 endif()
 find_package(Python3 COMPONENTS Interpreter Development)
 
-# Intel MKL (optional, for optimized BLAS/LAPACK)
-find_package(MKL CONFIG)
+# ============================================================================
+# Intel oneAPI MKL 2025.3 (High-Performance Math Library)
+# ============================================================================
+# MKL provides optimized BLAS, LAPACK, FFT, and vector math operations
+# Location: /opt/intel/oneapi/mkl/latest
+# Performance: 5-10x faster than generic BLAS/LAPACK implementations
+
+set(MKL_ROOT "/opt/intel/oneapi/mkl/latest")
+set(CMAKE_PREFIX_PATH "${MKL_ROOT}/lib/cmake/mkl;${CMAKE_PREFIX_PATH}")
+
+find_package(MKL CONFIG PATHS ${MKL_ROOT}/lib/cmake/mkl)
+
 if(MKL_FOUND)
-    message(STATUS "Intel MKL found: ${MKL_VERSION}")
-    set(BLAS_LIBRARIES ${MKL_LIBRARIES})
+    message(STATUS "✅ Intel oneAPI MKL found: ${MKL_VERSION}")
+    message(STATUS "   MKL Root: ${MKL_ROOT}")
+    message(STATUS "   MKL Libraries: ${MKL_LIBRARIES}")
+
+    # Use MKL with GNU threading (compatible with OpenMP)
+    # Options: MKL::MKL_INTEL_LP64_GNU_THREAD (GNU OpenMP)
+    #          MKL::MKL_INTEL_LP64_SEQUENTIAL (no threading)
+    #          MKL::MKL_INTEL_LP64_TBB_THREAD (Intel TBB)
+
+    set(BLAS_LIBRARIES MKL::MKL)
     set(BLAS_INCLUDE_DIRS ${MKL_INCLUDE_DIRS})
+
+    # Add MKL library paths to runtime search path
+    link_directories(${MKL_ROOT}/lib)
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${MKL_ROOT}/lib")
+
+    # Enable MKL optimizations
+    add_compile_definitions(MKL_AVAILABLE)
+    add_compile_definitions(EIGEN_USE_MKL_ALL)  # If using Eigen
+
 else()
+    message(WARNING "⚠️  Intel MKL not found, falling back to generic BLAS/LAPACK")
     find_package(BLAS REQUIRED)
     find_package(LAPACK REQUIRED)
     set(BLAS_LIBRARIES ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})

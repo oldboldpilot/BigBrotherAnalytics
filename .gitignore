@@ -110,3 +110,4 @@ configs/api_keys.yaml
 models/sentiment/*.onnx
 models/sentiment/*.onnx.data
 models/sentiment/*.bin
+build_log.txt
