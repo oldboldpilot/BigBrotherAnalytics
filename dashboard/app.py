@@ -36,13 +36,23 @@ try:
         calculate_sentiment_stats,
         fast_groupby_sum,
         fast_groupby_mean,
-        fast_sum
+        fast_sum,
+        recalculate_greeks_batch
     )
     import jax.numpy as jnp
     JAX_AVAILABLE = True
 except ImportError as e:
     JAX_AVAILABLE = False
     print(f"⚠️  JAX not available for dashboard acceleration")
+
+# Import FRED rates for risk-free rate
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "data_collection"))
+    from fred_rates import FREDRatesFetcher
+    FRED_AVAILABLE = True
+except ImportError:
+    FRED_AVAILABLE = False
+    print("⚠️  FRED rates not available")
 
 # Page configuration
 st.set_page_config(
@@ -211,6 +221,56 @@ def format_price(value):
         return "N/A"
     return f"${value:,.2f}"
 
+def display_risk_free_rates():
+    """Display current risk-free rates from FRED"""
+    if not FRED_AVAILABLE:
+        return None
+
+    try:
+        fetcher = FREDRatesFetcher()
+
+        # Try to get rates from database first
+        conn = get_db_connection()
+        rates_df = conn.execute("""
+            SELECT rate_name, rate_value, last_updated
+            FROM risk_free_rates
+            ORDER BY rate_name
+        """).df()
+
+        if not rates_df.empty:
+            st.markdown("### 📈 Current Risk-Free Rates (FRED)")
+
+            cols = st.columns(5)
+            rate_names = {
+                '3_month_treasury': ('3M Treasury', cols[0]),
+                '2_year_treasury': ('2Y Treasury', cols[1]),
+                '5_year_treasury': ('5Y Treasury', cols[2]),
+                '10_year_treasury': ('10Y Treasury', cols[3]),
+                'fed_funds_rate': ('Fed Funds', cols[4])
+            }
+
+            for idx, row in rates_df.iterrows():
+                rate_name = row['rate_name']
+                if rate_name in rate_names:
+                    display_name, col = rate_names[rate_name]
+                    rate_pct = row['rate_value'] * 100
+                    with col:
+                        st.metric(display_name, f"{rate_pct:.3f}%")
+
+            # Show last update time
+            if not rates_df.empty:
+                last_updated = rates_df['last_updated'].max()
+                st.caption(f"Last updated: {last_updated}")
+
+            return rates_df
+        else:
+            st.info("💡 No risk-free rates available. Run `python scripts/data_collection/fred_rates.py` to fetch.")
+            return None
+
+    except Exception as e:
+        st.warning(f"Could not load risk-free rates: {e}")
+        return None
+
 # Main Dashboard
 def main():
     st.title("📊 BigBrother Trading Dashboard")
@@ -307,6 +367,11 @@ def main():
 def show_overview():
     """Display overview dashboard"""
     st.header("📈 System Overview")
+
+    # Display risk-free rates from FRED
+    display_risk_free_rates()
+
+    st.divider()
 
     # Load data
     positions_df = load_positions()
@@ -537,6 +602,17 @@ def show_bot_tax_lots():
             # Display options with Greeks
             if not options_df.empty:
                 st.markdown("### Options Positions with Greeks")
+
+                # Add button to recalculate Greeks with current market data
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.markdown("**Entry Greeks** (at time of position opening)")
+                with col_b:
+                    if JAX_AVAILABLE and st.button("🔄 Recalculate Greeks", help="Recalculate Greeks with current market data using GPU acceleration"):
+                        with st.spinner("Recalculating Greeks with current market data..."):
+                            # This would require current market data - placeholder for now
+                            st.info("💡 Greeks recalculation requires current market data integration. Using entry Greeks for display.")
+
                 display_df = options_df[[
                     'display_name', 'quantity', 'entry_price', 'entry_date',
                     'holding_period_days', 'days_to_expiration', 'tax_status',
@@ -605,12 +681,19 @@ def show_bot_tax_lots():
                     st.metric("Total Rho (ρ)", f"{total_rho:.4f}")
                     st.caption("Rate sensitivity")
 
-            # Display equities (no Greeks)
+            # Display equities with position-level Greeks
             if not equities_df.empty:
-                st.markdown("### Equity Positions")
+                st.markdown("### Equity Positions with Position Sensitivity")
+
+                # Calculate position-level Greeks for stocks
+                # For stocks: Delta = quantity (simple linear relationship)
+                equities_df['position_delta'] = equities_df['quantity']
+                equities_df['position_dollar_value'] = equities_df['quantity'] * equities_df['entry_price']
+
                 display_df = equities_df[[
                     'display_name', 'asset_type', 'quantity', 'entry_price', 'entry_date',
-                    'holding_period_days', 'tax_status', 'cost_basis', 'strategy'
+                    'holding_period_days', 'tax_status', 'position_delta', 'position_dollar_value',
+                    'cost_basis', 'strategy'
                 ]].copy()
 
                 st.dataframe(
@@ -624,10 +707,24 @@ def show_bot_tax_lots():
                         "entry_date": st.column_config.DatetimeColumn("Entry Date", format="MM/DD/YY HH:mm"),
                         "holding_period_days": "Days Held",
                         "tax_status": "Tax Status",
+                        "position_delta": st.column_config.NumberColumn("Position Δ", format="%.2f", help="Number of shares (for stocks, Delta = quantity)"),
+                        "position_dollar_value": st.column_config.NumberColumn("Dollar Value", format="$%.2f", help="Position value = quantity × price"),
                         "cost_basis": st.column_config.NumberColumn("Cost Basis", format="$%.2f"),
                         "strategy": "Strategy"
                     }
                 )
+
+                # Show total equity position delta
+                st.markdown("### Total Equity Position Sensitivity")
+                col1, col2 = st.columns(2)
+                with col1:
+                    total_equity_delta = equities_df['position_delta'].sum()
+                    st.metric("Total Equity Delta", f"{total_equity_delta:.2f} shares",
+                             help="Total number of shares held across all equity positions")
+                with col2:
+                    total_dollar_value = equities_df['position_dollar_value'].sum()
+                    st.metric("Total Dollar Exposure", f"${total_dollar_value:,.2f}",
+                             help="Total dollar value of all equity positions")
 
             # Breakdown by strategy
             st.subheader("Tax Lot Breakdown by Strategy")
