@@ -51,6 +51,14 @@ def setup_tax_lots_table():
             expiration_date DATE,
             underlying_symbol VARCHAR,
 
+            -- Options Greeks (at entry time for strategy validation)
+            entry_delta DOUBLE,
+            entry_gamma DOUBLE,
+            entry_theta DOUBLE,
+            entry_vega DOUBLE,
+            entry_rho DOUBLE,
+            entry_iv DOUBLE,                        -- Implied volatility at entry
+
             -- Closing information
             is_closed BOOLEAN DEFAULT false,
             close_type VARCHAR,                     -- SOLD, EXPIRED, EXERCISED, ASSIGNED
@@ -115,6 +123,12 @@ def setup_tax_lots_table():
             strike_price,
             expiration_date,
             underlying_symbol,
+            entry_delta,
+            entry_gamma,
+            entry_theta,
+            entry_vega,
+            entry_rho,
+            entry_iv,
             DATEDIFF('day', entry_date, CURRENT_TIMESTAMP) as holding_period_days,
             CASE
                 WHEN expiration_date IS NOT NULL
@@ -157,6 +171,12 @@ def setup_tax_lots_table():
             strike_price,
             expiration_date,
             underlying_symbol,
+            entry_delta,
+            entry_gamma,
+            entry_theta,
+            entry_vega,
+            entry_rho,
+            entry_iv,
             realized_pnl,
             holding_period_days,
             is_long_term,

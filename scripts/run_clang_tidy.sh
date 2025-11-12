@@ -21,9 +21,10 @@ echo -e "${BLUE}  clang-tidy Pre-Build Validation${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# Find all C++ source files (exclude tests, external, and python_bindings)
+# Find all C++ source files (exclude tests, external, python_bindings, and deprecated files)
 # Python bindings excluded because they require Python.h headers
-CPP_FILES=$(find src -name "*.cpp" -o -name "*.cppm" | grep -v "test\|external\|third_party\|python_bindings" || true)
+# Deprecated files excluded (*.deprecated)
+CPP_FILES=$(find src -name "*.cpp" -o -name "*.cppm" | grep -v "test\|external\|third_party\|python_bindings\|\.deprecated$" || true)
 
 if [ -z "$CPP_FILES" ]; then
     echo -e "${GREEN}✅ No C++ files to check${NC}"
@@ -62,6 +63,7 @@ echo "Exclusions:"
 echo "  - Test files (tests/)"
 echo "  - External dependencies"
 echo "  - Python bindings (requires Python.h headers)"
+echo "  - Deprecated files (*.deprecated)"
 echo ""
 
 errors=0

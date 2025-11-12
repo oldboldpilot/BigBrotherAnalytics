@@ -20,6 +20,7 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 > - **Security:** API keys removed from git, comprehensive .gitignore patterns
 > - **Paper Trading:** $100 position limit, 2-3 concurrent, ≥55% win rate target
 > - **News Ingestion System:** C++23 sentiment analysis (260 lines), NewsAPI integration (402 lines), 236KB Python bindings
+> - **Trading Reporting System:** Daily/weekly reports (1,430+ lines), signal analysis, HTML+JSON output
 > - All 20 autonomous agents across Phases 1-4 achieved 100% success rate.
 
 ### Orchestration Hierarchy
@@ -50,6 +51,66 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 | Playwright + Schema Guard |
 +---------------------------+
 ```
+
+---
+
+## Trading Reporting System (Phase 5+)
+
+**Status:** ✅ IMPLEMENTED - Production Ready | **Integration:** Comprehensive Signal Analysis
+
+The Trading Reporting System provides automated daily and weekly report generation:
+
+### System Components (4/4 Complete)
+
+**Python Report Generators:**
+1. `scripts/reporting/generate_daily_report.py` (750+ lines) - Daily trading analysis
+2. `scripts/reporting/generate_weekly_report.py` (680+ lines) - Weekly performance summaries
+3. `scripts/reporting/__init__.py` - Package initialization and unified API
+
+**Documentation:**
+4. `docs/TRADING_REPORTING_SYSTEM.md` (650+ lines) - Complete architecture and API reference
+
+### Daily Report Features
+
+- **Executive Summary:** Account value, signals (generated/executed/rejected), execution rates
+- **Trade Execution Details:** Complete trade list with Greeks (Delta, Theta, Vega) at signal generation
+- **Signal Analysis:** Breakdown by status, strategy, and rejection reasons
+- **Risk Compliance:** Risk rejections, budget constraints, position sizing
+- **Market Conditions:** IV percentile analysis, DTE metrics
+- **Output Formats:** JSON (structured data) and HTML (browser-viewable)
+
+### Weekly Report Features
+
+- **Performance Summary:** Execution rates, Sharpe ratio, risk/reward ratios
+- **Strategy Comparison:** Per-strategy signals, returns, and acceptance rates
+- **Signal Acceptance Rates:** Daily breakdown with rejection reason trends
+- **Risk Analysis:** Budget impact modeling, cost distribution analysis
+- **Automated Recommendations:** Data-driven suggestions for optimization
+- **Output Formats:** JSON and HTML
+
+### Database Integration
+
+- **Data Source:** `trading_signals` table (auto-detected)
+- **Views:** 10+ analytical views for signal tracking
+- **Zero Configuration:** Works automatically with existing database
+- **Performance:** DuckDB queries complete in < 1 second
+
+### Quick Reference
+
+```bash
+# Generate today's daily report
+python scripts/reporting/generate_daily_report.py
+# Output: reports/daily_report_YYYYMMDD.json & .html
+
+# Generate this week's report
+python scripts/reporting/generate_weekly_report.py
+# Output: reports/weekly_report_YYYYMMDD_to_YYYYMMDD.json & .html
+
+# Generate last week's report
+python scripts/reporting/generate_weekly_report.py 1
+```
+
+**Documentation:** See `docs/TRADING_REPORTING_SYSTEM.md` for complete architecture, database schema, and API reference.
 
 ---
 

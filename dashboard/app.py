@@ -19,6 +19,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import tax implications view
 from tax_implications_view import show_tax_implications
 
+# Import new trading activity views
+try:
+    from views import live_trading_activity, rejection_analysis
+    TRADING_VIEWS_AVAILABLE = True
+except ImportError:
+    TRADING_VIEWS_AVAILABLE = False
+    print("⚠️  Trading activity views not available")
+
 # Page configuration
 st.set_page_config(
     page_title="BigBrother Trading Dashboard",
@@ -218,9 +226,19 @@ def main():
 
         st.divider()
         st.markdown("### Navigation")
+
+        # Build view list dynamically
+        views = ["Overview", "Positions", "Bot Tax Lots", "P&L Analysis"]
+
+        # Add trading activity views if available
+        if TRADING_VIEWS_AVAILABLE:
+            views.extend(["📊 Live Activity", "🔍 Rejection Analysis"])
+
+        views.extend(["Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"])
+
         view = st.radio(
             "Select View",
-            ["Overview", "Positions", "Bot Tax Lots", "P&L Analysis", "Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"]
+            views
         )
 
         st.divider()
@@ -240,6 +258,16 @@ def main():
         show_bot_tax_lots()
     elif view == "P&L Analysis":
         show_pnl_analysis()
+    elif view == "📊 Live Activity":
+        if TRADING_VIEWS_AVAILABLE:
+            live_trading_activity.show_live_activity()
+        else:
+            st.error("Trading activity views not available")
+    elif view == "🔍 Rejection Analysis":
+        if TRADING_VIEWS_AVAILABLE:
+            rejection_analysis.show_rejection_analysis()
+        else:
+            st.error("Rejection analysis view not available")
     elif view == "Employment Signals":
         show_employment_signals()
     elif view == "Trade History":
@@ -481,28 +509,96 @@ def show_bot_tax_lots():
                 lambda x: '🟢 Long-term (>365 days)' if x else '🔴 Short-term (<365 days)'
             )
 
-            # Format display columns
-            display_df = open_lots_df[[
-                'display_name', 'asset_type', 'quantity', 'entry_price', 'entry_date',
-                'holding_period_days', 'days_to_expiration', 'tax_status', 'cost_basis', 'strategy'
-            ]].copy()
+            # Separate options and equities for different displays
+            options_df = open_lots_df[open_lots_df['asset_type'] == 'OPTION'].copy()
+            equities_df = open_lots_df[open_lots_df['asset_type'] == 'EQUITY'].copy()
 
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                column_config={
-                    "display_name": "Position",
-                    "asset_type": "Type",
-                    "quantity": st.column_config.NumberColumn("Quantity", format="%.2f"),
-                    "entry_price": st.column_config.NumberColumn("Entry Price", format="$%.2f"),
-                    "entry_date": st.column_config.DatetimeColumn("Entry Date", format="MM/DD/YY HH:mm"),
-                    "holding_period_days": "Days Held",
-                    "days_to_expiration": "Days to Exp",
-                    "tax_status": "Tax Status",
-                    "cost_basis": st.column_config.NumberColumn("Cost Basis", format="$%.2f"),
-                    "strategy": "Strategy"
-                }
-            )
+            # Display options with Greeks
+            if not options_df.empty:
+                st.markdown("### Options Positions with Greeks")
+                display_df = options_df[[
+                    'display_name', 'quantity', 'entry_price', 'entry_date',
+                    'holding_period_days', 'days_to_expiration', 'tax_status',
+                    'entry_delta', 'entry_gamma', 'entry_theta', 'entry_vega', 'entry_rho',
+                    'entry_iv', 'cost_basis', 'strategy'
+                ]].copy()
+
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    column_config={
+                        "display_name": "Position",
+                        "quantity": st.column_config.NumberColumn("Qty", format="%.0f"),
+                        "entry_price": st.column_config.NumberColumn("Entry $", format="$%.2f"),
+                        "entry_date": st.column_config.DatetimeColumn("Entry Date", format="MM/DD/YY"),
+                        "holding_period_days": "Days",
+                        "days_to_expiration": "DTE",
+                        "tax_status": "Tax",
+                        "entry_delta": st.column_config.NumberColumn("Δ Delta", format="%.4f"),
+                        "entry_gamma": st.column_config.NumberColumn("Γ Gamma", format="%.4f"),
+                        "entry_theta": st.column_config.NumberColumn("Θ Theta", format="%.4f"),
+                        "entry_vega": st.column_config.NumberColumn("ν Vega", format="%.4f"),
+                        "entry_rho": st.column_config.NumberColumn("ρ Rho", format="%.4f"),
+                        "entry_iv": st.column_config.NumberColumn("IV", format="%.2f%%"),
+                        "cost_basis": st.column_config.NumberColumn("Cost", format="$%.2f"),
+                        "strategy": "Strategy"
+                    }
+                )
+
+                # Greeks summary for portfolio
+                st.markdown("### Portfolio Greeks Summary")
+                col1, col2, col3, col4, col5 = st.columns(5)
+
+                # Calculate aggregate Greeks (sum of all positions)
+                total_delta = options_df['entry_delta'].fillna(0).sum()
+                total_gamma = options_df['entry_gamma'].fillna(0).sum()
+                total_theta = options_df['entry_theta'].fillna(0).sum()
+                total_vega = options_df['entry_vega'].fillna(0).sum()
+                total_rho = options_df['entry_rho'].fillna(0).sum()
+
+                with col1:
+                    st.metric("Total Delta (Δ)", f"{total_delta:.4f}")
+                    st.caption("Price sensitivity")
+
+                with col2:
+                    st.metric("Total Gamma (Γ)", f"{total_gamma:.4f}")
+                    st.caption("Delta change rate")
+
+                with col3:
+                    st.metric("Total Theta (Θ)", f"{total_theta:.4f}")
+                    st.caption("Time decay/day")
+
+                with col4:
+                    st.metric("Total Vega (ν)", f"{total_vega:.4f}")
+                    st.caption("Volatility sensitivity")
+
+                with col5:
+                    st.metric("Total Rho (ρ)", f"{total_rho:.4f}")
+                    st.caption("Rate sensitivity")
+
+            # Display equities (no Greeks)
+            if not equities_df.empty:
+                st.markdown("### Equity Positions")
+                display_df = equities_df[[
+                    'display_name', 'asset_type', 'quantity', 'entry_price', 'entry_date',
+                    'holding_period_days', 'tax_status', 'cost_basis', 'strategy'
+                ]].copy()
+
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    column_config={
+                        "display_name": "Position",
+                        "asset_type": "Type",
+                        "quantity": st.column_config.NumberColumn("Quantity", format="%.2f"),
+                        "entry_price": st.column_config.NumberColumn("Entry Price", format="$%.2f"),
+                        "entry_date": st.column_config.DatetimeColumn("Entry Date", format="MM/DD/YY HH:mm"),
+                        "holding_period_days": "Days Held",
+                        "tax_status": "Tax Status",
+                        "cost_basis": st.column_config.NumberColumn("Cost Basis", format="$%.2f"),
+                        "strategy": "Strategy"
+                    }
+                )
 
             # Breakdown by strategy
             st.subheader("Tax Lot Breakdown by Strategy")

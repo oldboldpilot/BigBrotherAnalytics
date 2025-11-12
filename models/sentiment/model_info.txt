@@ -1,0 +1,20 @@
+Model: mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis
+Architecture: DistilRoBERTa (6 layers, 768 dimensions, 82M parameters)
+Accuracy: 98.23% on financial news sentiment
+Max Sequence Length: 512
+ONNX Opset Version: 17
+Vocabulary Size: 50265
+Labels: ['negative', 'neutral', 'positive']
+
+Input Names: input_ids, attention_mask
+Output Names: logits
+
+Label Mapping:
+  0: negative
+  1: neutral
+  2: positive
+
+Sentiment Score Conversion:
+  negative: -1.0 to -0.33
+  neutral:  -0.33 to 0.33
+  positive:  0.33 to 1.0

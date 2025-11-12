@@ -106,3 +106,7 @@ htmlcov/
 tmp/
 temp/
 configs/api_keys.yaml
+# ML Models - too large for GitHub
+models/sentiment/*.onnx
+models/sentiment/*.onnx.data
+models/sentiment/*.bin

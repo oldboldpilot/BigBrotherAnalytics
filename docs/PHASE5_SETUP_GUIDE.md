@@ -15,9 +15,11 @@ uv run python scripts/phase5_setup.py
 ```
 
 This single script handles **all setup tasks**:
+- ✅ **Automatic process cleanup** (stops old dashboard/trading engine)
 - ✅ OAuth token management
 - ✅ Tax configuration verification (married filing jointly, $300K base)
 - ✅ Database initialization
+- ✅ **Schwab portfolio sync** (fetches real positions ~$210K)
 - ✅ Paper trading configuration check
 - ✅ Schwab API connectivity test
 - ✅ System component verification
@@ -57,7 +59,15 @@ uv run python scripts/phase5_setup.py --skip-oauth
 
 ---
 
-## What It Checks
+## What It Does
+
+### 0. Process Cleanup ✅ (NEW)
+- **Automatic cleanup of old processes** - No manual killing needed!
+- Finds and stops old dashboard (streamlit) processes
+- Finds and stops old trading engine (bigbrother) processes
+- Finds and stops old news ingestion processes
+- Graceful SIGTERM first, force kill if timeout
+- Shows clear status for each stopped process
 
 ### 1. OAuth Token Management ✅
 - **Automatic token refresh** - No manual intervention needed!
@@ -82,6 +92,17 @@ uv run python scripts/phase5_setup.py --skip-oauth
 - Verifies paper trading enabled
 - Shows trading limits ($100 max position)
 - Confirms conservative settings
+
+### 4.5. Schwab Portfolio Sync ✅ (NEW)
+- **Automatic portfolio sync before dashboard starts**
+- Fetches real positions from Schwab API (account 69398875)
+- Syncs 10 positions totaling ~$210K:
+  - QS: 6,078 shares @ $8.08 = $95,303
+  - SNSXX (cash): 35,524 @ $1.00 = $35,524
+  - QS Options, GOOGL, MSFT, INTC Options, VONG, NVDA, NFLX, ARM
+- All positions marked as `is_bot_managed=false` (manual positions protected)
+- Dashboard shows fresh data immediately on startup
+- Timeout: 60 seconds (graceful failure if slow)
 
 ### 5. Schwab API Connectivity ✅
 - Tests live market data API

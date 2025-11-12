@@ -93,6 +93,50 @@ export LD_LIBRARY_PATH=/home/muyiwa/Development/BigBrotherAnalytics/build:$LD_LI
 
 See `docs/NEWS_INGESTION_SYSTEM.md` for complete architecture and implementation details.
 
+### Trading Reporting System (IMPLEMENTED)
+
+**Status:** Production Ready | **Integration:** Comprehensive reporting infrastructure
+
+The system includes automated daily and weekly report generation with signal analysis:
+
+**Components:**
+- `scripts/reporting/generate_daily_report.py` (750+ lines) - Daily trading analysis
+- `scripts/reporting/generate_weekly_report.py` (680+ lines) - Weekly performance summaries
+- `docs/TRADING_REPORTING_SYSTEM.md` (650+ lines) - Complete documentation
+
+**Daily Reports Include:**
+- Executive summary (account value, trades, execution rate)
+- Trade execution details with Greeks at signal generation
+- Signal analysis (generated, executed, rejected by reason)
+- Risk compliance status (risk rejections, budget constraints)
+- Market conditions (IV metrics, DTE analysis)
+- Output formats: JSON (structured data) and HTML (browser-viewable)
+
+**Weekly Reports Include:**
+- Performance summary (execution rate, Sharpe ratio, risk/reward)
+- Strategy comparison table (signals, returns, acceptance rates)
+- Signal acceptance rates by strategy
+- Risk analysis and budget impact modeling
+- Automated recommendations based on metrics
+- Output formats: JSON and HTML
+
+**Database Integration:**
+- Uses `trading_signals` table (auto-detected)
+- 10+ analytical views for signal tracking
+- Zero configuration required
+- DuckDB read-only queries (safe, fast)
+
+**Features:**
+- Real-time metrics from live trading activity
+- Cost distribution analysis for budget optimization
+- Strategy performance comparison
+- Rejection reason breakdown and trends
+- Risk compliance monitoring
+- Sharpe ratio calculation
+- No external dependencies (DuckDB native)
+
+See `docs/TRADING_REPORTING_SYSTEM.md` for complete architecture, API reference, and usage examples.
+
 ### Trading Platform Architecture (Loose Coupling via Dependency Inversion)
 
 **Status:** IMPLEMENTED | **Location:** `src/core/trading/` | **Integration:** Production Ready
@@ -231,6 +275,7 @@ uv run python scripts/phase5_shutdown.py
 - ✅ **Monitoring & alerts** (9 health checks, 27 types, token validation)
 - ✅ **Health monitoring** (real-time token validation, system status)
 - ✅ **News Ingestion System** (8/8 checks passing, 236KB Python bindings, sentiment analysis)
+- ✅ **Trading Reporting System** (daily/weekly reports, signal analysis, HTML+JSON output)
 
 ### Success Criteria
 - **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
