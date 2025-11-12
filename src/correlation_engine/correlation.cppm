@@ -20,24 +20,35 @@
 // Global module fragment
 module;
 
-#include <vector>
-#include <span>
-#include <map>
-#include <unordered_map>
-#include <memory>
-#include <concepts>
-#include <ranges>
-#include <string>
 #include <algorithm>
-#include <numeric>
 #include <cmath>
-#include <numbers>
-#include <optional>
-#include <functional>
+#include <concepts>
 #include <expected>
+#include <functional>
+#include <map>
+#include <memory>
+#include <numbers>
+#include <numeric>
+#include <optional>
+#include <ranges>
+#include <span>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #ifdef _OPENMP
-#include <omp.h>
+    #include <omp.h>
+#endif
+
+// SIMD intrinsics for vectorization
+#if defined(__x86_64__) || defined(_M_X64)
+    #include <immintrin.h> // AVX/AVX2/AVX-512
+    #define SIMD_AVAILABLE 1
+#elif defined(__ARM_NEON)
+    #include <arm_neon.h>
+    #define SIMD_AVAILABLE 1
+#else
+    #define SIMD_AVAILABLE 0
 #endif
 
 // Module declaration
@@ -58,10 +69,10 @@ using namespace bigbrother::types;
  * Correlation Type
  */
 enum class CorrelationType {
-    Pearson,    // Linear correlation
-    Spearman,   // Rank correlation (non-linear)
-    Kendall,    // Tau correlation (ordinal)
-    Distance    // Distance correlation
+    Pearson,  // Linear correlation
+    Spearman, // Rank correlation (non-linear)
+    Kendall,  // Tau correlation (ordinal)
+    Distance  // Distance correlation
 };
 
 /**
@@ -71,10 +82,10 @@ enum class CorrelationType {
 struct CorrelationResult {
     std::string symbol1;
     std::string symbol2;
-    double correlation{0.0};     // Correlation coefficient
-    double p_value{0.0};         // Statistical significance
-    int sample_size{0};          // Number of data points
-    int lag{0};                  // Time lag in periods (0 = contemporaneous)
+    double correlation{0.0}; // Correlation coefficient
+    double p_value{0.0};     // Statistical significance
+    int sample_size{0};      // Number of data points
+    int lag{0};              // Time lag in periods (0 = contemporaneous)
     CorrelationType type{CorrelationType::Pearson};
 
     [[nodiscard]] constexpr auto isSignificant(double alpha = 0.05) const noexcept -> bool {
@@ -103,9 +114,7 @@ struct TimeSeries {
     std::vector<double> values;
     std::vector<Timestamp> timestamps;
 
-    [[nodiscard]] auto size() const noexcept -> size_t {
-        return values.size();
-    }
+    [[nodiscard]] auto size() const noexcept -> size_t { return values.size(); }
 
     [[nodiscard]] auto validate() const noexcept -> Result<void> {
         if (values.empty()) {
@@ -133,10 +142,9 @@ struct PairHash {
  * Correlation Matrix (NxN pairwise correlations)
  */
 class CorrelationMatrix {
-public:
+  public:
     CorrelationMatrix() = default;
-    explicit CorrelationMatrix(std::vector<std::string> symbols)
-        : symbols_{std::move(symbols)} {}
+    explicit CorrelationMatrix(std::vector<std::string> symbols) : symbols_{std::move(symbols)} {}
 
     /**
      * Set correlation value
@@ -144,7 +152,7 @@ public:
      */
     auto set(std::string const& symbol1, std::string const& symbol2, double correlation) -> void {
         matrix_[{symbol1, symbol2}] = correlation;
-        matrix_[{symbol2, symbol1}] = correlation;  // Symmetric
+        matrix_[{symbol2, symbol1}] = correlation; // Symmetric
     }
 
     /**
@@ -168,9 +176,7 @@ public:
     /**
      * Get matrix size
      */
-    [[nodiscard]] auto size() const noexcept -> size_t {
-        return symbols_.size();
-    }
+    [[nodiscard]] auto size() const noexcept -> size_t { return symbols_.size(); }
 
     /**
      * Find highly correlated pairs
@@ -178,7 +184,7 @@ public:
     [[nodiscard]] auto findHighlyCorrelated(double threshold = 0.7) const
         -> std::vector<CorrelationResult>;
 
-private:
+  private:
     std::vector<std::string> symbols_;
     // Use unordered_map with custom hash for better performance
     std::unordered_map<std::pair<std::string, std::string>, double, PairHash> matrix_;
@@ -194,23 +200,19 @@ private:
  * Core correlation computation with trailing return types
  */
 class CorrelationCalculator {
-public:
+  public:
     /**
      * Calculate Pearson correlation
      * ρ = Cov(X,Y) / (σ_X * σ_Y)
      */
-    [[nodiscard]] static auto pearson(
-        std::span<double const> x,
-        std::span<double const> y
-    ) noexcept -> Result<double>;
+    [[nodiscard]] static auto pearson(std::span<double const> x, std::span<double const> y) noexcept
+        -> Result<double>;
 
     /**
      * Calculate Spearman rank correlation
      */
-    [[nodiscard]] static auto spearman(
-        std::span<double const> x,
-        std::span<double const> y
-    ) noexcept -> Result<double>;
+    [[nodiscard]] static auto spearman(std::span<double const> x,
+                                       std::span<double const> y) noexcept -> Result<double>;
 
     /**
      * Calculate time-lagged cross-correlation
@@ -220,45 +222,38 @@ public:
      * @param max_lag Maximum lag to test
      * @return Vector of correlations at each lag
      */
-    [[nodiscard]] static auto crossCorrelation(
-        std::span<double const> x,
-        std::span<double const> y,
-        int max_lag = 30
-    ) noexcept -> Result<std::vector<double>>;
+    [[nodiscard]] static auto crossCorrelation(std::span<double const> x, std::span<double const> y,
+                                               int max_lag = 30) noexcept
+        -> Result<std::vector<double>>;
 
     /**
      * Find optimal lag with maximum correlation
      */
-    [[nodiscard]] static auto findOptimalLag(
-        std::span<double const> x,
-        std::span<double const> y,
-        int max_lag = 30
-    ) noexcept -> Result<std::pair<int, double>>;
+    [[nodiscard]] static auto findOptimalLag(std::span<double const> x, std::span<double const> y,
+                                             int max_lag = 30) noexcept
+        -> Result<std::pair<int, double>>;
 
     /**
      * Calculate rolling correlation
      */
-    [[nodiscard]] static auto rollingCorrelation(
-        std::span<double const> x,
-        std::span<double const> y,
-        size_t window_size = 20
-    ) noexcept -> Result<std::vector<double>>;
+    [[nodiscard]] static auto rollingCorrelation(std::span<double const> x,
+                                                 std::span<double const> y,
+                                                 size_t window_size = 20) noexcept
+        -> Result<std::vector<double>>;
 
     /**
      * Calculate correlation matrix (OpenMP parallelized)
      */
-    [[nodiscard]] static auto correlationMatrix(
-        std::vector<TimeSeries> const& series,
-        CorrelationType type = CorrelationType::Pearson
-    ) noexcept -> Result<CorrelationMatrix>;
+    [[nodiscard]] static auto
+    correlationMatrix(std::vector<TimeSeries> const& series,
+                      CorrelationType type = CorrelationType::Pearson) noexcept
+        -> Result<CorrelationMatrix>;
 
     /**
      * Calculate p-value for correlation
      */
-    [[nodiscard]] static constexpr auto calculatePValue(
-        double correlation,
-        int sample_size
-    ) noexcept -> double;
+    [[nodiscard]] static constexpr auto calculatePValue(double correlation,
+                                                        int sample_size) noexcept -> double;
 };
 
 // ============================================================================
@@ -295,19 +290,17 @@ public:
  *       .calculateMatrix();
  */
 class CorrelationAnalyzer {
-public:
+  public:
     CorrelationAnalyzer() = default;
 
     /**
      * Add time series for analysis
      * F.16: Pass by value and move
      */
-    [[nodiscard]] auto addSeries(std::string symbol, std::vector<double> values) -> CorrelationAnalyzer& {
+    [[nodiscard]] auto addSeries(std::string symbol, std::vector<double> values)
+        -> CorrelationAnalyzer& {
         TimeSeries series{
-            .symbol = std::move(symbol),
-            .values = std::move(values),
-            .timestamps = {}
-        };
+            .symbol = std::move(symbol), .values = std::move(values), .timestamps = {}};
         series_.push_back(std::move(series));
         return *this;
     }
@@ -366,10 +359,8 @@ public:
      */
     [[nodiscard]] auto calculate() -> Result<CorrelationResult> {
         if (series_.size() != 2) {
-            return makeError<CorrelationResult>(
-                ErrorCode::InvalidParameter,
-                "Need exactly 2 series for pairwise correlation"
-            );
+            return makeError<CorrelationResult>(ErrorCode::InvalidParameter,
+                                                "Need exactly 2 series for pairwise correlation");
         }
 
         auto const& s1 = series_[0];
@@ -380,15 +371,13 @@ public:
             return std::unexpected(corr_result.error());
         }
 
-        CorrelationResult result{
-            .symbol1 = s1.symbol,
-            .symbol2 = s2.symbol,
-            .correlation = *corr_result,
-            .p_value = 0.001,  // Stub
-            .sample_size = static_cast<int>(s1.values.size()),
-            .lag = 0,
-            .type = type_
-        };
+        CorrelationResult result{.symbol1 = s1.symbol,
+                                 .symbol2 = s2.symbol,
+                                 .correlation = *corr_result,
+                                 .p_value = 0.001, // Stub
+                                 .sample_size = static_cast<int>(s1.values.size()),
+                                 .lag = 0,
+                                 .type = type_};
 
         return result;
     }
@@ -401,7 +390,7 @@ public:
         return CorrelationCalculator::correlationMatrix(series_, type_);
     }
 
-private:
+  private:
     std::vector<TimeSeries> series_;
     CorrelationType type_{CorrelationType::Pearson};
     bool use_parallel_{false};
@@ -412,7 +401,7 @@ private:
     size_t window_size_{20};
 };
 
-} // export namespace bigbrother::correlation
+} // namespace bigbrother::correlation
 
 // ============================================================================
 // Implementation Section (module-private)
@@ -426,10 +415,8 @@ namespace bigbrother::correlation {
 // CorrelationCalculator Implementation
 // ============================================================================
 
-auto CorrelationCalculator::pearson(
-    std::span<double const> x,
-    std::span<double const> y
-) noexcept -> Result<double> {
+auto CorrelationCalculator::pearson(std::span<double const> x, std::span<double const> y) noexcept
+    -> Result<double> {
 
     // Validate inputs
     if (x.empty() || y.empty()) {
@@ -446,15 +433,91 @@ auto CorrelationCalculator::pearson(
 
     size_t const n = x.size();
 
-    // Calculate means
-    double const mean_x = std::accumulate(x.begin(), x.end(), 0.0) / static_cast<double>(n);
-    double const mean_y = std::accumulate(y.begin(), y.end(), 0.0) / static_cast<double>(n);
+    // Calculate means using OpenMP reduction for parallelization
+    double sum_x = 0.0;
+    double sum_y = 0.0;
 
-    // Calculate sums (single pass for cache efficiency)
+#pragma omp parallel for reduction(+ : sum_x, sum_y) if (n > 1000)
+    for (size_t i = 0; i < n; ++i) {
+        sum_x += x[i];
+        sum_y += y[i];
+    }
+
+    double const mean_x = sum_x / static_cast<double>(n);
+    double const mean_y = sum_y / static_cast<double>(n);
+
+    // Calculate sums using OpenMP reduction + SIMD
     double sum_xy = 0.0;
     double sum_xx = 0.0;
     double sum_yy = 0.0;
 
+#if SIMD_AVAILABLE && (defined(__AVX__) || defined(__AVX2__))
+    // AVX2 SIMD path: Process 4 doubles at a time
+    if (n >= 4) {
+        __m256d vec_mean_x = _mm256_set1_pd(mean_x);
+        __m256d vec_mean_y = _mm256_set1_pd(mean_y);
+        __m256d vec_sum_xy = _mm256_setzero_pd();
+        __m256d vec_sum_xx = _mm256_setzero_pd();
+        __m256d vec_sum_yy = _mm256_setzero_pd();
+
+        size_t const vec_size = 4;
+        size_t const vec_end = (n / vec_size) * vec_size;
+
+    // SIMD loop (process 4 elements at once)
+    #pragma omp parallel for reduction(+ : sum_xy, sum_xx, sum_yy) if (n > 10000)
+        for (size_t i = 0; i < vec_end; i += vec_size) {
+            // Load 4 doubles from x and y
+            __m256d vec_x = _mm256_loadu_pd(&x[i]);
+            __m256d vec_y = _mm256_loadu_pd(&y[i]);
+
+            // Calculate deviations: dx = x - mean_x, dy = y - mean_y
+            __m256d vec_dx = _mm256_sub_pd(vec_x, vec_mean_x);
+            __m256d vec_dy = _mm256_sub_pd(vec_y, vec_mean_y);
+
+            // Accumulate: sum_xy += dx * dy
+            vec_sum_xy = _mm256_fmadd_pd(vec_dx, vec_dy, vec_sum_xy);
+
+            // Accumulate: sum_xx += dx * dx
+            vec_sum_xx = _mm256_fmadd_pd(vec_dx, vec_dx, vec_sum_xx);
+
+            // Accumulate: sum_yy += dy * dy
+            vec_sum_yy = _mm256_fmadd_pd(vec_dy, vec_dy, vec_sum_yy);
+        }
+
+        // Horizontal sum: reduce 4-wide vectors to scalars
+        alignas(32) double temp[4];
+        _mm256_store_pd(temp, vec_sum_xy);
+        sum_xy = temp[0] + temp[1] + temp[2] + temp[3];
+
+        _mm256_store_pd(temp, vec_sum_xx);
+        sum_xx = temp[0] + temp[1] + temp[2] + temp[3];
+
+        _mm256_store_pd(temp, vec_sum_yy);
+        sum_yy = temp[0] + temp[1] + temp[2] + temp[3];
+
+        // Process remaining elements (scalar tail)
+        for (size_t i = vec_end; i < n; ++i) {
+            double const dx = x[i] - mean_x;
+            double const dy = y[i] - mean_y;
+
+            sum_xy += dx * dy;
+            sum_xx += dx * dx;
+            sum_yy += dy * dy;
+        }
+    } else {
+        // Fallback for small arrays
+        for (size_t i = 0; i < n; ++i) {
+            double const dx = x[i] - mean_x;
+            double const dy = y[i] - mean_y;
+
+            sum_xy += dx * dy;
+            sum_xx += dx * dx;
+            sum_yy += dy * dy;
+        }
+    }
+#else
+    // Fallback: OpenMP reduction without SIMD
+    #pragma omp parallel for reduction(+ : sum_xy, sum_xx, sum_yy) if (n > 1000)
     for (size_t i = 0; i < n; ++i) {
         double const dx = x[i] - mean_x;
         double const dy = y[i] - mean_y;
@@ -463,6 +526,7 @@ auto CorrelationCalculator::pearson(
         sum_xx += dx * dx;
         sum_yy += dy * dy;
     }
+#endif
 
     // Check for zero variance
     if (sum_xx == 0.0 || sum_yy == 0.0) {
@@ -476,10 +540,8 @@ auto CorrelationCalculator::pearson(
     return std::clamp(correlation, -1.0, 1.0);
 }
 
-auto CorrelationCalculator::spearman(
-    std::span<double const> x,
-    std::span<double const> y
-) noexcept -> Result<double> {
+auto CorrelationCalculator::spearman(std::span<double const> x, std::span<double const> y) noexcept
+    -> Result<double> {
 
     if (x.empty() || y.empty() || x.size() != y.size()) {
         return makeError<double>(ErrorCode::InvalidParameter, "Invalid inputs");
@@ -490,18 +552,16 @@ auto CorrelationCalculator::spearman(
     return pearson(x, y);
 }
 
-auto CorrelationCalculator::crossCorrelation(
-    std::span<double const> x,
-    std::span<double const> y,
-    int max_lag
-) noexcept -> Result<std::vector<double>> {
+auto CorrelationCalculator::crossCorrelation(std::span<double const> x, std::span<double const> y,
+                                             int max_lag) noexcept -> Result<std::vector<double>> {
 
-    std::vector<double> correlations;
-    correlations.reserve(max_lag + 1);
+    std::vector<double> correlations(max_lag + 1, 0.0);
 
+// Parallelize lag calculations - each lag is independent
+#pragma omp parallel for schedule(dynamic) if (max_lag > 10)
     for (int lag = 0; lag <= max_lag; ++lag) {
         if (lag >= static_cast<int>(y.size())) {
-            break;
+            continue;
         }
 
         // Calculate correlation with lag
@@ -510,20 +570,17 @@ auto CorrelationCalculator::crossCorrelation(
 
         auto corr = pearson(x_lagged, y_lagged);
         if (corr) {
-            correlations.push_back(*corr);
+            correlations[lag] = *corr;
         } else {
-            correlations.push_back(0.0);
+            correlations[lag] = 0.0;
         }
     }
 
     return correlations;
 }
 
-auto CorrelationCalculator::findOptimalLag(
-    std::span<double const> x,
-    std::span<double const> y,
-    int max_lag
-) noexcept -> Result<std::pair<int, double>> {
+auto CorrelationCalculator::findOptimalLag(std::span<double const> x, std::span<double const> y,
+                                           int max_lag) noexcept -> Result<std::pair<int, double>> {
 
     auto correlations = crossCorrelation(x, y, max_lag);
     if (!correlations) {
@@ -536,8 +593,8 @@ auto CorrelationCalculator::findOptimalLag(
     }
 
     // Find max absolute correlation
-    auto max_it = std::ranges::max_element(corrs,
-        [](double a, double b) -> bool { return std::abs(a) < std::abs(b); });
+    auto max_it = std::ranges::max_element(
+        corrs, [](double a, double b) -> bool { return std::abs(a) < std::abs(b); });
 
     int const optimal_lag = static_cast<int>(std::distance(corrs.begin(), max_it));
     double const max_corr = *max_it;
@@ -545,47 +602,41 @@ auto CorrelationCalculator::findOptimalLag(
     return std::pair{optimal_lag, max_corr};
 }
 
-auto CorrelationCalculator::rollingCorrelation(
-    std::span<double const> x,
-    std::span<double const> y,
-    size_t window_size
-) noexcept -> Result<std::vector<double>> {
+auto CorrelationCalculator::rollingCorrelation(std::span<double const> x, std::span<double const> y,
+                                               size_t window_size) noexcept
+    -> Result<std::vector<double>> {
 
     if (x.size() < window_size || y.size() < window_size) {
-        return makeError<std::vector<double>>(
-            ErrorCode::InvalidParameter,
-            "Series too short for window size"
-        );
+        return makeError<std::vector<double>>(ErrorCode::InvalidParameter,
+                                              "Series too short for window size");
     }
 
-    std::vector<double> rolling_corrs;
-    rolling_corrs.reserve(x.size() - window_size + 1);
+    size_t const n_windows = x.size() - window_size + 1;
+    std::vector<double> rolling_corrs(n_windows, 0.0);
 
-    for (size_t i = 0; i + window_size <= x.size(); ++i) {
+// Parallelize window calculations - each window is independent
+#pragma omp parallel for schedule(static) if (n_windows > 50)
+    for (size_t i = 0; i < n_windows; ++i) {
         auto x_window = x.subspan(i, window_size);
         auto y_window = y.subspan(i, window_size);
 
         auto corr = pearson(x_window, y_window);
         if (corr) {
-            rolling_corrs.push_back(*corr);
+            rolling_corrs[i] = *corr;
         } else {
-            rolling_corrs.push_back(0.0);
+            rolling_corrs[i] = 0.0;
         }
     }
 
     return rolling_corrs;
 }
 
-auto CorrelationCalculator::correlationMatrix(
-    std::vector<TimeSeries> const& series,
-    CorrelationType type
-) noexcept -> Result<CorrelationMatrix> {
+auto CorrelationCalculator::correlationMatrix(std::vector<TimeSeries> const& series,
+                                              CorrelationType type) noexcept
+    -> Result<CorrelationMatrix> {
 
     if (series.empty()) {
-        return makeError<CorrelationMatrix>(
-            ErrorCode::InvalidParameter,
-            "Empty series vector"
-        );
+        return makeError<CorrelationMatrix>(ErrorCode::InvalidParameter, "Empty series vector");
     }
 
     // Extract symbols
@@ -599,19 +650,19 @@ auto CorrelationCalculator::correlationMatrix(
 
     size_t const n = series.size();
 
-    // Calculate all pairwise correlations (OpenMP parallelized)
-    #pragma omp parallel for schedule(dynamic) if(n > 10)
+// Calculate all pairwise correlations (OpenMP parallelized)
+#pragma omp parallel for schedule(dynamic) if (n > 10)
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = i; j < n; ++j) {
             if (i == j) {
-                #pragma omp critical
+#pragma omp critical
                 matrix.set(series[i].symbol, series[j].symbol, 1.0);
                 continue;
             }
 
             auto corr = pearson(series[i].values, series[j].values);
             if (corr) {
-                #pragma omp critical
+#pragma omp critical
                 matrix.set(series[i].symbol, series[j].symbol, *corr);
             }
         }
@@ -620,10 +671,8 @@ auto CorrelationCalculator::correlationMatrix(
     return matrix;
 }
 
-constexpr auto CorrelationCalculator::calculatePValue(
-    double correlation,
-    int sample_size
-) noexcept -> double {
+constexpr auto CorrelationCalculator::calculatePValue(double correlation, int sample_size) noexcept
+    -> double {
     // Stub - will implement t-test for correlation significance
     return 0.001;
 }
@@ -642,15 +691,13 @@ auto CorrelationMatrix::findHighlyCorrelated(double threshold) const
             double const corr = get(symbols_[i], symbols_[j]);
 
             if (std::abs(corr) >= threshold) {
-                results.push_back(CorrelationResult{
-                    .symbol1 = symbols_[i],
-                    .symbol2 = symbols_[j],
-                    .correlation = corr,
-                    .p_value = 0.001,  // Stub
-                    .sample_size = 100,  // Stub
-                    .lag = 0,
-                    .type = CorrelationType::Pearson
-                });
+                results.push_back(CorrelationResult{.symbol1 = symbols_[i],
+                                                    .symbol2 = symbols_[j],
+                                                    .correlation = corr,
+                                                    .p_value = 0.001,   // Stub
+                                                    .sample_size = 100, // Stub
+                                                    .lag = 0,
+                                                    .type = CorrelationType::Pearson});
             }
         }
     }

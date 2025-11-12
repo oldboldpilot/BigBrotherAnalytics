@@ -181,6 +181,29 @@ uv run python scripts/phase5_shutdown.py
   - YTD incremental accumulation (2025)
   - Dashboard integration with P&L waterfall
 
+#### 7. **Trading Reporting System**
+- **Location:** `dashboard/views/`, `scripts/reporting/`
+- **Database Schema:** `scripts/database_schema_trading_signals.sql`
+- **Key Components:**
+  - **Signal Tracking:** 23-column table logging every trading signal with status, rejection reason, Greeks
+  - **Real-time Dashboard:** Live signal monitoring with Sankey flow diagrams and rejection analysis
+  - **Automated Reports:** Daily and weekly JSON + HTML reports with performance analytics
+  - **Budget Optimization:** Cost distribution analysis with recommendations
+- **Key Files:**
+  - `dashboard/views/live_trading_activity.py` (342 lines) - Real-time signal stream
+  - `dashboard/views/rejection_analysis.py` (403 lines) - Rejection deep dive
+  - `scripts/reporting/generate_daily_report.py` (606 lines) - Daily report generator
+  - `scripts/reporting/generate_weekly_report.py` (609 lines) - Weekly report generator
+  - `scripts/setup_trading_signals_table.py` - Automated table setup
+- **Features:**
+  - Live metrics: Total signals, executed %, rejection breakdown
+  - Rejection reasons: Confidence, return, win probability, budget, risk
+  - Strategy performance: Per-strategy acceptance rates and P&L
+  - Budget constraint alerts: Automatic recommendations when >30% budget rejections
+  - Export: CSV downloads for external analysis
+  - Performance: <1s daily report, <2s weekly report generation
+- **Documentation:** `docs/TRADING_REPORTING_SYSTEM.md` (591 lines)
+
 ---
 
 ## Technology Stack

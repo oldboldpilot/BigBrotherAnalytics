@@ -110,8 +110,14 @@ endif()
 
 # Compiler flags for Clang 21
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic")
+
+# Release flags with SIMD and OpenMP optimizations
+# -march=native: Use all CPU instructions available on build machine
+# -mavx2: Enable AVX2 SIMD instructions for vectorization (4x double or 8x float at once)
+# -mfma: Enable fused multiply-add instructions (a*b+c in single operation)
+# -fopenmp-simd: Enable OpenMP SIMD directives for loop vectorization
 # Removed -ffast-math due to isnan/infinity usage in Greeks calculations
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mavx2 -mfma -fopenmp-simd -DNDEBUG")
 
 # Clang-specific flags for C++23 modules
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
