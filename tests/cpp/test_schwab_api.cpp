@@ -4,14 +4,11 @@
  * Tests the fluent interface, OAuth handling, data structures, and error handling.
  */
 
-#include "../../src/market_intelligence/market_data_types.hpp"
-#include "../../src/utils/types.hpp"
-
 #include <chrono>
 #include <filesystem>
 #include <gtest/gtest.h>
 
-// Mock includes for C++23 modules
+// Import C++23 modules
 import bigbrother.market_intelligence.types;
 import bigbrother.utils.types;
 

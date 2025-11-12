@@ -1,0 +1,6 @@
+model_path: price_predictor.onnx
+input_size: 17
+output_size: 3
+input_name: input
+output_name: output
+opset_version: 14

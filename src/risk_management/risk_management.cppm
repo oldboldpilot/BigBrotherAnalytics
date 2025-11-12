@@ -30,6 +30,14 @@ module;
     #include <omp.h>
 #endif
 
+// AVX2 SIMD intrinsics for performance optimization
+#if defined(__AVX2__)
+    #include <immintrin.h>
+    #define HAS_AVX2 1
+#else
+    #define HAS_AVX2 0
+#endif
+
 // Module declaration
 export module bigbrother.risk_management;
 
@@ -123,7 +131,8 @@ struct PortfolioRisk {
     int active_positions{0};
     double portfolio_heat{0.0};
     double max_drawdown{0.0};
-    double sharpe_ratio{0.0};
+    double var_95{0.0};           // Value at Risk (95% confidence) - Real-time
+    double sharpe_ratio{0.0};     // Sharpe ratio (risk-adjusted returns) - Real-time
     std::vector<PositionRisk> positions;
 
     [[nodiscard]] auto canOpenNewPosition() const noexcept -> bool {
@@ -495,7 +504,140 @@ class RiskManager {
         portfolio.daily_loss_remaining = daily_loss_remaining_;
         portfolio.active_positions = static_cast<int>(positions_.size());
 
+        // Calculate real-time VaR and Sharpe ratio
+        portfolio.var_95 = calculateVaR95();
+        portfolio.sharpe_ratio = calculateSharpeRatio();
+
         return portfolio;
+    }
+
+    // Real-time Value at Risk (95% confidence)
+    [[nodiscard]] auto calculateVaR95() const noexcept -> double {
+        if (return_history_.empty()) {
+            return 0.0;
+        }
+
+        // Use historical simulation method
+        std::vector<double> sorted_returns = return_history_;
+        std::sort(sorted_returns.begin(), sorted_returns.end());
+
+        // 95% VaR = 5th percentile of losses
+        auto const percentile_idx = static_cast<size_t>(sorted_returns.size() * 0.05);
+        if (percentile_idx >= sorted_returns.size()) {
+            return sorted_returns.front();
+        }
+
+        return sorted_returns[percentile_idx];
+    }
+
+    // Real-time Sharpe Ratio (risk-adjusted returns) - SIMD + OpenMP Optimized
+    [[nodiscard]] auto calculateSharpeRatio() const noexcept -> double {
+        auto const n = return_history_.size();
+        if (n < 2) {
+            return 0.0;
+        }
+
+        double mean_return = 0.0;
+
+#if HAS_AVX2
+        // AVX2 SIMD path: Process 4 doubles in parallel
+        size_t const simd_end = (n / 4) * 4;  // Round down to multiple of 4
+        __m256d sum_vec = _mm256_setzero_pd();
+
+        // Vectorized sum for mean
+        for (size_t i = 0; i < simd_end; i += 4) {
+            __m256d data = _mm256_loadu_pd(&return_history_[i]);
+            sum_vec = _mm256_add_pd(sum_vec, data);
+        }
+
+        // Horizontal sum of SIMD vector
+        double temp[4];
+        _mm256_storeu_pd(temp, sum_vec);
+        double sum = temp[0] + temp[1] + temp[2] + temp[3];
+
+        // Handle remaining elements (scalar tail)
+        for (size_t i = simd_end; i < n; ++i) {
+            sum += return_history_[i];
+        }
+
+        mean_return = sum / static_cast<double>(n);
+
+        // Vectorized variance calculation
+        __m256d mean_vec = _mm256_set1_pd(mean_return);
+        __m256d variance_vec = _mm256_setzero_pd();
+
+        for (size_t i = 0; i < simd_end; i += 4) {
+            __m256d data = _mm256_loadu_pd(&return_history_[i]);
+            __m256d diff = _mm256_sub_pd(data, mean_vec);
+            __m256d sq = _mm256_mul_pd(diff, diff);
+            variance_vec = _mm256_add_pd(variance_vec, sq);
+        }
+
+        // Horizontal sum for variance
+        _mm256_storeu_pd(temp, variance_vec);
+        double variance_sum = temp[0] + temp[1] + temp[2] + temp[3];
+
+        // Scalar tail for variance
+        for (size_t i = simd_end; i < n; ++i) {
+            auto const diff = return_history_[i] - mean_return;
+            variance_sum += diff * diff;
+        }
+#else
+        // Fallback: OpenMP parallel reduction (non-SIMD)
+        double sum = 0.0;
+        #ifdef _OPENMP
+        #pragma omp parallel for reduction(+:sum) if(n > 100)
+        #endif
+        for (size_t i = 0; i < n; ++i) {
+            sum += return_history_[i];
+        }
+        mean_return = sum / static_cast<double>(n);
+
+        // Calculate variance (OpenMP parallel reduction)
+        double variance_sum = 0.0;
+        #ifdef _OPENMP
+        #pragma omp parallel for reduction(+:variance_sum) if(n > 100)
+        #endif
+        for (size_t i = 0; i < n; ++i) {
+            auto const diff = return_history_[i] - mean_return;
+            variance_sum += diff * diff;
+        }
+#endif
+
+        auto const variance = variance_sum / static_cast<double>(n - 1);
+        auto const std_dev = std::sqrt(variance);
+
+        if (std_dev < 1e-10) {
+            return 0.0;
+        }
+
+        // Assume risk-free rate of 4% annually (0.015% daily)
+        auto constexpr daily_risk_free_rate = 0.00015;
+
+        // Sharpe = (mean_return - risk_free_rate) / std_dev
+        return (mean_return - daily_risk_free_rate) / std_dev;
+    }
+
+    // Update return history (call this every trading cycle)
+    auto updateReturnHistory(double daily_return) noexcept -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        return_history_.push_back(daily_return);
+
+        // Keep last 252 days (1 year of trading)
+        if (return_history_.size() > 252) {
+            return_history_.erase(return_history_.begin());
+        }
+    }
+
+    // Get current VaR threshold status
+    [[nodiscard]] auto isVaRBreached(double threshold = -0.03) const noexcept -> bool {
+        return calculateVaR95() < threshold;  // -3% daily VaR threshold
+    }
+
+    // Get current Sharpe ratio status
+    [[nodiscard]] auto isSharpeAcceptable(double min_sharpe = 1.0) const noexcept -> bool {
+        return calculateSharpeRatio() >= min_sharpe;  // Minimum 1.0 Sharpe
     }
 
     [[nodiscard]] auto stopLoss() -> StopLossManager& { return stop_loss_manager_; }
@@ -507,6 +649,9 @@ class RiskManager {
     std::unordered_map<std::string, PositionRisk> positions_;
     StopLossManager stop_loss_manager_;
     mutable std::mutex mutex_;
+
+    // Historical returns for VaR and Sharpe calculations (last 252 trading days)
+    std::vector<double> return_history_;
 };
 
 } // namespace bigbrother::risk

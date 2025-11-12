@@ -46,72 +46,69 @@ using namespace bigbrother::utils;
  * Feature vector for price prediction
  *
  * Represents all input features for the neural network
+ * First 17 features match trained model, remaining 8 for future use
  */
 struct PriceFeatures {
-    // Technical indicators (10 features)
+    // OHLCV data (5 features) - Required by trained model
+    float close{0.0f};            // Current close price
+    float open{0.0f};             // Current open price
+    float high{0.0f};             // Current high price
+    float low{0.0f};              // Current low price
+    float volume{0.0f};           // Current volume
+
+    // Returns (3 features) - Required by trained model
+    float return_1d{0.0f};        // 1-day return %
+    float return_5d{0.0f};        // 5-day return %
+    float return_20d{0.0f};       // 20-day return %
+
+    // Technical indicators (9 features) - Required by trained model
     float rsi_14{0.0f};           // RSI(14) [0-100]
-    float macd{0.0f};              // MACD line
-    float macd_signal{0.0f};       // MACD signal line
-    float macd_histogram{0.0f};    // MACD histogram
-    float bb_upper{0.0f};          // Bollinger upper band
-    float bb_middle{0.0f};         // Bollinger middle band
-    float bb_lower{0.0f};          // Bollinger lower band
-    float atr_14{0.0f};            // Average True Range(14)
-    float volume_ratio{0.0f};      // Volume / 20-day avg
-    float momentum_5d{0.0f};       // 5-day price momentum
+    float macd{0.0f};             // MACD line
+    float macd_signal{0.0f};      // MACD signal line
+    float bb_upper{0.0f};         // Bollinger upper band
+    float bb_lower{0.0f};         // Bollinger lower band
+    float bb_position{0.0f};      // Price position in BB (0=lower, 1=upper)
+    float atr_14{0.0f};           // Average True Range(14)
+    float volume_sma20{0.0f};     // 20-day volume SMA
+    float volume_ratio{0.0f};     // Volume / 20-day avg
 
-    // Sentiment features (5 features)
-    float news_sentiment{0.0f};    // News sentiment [-1, 1]
-    float social_sentiment{0.0f};  // Social media sentiment [-1, 1]
-    float analyst_rating{0.0f};    // Analyst consensus [1-5]
-    float put_call_ratio{0.0f};    // Put/call ratio (fear gauge)
-    float vix_level{0.0f};         // VIX fear index
-
-    // Economic indicators (5 features)
-    float employment_change{0.0f}; // Monthly NFP change
-    float gdp_growth{0.0f};        // Quarterly GDP growth rate
-    float inflation_rate{0.0f};    // CPI year-over-year
-    float fed_rate{0.0f};          // Federal funds rate
-    float treasury_yield_10y{0.0f}; // 10-year Treasury yield
-
-    // Sector correlation (5 features)
-    float sector_momentum{0.0f};   // Sector relative strength
-    float spy_correlation{0.0f};   // Correlation with SPY
-    float sector_beta{0.0f};       // Sector beta
-    float peer_avg_return{0.0f};   // Average peer return (5 days)
-    float market_regime{0.0f};     // Bull/bear regime indicator
+    // Extended features (8 features) - For future model retraining
+    float bb_middle{0.0f};        // Bollinger middle band
+    float macd_histogram{0.0f};   // MACD histogram
+    float momentum_5d{0.0f};      // 5-day price momentum
+    float news_sentiment{0.0f};   // News sentiment [-1, 1]
+    float put_call_ratio{0.0f};   // Put/call ratio (fear gauge)
+    float vix_level{0.0f};        // VIX fear index
+    float spy_correlation{0.0f};  // Correlation with SPY
+    float sector_beta{0.0f};      // Sector beta
 
     /**
      * Convert to float array for neural network input
+     * First 17 features match trained model exactly
      */
     [[nodiscard]] auto toArray() const -> std::array<float, 25> {
         return {
-            rsi_14, macd, macd_signal, macd_histogram, bb_upper,
-            bb_middle, bb_lower, atr_14, volume_ratio, momentum_5d,
-            news_sentiment, social_sentiment, analyst_rating, put_call_ratio, vix_level,
-            employment_change, gdp_growth, inflation_rate, fed_rate, treasury_yield_10y,
-            sector_momentum, spy_correlation, sector_beta, peer_avg_return, market_regime
+            // First 17: Match trained model
+            close, open, high, low, volume,
+            return_1d, return_5d, return_20d,
+            rsi_14, macd, macd_signal,
+            bb_upper, bb_lower, bb_position,
+            atr_14, volume_sma20, volume_ratio,
+            // Remaining 8: Extended features
+            bb_middle, macd_histogram, momentum_5d,
+            news_sentiment, put_call_ratio, vix_level,
+            spy_correlation, sector_beta
         };
     }
 
     /**
-     * Normalize features to [0, 1] range for neural network
+     * Normalize features (handled by sklearn StandardScaler in training)
+     * Note: The trained model expects raw features, not normalized
      */
     auto normalize() -> void {
-        // RSI already [0, 100], scale to [0, 1]
-        rsi_14 /= 100.0f;
-
-        // Sentiment features already [-1, 1], scale to [0, 1]
-        news_sentiment = (news_sentiment + 1.0f) / 2.0f;
-        social_sentiment = (social_sentiment + 1.0f) / 2.0f;
-
-        // Analyst rating [1-5] -> [0, 1]
-        analyst_rating = (analyst_rating - 1.0f) / 4.0f;
-
-        // Correlation already [-1, 1] -> [0, 1]
-        spy_correlation = (spy_correlation + 1.0f) / 2.0f;
-
-        // Other features are already scaled or will be handled by layer normalization
+        // The trained model was trained with StandardScaler
+        // So we should NOT normalize here - normalization is in the training pipeline
+        // Keep raw features as-is
     }
 };
 
@@ -123,46 +120,65 @@ struct PriceFeatures {
 class FeatureExtractor {
   public:
     /**
-     * Extract technical indicators from price history
+     * Extract all features from market data
      *
-     * @param prices Price history (most recent first)
-     * @param volumes Volume history (most recent first)
-     * @return Technical indicator features
+     * @param close Current close price
+     * @param open Current open price
+     * @param high Current high price
+     * @param low Current low price
+     * @param volume Current volume
+     * @param price_history Price history (most recent first, needs 26+ bars)
+     * @param volume_history Volume history (most recent first, needs 20+ bars)
+     * @return Complete feature set
      */
-    [[nodiscard]] static auto extractTechnicalIndicators(
-        std::span<float const> prices,
-        std::span<float const> volumes) -> PriceFeatures {
+    [[nodiscard]] static auto extractFeatures(
+        float close, float open, float high, float low, float volume,
+        std::span<float const> price_history,
+        std::span<float const> volume_history) -> PriceFeatures {
 
         PriceFeatures features;
 
-        if (prices.size() < 20) {
-            Logger::getInstance().warn("Insufficient price history for technical indicators");
+        if (price_history.size() < 26 || volume_history.size() < 20) {
+            Logger::getInstance().warn("Insufficient history for feature extraction");
             return features;
         }
 
-        // Calculate RSI(14) using AVX2
-        features.rsi_14 = calculateRSI(prices.subspan(0, 14));
+        // OHLCV data (first 5 features)
+        features.close = close;
+        features.open = open;
+        features.high = high;
+        features.low = low;
+        features.volume = volume;
 
-        // Calculate MACD(12, 26, 9)
-        auto [macd, signal, hist] = calculateMACD(prices);
+        // Returns (next 3 features)
+        features.return_1d = (price_history[0] - price_history[1]) / price_history[1];
+        features.return_5d = (price_history[0] - price_history[5]) / price_history[5];
+        features.return_20d = (price_history[0] - price_history[20]) / price_history[20];
+
+        // Technical indicators (next 9 features for trained model)
+        features.rsi_14 = calculateRSI(price_history.subspan(0, 14));
+
+        auto [macd, signal, hist] = calculateMACD(price_history);
         features.macd = macd;
         features.macd_signal = signal;
         features.macd_histogram = hist;
 
-        // Calculate Bollinger Bands(20, 2.0)
-        auto [upper, middle, lower] = calculateBollingerBands(prices.subspan(0, 20));
+        auto [upper, middle, lower] = calculateBollingerBands(price_history.subspan(0, 20));
         features.bb_upper = upper;
         features.bb_middle = middle;
         features.bb_lower = lower;
 
-        // Calculate ATR(14)
-        features.atr_14 = calculateATR(prices.subspan(0, 14));
+        // BB position: where price is in the band (0=lower, 1=upper)
+        features.bb_position = (close - lower) / (upper - lower + 0.0001f);
 
-        // Volume ratio (current / 20-day avg)
-        features.volume_ratio = volumes[0] / calculateMean(volumes.subspan(0, 20));
+        features.atr_14 = calculateATR(price_history.subspan(0, 14));
 
-        // 5-day momentum
-        features.momentum_5d = (prices[0] - prices[4]) / prices[4];
+        // Volume features
+        features.volume_sma20 = calculateMean(volume_history.subspan(0, 20));
+        features.volume_ratio = volume / (features.volume_sma20 + 0.0001f);
+
+        // Extended features (for future model versions)
+        features.momentum_5d = features.return_5d;  // Same as return_5d
 
         return features;
     }

@@ -96,6 +96,8 @@ struct PortfolioRisk {
     int active_positions{0};
     double portfolio_heat{0.0};
     double max_drawdown{0.0};
+    double var_95{0.0};           // Value at Risk (95% confidence) - Real-time
+    double sharpe_ratio{0.0};     // Sharpe ratio (risk-adjusted returns) - Real-time
 
     [[nodiscard]] auto canOpenNewPosition() const noexcept -> bool {
         return active_positions < 10 && daily_loss_remaining > 0.0;

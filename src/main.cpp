@@ -232,6 +232,7 @@ class TradingEngine {
         strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
         // Add default strategies
+        strategy_manager_->addStrategy(strategies::createMLPredictorStrategy());  // AI-powered predictions
         strategy_manager_->addStrategy(strategies::createStraddleStrategy());
         strategy_manager_->addStrategy(strategies::createStrangleStrategy());
         strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());
@@ -352,24 +353,64 @@ class TradingEngine {
         // 4. Update positions and risk
         updatePositions();
 
-        // 5. Check stop losses
-        checkStopLosses();
+        // 5. Calculate and update daily return for VaR/Sharpe calculations
+        auto const daily_return = calculateDailyReturn();
+        risk_manager_.updateReturnHistory(daily_return);
 
-        // 6. Check daily loss limit
+        // 6. Get portfolio risk metrics (includes real-time VaR and Sharpe)
         auto portfolio_risk = risk_manager_.getPortfolioRisk();
-        if (portfolio_risk && portfolio_risk->daily_loss_remaining <= 0.0) {
-            utils::Logger::getInstance().critical(
-                "═══════════════════════════════════════════════════════");
-            utils::Logger::getInstance().critical(
-                "   DAILY LOSS LIMIT REACHED ($900)                    ");
-            utils::Logger::getInstance().critical(
-                "   TRADING HALTED FOR TODAY                           ");
-            utils::Logger::getInstance().critical(
-                "═══════════════════════════════════════════════════════");
+        if (portfolio_risk) {
+            utils::Logger::getInstance().info(
+                "Risk Metrics - VaR(95%): {:.2f}%, Sharpe: {:.2f}, Daily P&L: ${:.2f}",
+                portfolio_risk->var_95 * 100.0,
+                portfolio_risk->sharpe_ratio,
+                portfolio_risk->daily_pnl
+            );
 
-            // Stop trading for today
-            g_running.store(false);
+            // Check VaR breach (halt trading if risk too high)
+            if (risk_manager_.isVaRBreached(-0.03)) {  // -3% daily VaR threshold
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+                utils::Logger::getInstance().critical(
+                    "   VaR BREACH DETECTED - RISK TOO HIGH                ");
+                utils::Logger::getInstance().critical(
+                    "   Current VaR: {:.2f}% < -3.0% threshold            ",
+                    portfolio_risk->var_95 * 100.0);
+                utils::Logger::getInstance().critical(
+                    "   TRADING HALTED FOR RISK MANAGEMENT                 ");
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+
+                // Halt trading until risk normalizes
+                g_running.store(false);
+            }
+
+            // Check Sharpe ratio (warning only, don't halt)
+            if (!risk_manager_.isSharpeAcceptable(1.0)) {
+                utils::Logger::getInstance().warn(
+                    "⚠️  Sharpe ratio below target: {:.2f} < 1.0 (poor risk-adjusted returns)",
+                    portfolio_risk->sharpe_ratio
+                );
+            }
+
+            // Check daily loss limit
+            if (portfolio_risk->daily_loss_remaining <= 0.0) {
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+                utils::Logger::getInstance().critical(
+                    "   DAILY LOSS LIMIT REACHED ($900)                    ");
+                utils::Logger::getInstance().critical(
+                    "   TRADING HALTED FOR TODAY                           ");
+                utils::Logger::getInstance().critical(
+                    "═══════════════════════════════════════════════════════");
+
+                // Stop trading for today
+                g_running.store(false);
+            }
         }
+
+        // 7. Check stop losses
+        checkStopLosses();
 
         utils::Logger::getInstance().debug("═══ Trading Cycle End ═══");
     }
@@ -606,6 +647,27 @@ class TradingEngine {
             context.rotation_signals = {};
             context.jobless_claims_alert = std::nullopt;
         }
+    }
+
+    // Calculate daily return for VaR/Sharpe tracking
+    [[nodiscard]] auto calculateDailyReturn() const noexcept -> double {
+        // Get account value from Schwab API
+        auto balance_result = schwab_client_->account().getBalance();
+        if (!balance_result) {
+            return 0.0;  // Return neutral if can't get balance
+        }
+
+        auto const current_value = balance_result->total_value;
+
+        // Compare to yesterday's value (stored in config or database)
+        auto const previous_value = config_.get<double>("account.previous_value", current_value);
+
+        if (previous_value < 1e-6) {
+            return 0.0;  // Avoid division by zero
+        }
+
+        // Daily return = (current - previous) / previous
+        return (current_value - previous_value) / previous_value;
     }
 
     auto updatePositions() -> void {

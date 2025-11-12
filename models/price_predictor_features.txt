@@ -1,0 +1,17 @@
+close
+open
+high
+low
+volume
+return_1d
+return_5d
+return_20d
+rsi_14
+macd
+macd_signal
+bb_upper
+bb_lower
+bb_position
+atr_14
+volume_sma20
+volume_ratio

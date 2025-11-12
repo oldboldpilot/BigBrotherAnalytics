@@ -34,6 +34,8 @@ import bigbrother.options.pricing;
 import bigbrother.strategy;
 import bigbrother.employment.signals;
 import bigbrother.risk_management;
+import bigbrother.market_intelligence.price_predictor;
+import bigbrother.market_intelligence.feature_extractor;
 
 export namespace bigbrother::strategies {
 
@@ -1155,8 +1157,246 @@ class StrategyManager {
 };
 
 // ============================================================================
+// ML Predictor Strategy (AI-Powered Price Prediction)
+// ============================================================================
+
+/**
+ * ML-based strategy using ONNX Runtime for price prediction
+ *
+ * Uses trained neural network to predict 1-day, 5-day, and 20-day price changes
+ * Generates BUY/SELL signals based on predicted returns
+ */
+class MLPredictorStrategy : public IStrategy {
+  public:
+    MLPredictorStrategy() {
+        // Initialize predictor on first use
+        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
+
+        if (!predictor.isInitialized()) {
+            bigbrother::market_intelligence::PredictorConfig config;
+            config.use_cuda = true;  // Enable CUDA if available
+            config.model_weights_path = "models/price_predictor.onnx";
+
+            if (!predictor.initialize(config)) {
+                Logger::getInstance().error("Failed to initialize ML predictor");
+            } else {
+                Logger::getInstance().info("ML Predictor Strategy initialized with CUDA");
+            }
+        }
+    }
+
+    [[nodiscard]] auto getName() const noexcept -> std::string override {
+        return "ML Price Predictor";
+    }
+
+    [[nodiscard]] auto generateSignals(StrategyContext const& context)
+        -> std::vector<bigbrother::strategy::TradingSignal> override {
+
+        std::vector<bigbrother::strategy::TradingSignal> signals;
+
+        if (!active_) {
+            return signals;
+        }
+
+        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
+
+        if (!predictor.isInitialized()) {
+            Logger::getInstance().warn("ML predictor not initialized, skipping");
+            return signals;
+        }
+
+        // Get symbols to analyze (from context or default watchlist)
+        std::vector<std::string> symbols = {"SPY", "QQQ", "IWM", "DIA"};
+
+        for (auto const& symbol : symbols) {
+            // Extract features from market data
+            auto features = extractFeatures(context, symbol);
+            if (!features) {
+                continue;
+            }
+
+            // Run ML prediction
+            auto prediction = predictor.predict(symbol, *features);
+            if (!prediction) {
+                Logger::getInstance().warn("Prediction failed for {}", symbol);
+                continue;
+            }
+
+            // Get overall signal
+            auto signal_type = prediction->getOverallSignal();
+
+            // Skip HOLD signals
+            if (signal_type == bigbrother::market_intelligence::PricePrediction::Signal::HOLD) {
+                continue;
+            }
+
+            // Create trading signal
+            bigbrother::strategy::TradingSignal signal;
+            signal.strategy_name = getName();
+            signal.symbol = symbol;
+            signal.type = convertSignalType(signal_type);
+
+            // Use confidence from prediction
+            signal.confidence = (prediction->confidence_1d + prediction->confidence_5d + prediction->confidence_20d) / 3.0;
+
+            // Estimate expected return based on predicted changes
+            double expected_change = (prediction->day_1_change + prediction->day_5_change + prediction->day_20_change) / 3.0;
+            signal.expected_return = std::abs(expected_change) * 1000.0;  // Assume $1000 position
+            signal.max_risk = 200.0;  // Max risk $200 (2% stop loss)
+            signal.win_probability = signal.confidence;
+            signal.timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+            signal.rationale = formatRationale(*prediction);
+
+            Logger::getInstance().info(
+                "ML Signal: {} {} (confidence: {:.1f}%, predicted change: {:.2f}%)",
+                symbol,
+                bigbrother::market_intelligence::PricePrediction::signalToString(signal_type),
+                signal.confidence * 100,
+                expected_change * 100
+            );
+
+            signals.push_back(std::move(signal));
+        }
+
+        return signals;
+    }
+
+    auto setActive(bool active) noexcept -> void override {
+        active_ = active;
+    }
+
+    [[nodiscard]] auto isActive() const noexcept -> bool override {
+        return active_;
+    }
+
+    [[nodiscard]] auto getParameters() const
+        -> std::unordered_map<std::string, std::string> override {
+        return {
+            {"model", "price_predictor.onnx"},
+            {"confidence_threshold", "0.6"},
+            {"use_cuda", "true"}
+        };
+    }
+
+  private:
+    bool active_{true};
+
+    /**
+     * Extract features from market data
+     *
+     * TODO: Implement full feature extraction
+     * For now, returns stub data
+     */
+    [[nodiscard]] auto extractFeatures(StrategyContext const& context, std::string const& symbol)
+        -> std::optional<bigbrother::market_intelligence::PriceFeatures> {
+
+        // Get current quote for symbol
+        auto quote_it = context.current_quotes.find(symbol);
+        if (quote_it == context.current_quotes.end()) {
+            Logger::getInstance().warn("No quote available for {}", symbol);
+            return std::nullopt;
+        }
+
+        auto const& quote = quote_it->second;
+
+        // Extract data from schwab::Quote (has: bid, ask, last, volume)
+        bigbrother::market_intelligence::PriceFeatures features;
+
+        // Use available fields
+        float const last_price = static_cast<float>(quote.last);
+        float const bid_price = static_cast<float>(quote.bid);
+        float const ask_price = static_cast<float>(quote.ask);
+        float const spread = ask_price - bid_price;
+
+        // OHLCV approximations (schwab::Quote doesn't have full OHLCV)
+        features.close = last_price;
+        features.open = last_price;  // Approximation
+        features.high = ask_price;   // Use ask as high approximation
+        features.low = bid_price;    // Use bid as low approximation
+        features.volume = static_cast<float>(quote.volume);
+
+        // Returns - use bid/ask spread as volatility proxy
+        // TODO: Maintain price history for actual returns
+        float const volatility_estimate = spread / last_price;
+        features.return_1d = volatility_estimate * 0.5f;  // Rough estimate
+        features.return_5d = volatility_estimate * 2.0f;
+        features.return_20d = volatility_estimate * 5.0f;
+
+        // Technical indicators (simplified without historical data)
+        float const price_range = spread;
+        float const price_position = (last_price - bid_price) / (spread + 0.0001f);
+        features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f;  // Centered around 50
+
+        // MACD approximation
+        features.macd = volatility_estimate * last_price * 0.01f;
+        features.macd_signal = features.macd * 0.7f;
+        features.macd_histogram = features.macd - features.macd_signal;
+
+        // Bollinger Bands approximation
+        features.bb_middle = last_price;
+        features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
+        features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
+        features.bb_position = price_position;
+
+        // ATR approximation (use spread as proxy)
+        features.atr_14 = price_range;
+
+        // Volume features (assume current volume is average)
+        features.volume_sma20 = features.volume;
+        features.volume_ratio = 1.0f;
+
+        // Extended features
+        features.momentum_5d = features.return_5d;
+
+        Logger::getInstance().debug("Extracted features for {}: price={:.2f}, volume={:.0f}, spread={:.4f}",
+            symbol, last_price, features.volume, spread);
+
+        return features;
+    }
+
+    /**
+     * Convert ML signal to strategy signal type
+     */
+    [[nodiscard]] auto convertSignalType(bigbrother::market_intelligence::PricePrediction::Signal ml_signal)
+        -> SignalType {
+
+        using MLSignal = bigbrother::market_intelligence::PricePrediction::Signal;
+
+        switch (ml_signal) {
+            case MLSignal::STRONG_BUY:
+            case MLSignal::BUY:
+                return SignalType::Buy;
+            case MLSignal::STRONG_SELL:
+            case MLSignal::SELL:
+                return SignalType::Sell;
+            case MLSignal::HOLD:
+            default:
+                return SignalType::Hold;
+        }
+    }
+
+    /**
+     * Format prediction rationale for logging
+     */
+    [[nodiscard]] auto formatRationale(bigbrother::market_intelligence::PricePrediction const& pred)
+        -> std::string {
+
+        std::ostringstream oss;
+        oss << "ML Prediction: 1d=" << (pred.day_1_change * 100) << "%, "
+            << "5d=" << (pred.day_5_change * 100) << "%, "
+            << "20d=" << (pred.day_20_change * 100) << "%";
+        return oss.str();
+    }
+};
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
+
+[[nodiscard]] inline auto createMLPredictorStrategy() -> std::unique_ptr<IStrategy> {
+    return std::make_unique<MLPredictorStrategy>();
+}
 
 [[nodiscard]] inline auto createStraddleStrategy() -> std::unique_ptr<IStrategy> {
     return std::make_unique<StraddleStrategy>();

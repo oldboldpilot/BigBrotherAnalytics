@@ -41,6 +41,14 @@ module;
 #include <string>
 #include <vector>
 
+// ONNX Runtime for ML inference
+#ifdef HAS_ONNXRUNTIME
+    #include <onnxruntime/onnxruntime_cxx_api.h>
+    #define USE_ONNX 1
+#else
+    #define USE_ONNX 0
+#endif
+
 export module bigbrother.market_intelligence.price_predictor;
 
 import bigbrother.market_intelligence.feature_extractor;
@@ -128,8 +136,8 @@ struct PredictorConfig {
     int batch_size = 64;
     float confidence_threshold = 0.6f;  // Minimum confidence for signals
 
-    // Model path
-    std::string model_weights_path = "models/price_predictor.bin";
+    // Model path (ONNX format for ONNX Runtime)
+    std::string model_weights_path = "models/price_predictor.onnx";
 };
 
 /**
@@ -327,17 +335,72 @@ class PricePredictor {
      * Check if CUDA is available
      */
     [[nodiscard]] static auto checkCudaAvailable() -> bool {
-        // TODO: Implement actual CUDA detection
-        // For now, return false (will implement with CUDA kernels)
+#if USE_ONNX
+        // Check if CUDA execution provider is available in ONNX Runtime
+        auto available_providers = Ort::GetAvailableProviders();
+        for (auto const& provider : available_providers) {
+            if (provider == "CUDAExecutionProvider") {
+                return true;
+            }
+        }
+#endif
         return false;
     }
 
     /**
-     * Load model weights from file
+     * Load model weights from ONNX file
      */
     [[nodiscard]] auto loadModelWeights(std::string const& path) -> bool {
-        // TODO: Implement weight loading from binary file
+#if USE_ONNX
+        try {
+            // Initialize ONNX Runtime environment
+            onnx_env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "PricePredictor");
+
+            // Create session options
+            onnx_session_options_ = std::make_unique<Ort::SessionOptions>();
+            onnx_session_options_->SetIntraOpNumThreads(4);
+            onnx_session_options_->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+
+            // Enable CUDA if requested and available
+            if (config_.use_cuda && checkCudaAvailable()) {
+                try {
+                    OrtCUDAProviderOptions cuda_options;
+                    cuda_options.device_id = config_.cuda_device_id;
+                    onnx_session_options_->AppendExecutionProvider_CUDA(cuda_options);
+                    Logger::getInstance().info("CUDA execution provider enabled for ML inference");
+                } catch (std::exception const& e) {
+                    Logger::getInstance().warn("Failed to enable CUDA, falling back to CPU: {}", e.what());
+                    config_.use_cuda = false;
+                }
+            }
+
+            // Load ONNX model
+            onnx_session_ = std::make_unique<Ort::Session>(*onnx_env_, path.c_str(), *onnx_session_options_);
+
+            // Get input/output names
+            input_names_.clear();
+            output_names_.clear();
+
+            input_names_.push_back("input");   // From ONNX export
+            output_names_.push_back("output"); // From ONNX export
+
+            Logger::getInstance().info("ONNX model loaded successfully: {}", path);
+            Logger::getInstance().info("  Input: {} (shape: 1x17)", input_names_[0]);
+            Logger::getInstance().info("  Output: {} (shape: 1x3)", output_names_[0]);
+
+            return true;
+
+        } catch (Ort::Exception const& e) {
+            Logger::getInstance().error("ONNX Runtime error loading model: {}", e.what());
+            return false;
+        } catch (std::exception const& e) {
+            Logger::getInstance().error("Failed to load ONNX model: {}", e.what());
+            return false;
+        }
+#else
+        Logger::getInstance().error("ONNX Runtime not available - rebuild with ONNX support");
         return false;
+#endif
     }
 
     /**
@@ -349,30 +412,72 @@ class PricePredictor {
     }
 
     /**
-     * Run neural network inference (CPU fallback)
-     *
-     * TODO: Replace with CUDA implementation
+     * Run neural network inference using ONNX Runtime (CUDA-accelerated)
      */
     [[nodiscard]] auto runInference(std::array<float, 25> const& input)
         -> std::array<float, 3> {
 
-        // Simplified forward pass (placeholder)
-        // Real implementation will use CUDA kernels
+#if USE_ONNX
+        if (!onnx_session_) {
+            Logger::getInstance().error("ONNX session not initialized");
+            return {0.0f, 0.0f, 0.0f};
+        }
 
+        try {
+            // Note: Our model expects 17 features, not 25
+            // Extract first 17 features (adjust based on actual feature mapping)
+            std::vector<float> input_data(input.begin(), input.begin() + 17);
+
+            // Create input tensor
+            auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+            Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+                memory_info,
+                input_data.data(),
+                input_data.size(),
+                input_shape_.data(),
+                input_shape_.size()
+            );
+
+            // Run inference
+            auto output_tensors = onnx_session_->Run(
+                Ort::RunOptions{nullptr},
+                input_names_.data(),
+                &input_tensor,
+                1,
+                output_names_.data(),
+                1
+            );
+
+            // Extract output
+            float* output_data = output_tensors.front().GetTensorMutableData<float>();
+
+            return {
+                output_data[0],  // 1-day prediction
+                output_data[1],  // 5-day prediction
+                output_data[2]   // 20-day prediction
+            };
+
+        } catch (Ort::Exception const& e) {
+            Logger::getInstance().error("ONNX inference error: {}", e.what());
+            return {0.0f, 0.0f, 0.0f};
+        }
+#else
+        // Fallback: Simple averaging (placeholder)
         float sum = 0.0f;
         #pragma omp simd reduction(+:sum)
-        for (size_t i = 0; i < input.size(); ++i) {
+        for (size_t i = 0; i < 17; ++i) {
             sum += input[i];
         }
 
-        float avg = sum / static_cast<float>(input.size());
+        float avg = sum / 17.0f;
 
-        // Dummy predictions (replace with actual neural network)
+        // Dummy predictions
         return {
-            avg * 2.0f,   // 1-day prediction
-            avg * 5.0f,   // 5-day prediction
-            avg * 10.0f   // 20-day prediction
+            avg * 0.01f,   // 1-day prediction (~1%)
+            avg * 0.02f,   // 5-day prediction (~2%)
+            avg * 0.05f    // 20-day prediction (~5%)
         };
+#endif
     }
 
     /**
@@ -398,6 +503,20 @@ class PricePredictor {
     PredictorConfig config_;
     std::atomic<bool> initialized_{false};
     mutable std::mutex mutex_;
+
+#if USE_ONNX
+    // ONNX Runtime session for inference
+    std::unique_ptr<Ort::Env> onnx_env_;
+    std::unique_ptr<Ort::Session> onnx_session_;
+    std::unique_ptr<Ort::SessionOptions> onnx_session_options_;
+    Ort::AllocatorWithDefaultOptions onnx_allocator_;
+
+    // Model metadata
+    std::vector<const char*> input_names_;
+    std::vector<const char*> output_names_;
+    std::vector<int64_t> input_shape_{1, 17};  // Batch size 1, 17 features
+    std::vector<int64_t> output_shape_{1, 3};  // Batch size 1, 3 predictions
+#endif
 
     // Neural network weights (will be loaded from file or CUDA memory)
     // TODO: Add weight matrices for each layer
