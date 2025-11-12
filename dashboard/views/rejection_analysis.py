@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 def load_rejection_data(days=7):
     """Load rejection data for analysis"""
     import os
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'bigbrother.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'bigbrother.duckdb')
     conn = duckdb.connect(db_path, read_only=True)
 
     query = f"""

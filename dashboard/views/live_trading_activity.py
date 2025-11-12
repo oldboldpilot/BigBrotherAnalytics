@@ -21,7 +21,7 @@ import plotly.express as px
 def load_todays_signals():
     """Load all signals generated today"""
     import os
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'bigbrother.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'bigbrother.duckdb')
     conn = duckdb.connect(db_path, read_only=True)
 
     query = """
