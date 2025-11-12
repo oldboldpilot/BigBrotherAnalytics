@@ -105,6 +105,32 @@ if(GTest_FOUND)
 
     add_test(NAME SchwabAPITests COMMAND test_schwab_api)
 
+    # Options Strategies Regression Tests (52 strategies)
+    add_executable(test_options_strategies
+        test_options_strategies.cpp
+    )
+
+    # Match the compilation flags used by options_strategies library
+    target_compile_options(test_options_strategies PRIVATE
+        -O3
+        -march=native
+        -mavx2
+        -mfma
+        -fopenmp-simd
+        -ffast-math
+        -funroll-loops
+        -ftree-vectorize
+    )
+
+    target_link_libraries(test_options_strategies
+        PRIVATE
+        options_strategies
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    add_test(NAME OptionsStrategiesTests COMMAND test_options_strategies)
+
 else()
     message(STATUS "Google Test not found - C++ tests disabled")
     message(STATUS "Install with: sudo apt-get install libgtest-dev")
