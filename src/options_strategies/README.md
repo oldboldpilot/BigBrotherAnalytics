@@ -1,9 +1,9 @@
 # Options Strategies Implementation Guide
 
-**Status:** Foundation + Tier 1 + Tier 2 Complete
-**Completed:** 16 strategies (31% of total)
-**Remaining:** 36 strategies across 5 files
-**Estimated Time:** 3-4 additional sessions
+**Status:** Foundation + Tier 1 + Tier 2 + Tier 3 Complete
+**Completed:** 28 strategies (54% of total)
+**Remaining:** 24 strategies across 4 files
+**Estimated Time:** 2-3 additional sessions
 
 ---
 
@@ -16,39 +16,15 @@
 | single_leg.cppm | 550 | ✅ Complete | 4 strategies (Tier 1) |
 | vertical_spreads.cppm | 740 | ✅ Complete | 4 vertical spreads (Tier 2.1) |
 | straddles_strangles.cppm | 1470 | ✅ Complete | 8 volatility strategies (Tier 2.2) |
+| butterflies_condors.cppm | 2850 | ✅ Complete | 12 butterfly/condor strategies (Tier 3) |
 
-**Total:** 3,750 lines of production-ready C++23 code with AVX2 optimization
+**Total:** 6,600 lines of production-ready C++23 code with AVX2 optimization
 
 ---
 
 ## 📋 Remaining Files (Prioritized)
 
-### File 1: vertical_spreads.cppm (High Priority)
-**Strategies:** 4
-- Bull Call Spread
-- Bull Put Spread
-- Bear Call Spread
-- Bear Put Spread
-
-**Pattern:** Similar to single_leg.cppm but with 2 legs each
-
-**Complexity:** Medium (2 legs, limited risk/reward)
-
----
-
-### File 2: straddles_strangles.cppm (High Priority)
-**Strategies:** 8
-- Long/Short Straddle
-- Long/Short Strangle
-- Long/Short Gut
-- Strap/Strip Straddle
-- Strap/Strip Strangle
-
-**Pattern:** 2 legs (call + put), same expiration
-
----
-
-### File 3: covered_positions.cppm (Medium Priority)
+### File 1: covered_positions.cppm (High Priority)
 **Strategies:** 3
 - Covered Call
 - Covered Put
@@ -56,20 +32,11 @@
 
 **Pattern:** Stock + option(s)
 
----
-
-### File 4: butterflies_condors.cppm (Medium Priority)
-**Strategies:** 12
-- Butterfly variants (4)
-- Condor variants (4)
-- Iron Butterfly variants (2)
-- Iron Condor variants (2)
-
-**Pattern:** 4 legs, symmetric risk profile
+**Complexity:** Simple (stock + 1-2 options)
 
 ---
 
-### File 5: calendar_spreads.cppm (Low Priority)
+### File 2: calendar_spreads.cppm (Medium Priority)
 **Strategies:** 6
 - Calendar Call/Put Spread
 - Calendar Straddle/Strangle
@@ -79,7 +46,7 @@
 
 ---
 
-### File 6: ratio_spreads.cppm (Low Priority)
+### File 3: ratio_spreads.cppm (Medium Priority)
 **Strategies:** 8
 - Call/Put Ratio Spread
 - Call/Put Ratio Backspread
@@ -89,7 +56,7 @@
 
 ---
 
-### File 7: albatross_ladder.cppm (Low Priority)
+### File 4: albatross_ladder.cppm (Low Priority)
 **Strategies:** 7
 - Albatross variants (4)
 - Ladder spreads (2)
@@ -196,18 +163,19 @@ TEST(LongCallTest, BasicFunctionality) {
 
 ## 🚀 Quick Start (Next Session)
 
-### Step 1: Create vertical_spreads.cppm
+### Step 1: Create covered_positions.cppm
 
 ```bash
 cd /home/muyiwa/Development/BigBrotherAnalytics
-cp src/options_strategies/single_leg.cppm src/options_strategies/vertical_spreads.cppm
+cp src/options_strategies/single_leg.cppm src/options_strategies/covered_positions.cppm
 ```
 
-### Step 2: Modify for 2-leg spreads
+### Step 2: Modify for stock + option(s) strategies
 
-Replace single leg constructors with 2 legs:
-- Long leg (buy)
-- Short leg (sell)
+Implement 3 strategies:
+- Covered Call (buy stock, sell call)
+- Covered Put (short stock, sell put)
+- Collar (buy stock, sell call, buy put)
 
 ### Step 3: Update CMakeLists.txt
 
@@ -218,7 +186,7 @@ Add new module to build system (see below)
 ```bash
 cmake -G Ninja -B build
 ninja -C build options_strategies
-./build/tests/test_vertical_spreads
+./build/tests/test_covered_positions
 ```
 
 ---
@@ -236,11 +204,11 @@ target_sources(options_strategies
         src/options_strategies/base.cppm
         src/options_strategies/simd_utils.cppm
         src/options_strategies/single_leg.cppm
+        src/options_strategies/vertical_spreads.cppm
+        src/options_strategies/straddles_strangles.cppm
+        src/options_strategies/butterflies_condors.cppm
         # TODO: Add these as implemented
-        # src/options_strategies/vertical_spreads.cppm
-        # src/options_strategies/straddles_strangles.cppm
         # src/options_strategies/covered_positions.cppm
-        # src/options_strategies/butterflies_condors.cppm
         # src/options_strategies/calendar_spreads.cppm
         # src/options_strategies/ratio_spreads.cppm
         # src/options_strategies/albatross_ladder.cppm
@@ -311,7 +279,7 @@ auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - star
 
 ---
 
-**Next Action:** Implement vertical_spreads.cppm (4 strategies, ~400 lines)
+**Next Action:** Implement covered_positions.cppm (3 strategies, ~350 lines)
 
 **Author:** Claude Code + Olumuyiwa Oluwasanmi
 **Last Updated:** November 12, 2025

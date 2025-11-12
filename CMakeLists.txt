@@ -525,9 +525,9 @@ target_sources(options_strategies
             src/options_strategies/single_leg.cppm
             src/options_strategies/vertical_spreads.cppm
             src/options_strategies/straddles_strangles.cppm
+            src/options_strategies/butterflies_condors.cppm
             # TODO: Add remaining tiers as implemented
             # src/options_strategies/covered_positions.cppm
-            # src/options_strategies/butterflies_condors.cppm
             # src/options_strategies/calendar_spreads.cppm
             # src/options_strategies/ratio_spreads.cppm
             # src/options_strategies/albatross_ladder.cppm
