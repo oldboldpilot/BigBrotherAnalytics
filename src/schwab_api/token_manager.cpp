@@ -215,6 +215,13 @@ class TokenManager::Impl {
 
         // Initialize DuckDB connection and schema
         initializeDatabase();
+
+        // Auto-start refresh thread if tokens are already present
+        // This ensures 25-minute automatic refresh even when loading from file
+        if (!config_.access_token.empty() && !config_.refresh_token.empty()) {
+            LOG_INFO("Tokens detected in config - starting automatic 25-minute refresh thread");
+            startRefreshThread();
+        }
     }
 
     ~Impl() {
