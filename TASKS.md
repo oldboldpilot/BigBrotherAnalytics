@@ -111,6 +111,14 @@
   - [ ] Integrate Tensor Cores for FP16 mixed precision
 
 ### Dashboard Enhancements
+- [ ] **Real-Time Tax Cumulative Calculations**
+  - [ ] Add YTD cumulative tax display
+  - [ ] Show tax liability by strategy
+  - [ ] Display effective tax rate
+  - [ ] Tax-adjusted returns view
+  - [ ] Wash sale tracking
+  - [ ] Tax lot LIFO/FIFO visualization
+
 - [ ] **FRED Rates Integration**
   - [ ] Add Treasury rates widget to dashboard
   - [ ] Display yield curve chart
