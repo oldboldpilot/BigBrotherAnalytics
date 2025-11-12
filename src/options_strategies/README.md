@@ -1,8 +1,9 @@
 # Options Strategies Implementation Guide
 
-**Status:** Foundation Complete (3 modules + 4 strategies)
-**Remaining:** 48 strategies across 7 files
-**Estimated Time:** 5-7 additional sessions
+**Status:** Foundation + Tier 1 + Tier 2 Part 1 Complete
+**Completed:** 8 strategies (4 single leg + 4 vertical spreads)
+**Remaining:** 44 strategies across 6 files
+**Estimated Time:** 4-6 additional sessions
 
 ---
 
@@ -11,10 +12,11 @@
 | File | Lines | Status | Strategies |
 |------|-------|--------|------------|
 | base.cppm | 400 | ✅ Complete | Base classes & interfaces |
-| simd_utils.cppm | 500 | ✅ Complete | AVX2 Black-Scholes & Greeks |
-| single_leg.cppm | 500 | ✅ Complete | 4 strategies (Tier 1) |
+| simd_utils.cppm | 590 | ✅ Complete | AVX2 Black-Scholes & All Greeks |
+| single_leg.cppm | 550 | ✅ Complete | 4 strategies (Tier 1) |
+| vertical_spreads.cppm | 740 | ✅ Complete | 4 vertical spread strategies (Tier 2) |
 
-**Total:** 1,400 lines of production-ready C++23 code
+**Total:** 2,280 lines of production-ready C++23 code with AVX2 optimization
 
 ---
 

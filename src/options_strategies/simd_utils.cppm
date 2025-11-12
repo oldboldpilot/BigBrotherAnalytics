@@ -410,6 +410,79 @@ inline auto rhoCallBatch(
         _mm256_set1_ps(100.0f));
 }
 
+/**
+ * Calculate Theta for puts
+ * Theta = -(S*N'(d1)*sigma)/(2*sqrt(T)) + r*K*exp(-r*T)*N(-d2)
+ */
+inline auto thetaPutBatch(
+    __m256 S, __m256 K, __m256 T, __m256 r, __m256 sigma
+) -> __m256 {
+    __m256 sqrt_T = avx2_sqrt(T);
+    __m256 sigma_sqrt_T = _mm256_mul_ps(sigma, sqrt_T);
+
+    __m256 ln_S_K = avx2_log(_mm256_div_ps(S, K));
+    __m256 sigma_sq = _mm256_mul_ps(sigma, sigma);
+    __m256 half_sigma_sq = _mm256_mul_ps(sigma_sq, _mm256_set1_ps(0.5f));
+    __m256 numerator = _mm256_fmadd_ps(
+        _mm256_add_ps(r, half_sigma_sq), T, ln_S_K);
+
+    __m256 d1 = _mm256_div_ps(numerator, sigma_sqrt_T);
+    __m256 d2 = _mm256_sub_ps(d1, sigma_sqrt_T);
+
+    __m256 pdf_d1 = avx2_normalPDF(d1);
+    __m256 neg_d2 = _mm256_sub_ps(_mm256_setzero_ps(), d2);
+    __m256 cdf_neg_d2 = avx2_normalCDF(neg_d2);
+
+    __m256 neg_rT = _mm256_mul_ps(_mm256_sub_ps(_mm256_setzero_ps(), r), T);
+    __m256 exp_neg_rT = avx2_exp(neg_rT);
+
+    __m256 term1 = _mm256_div_ps(
+        _mm256_mul_ps(_mm256_mul_ps(S, pdf_d1), sigma),
+        _mm256_mul_ps(_mm256_set1_ps(2.0f), sqrt_T));
+
+    __m256 term2 = _mm256_mul_ps(
+        _mm256_mul_ps(_mm256_mul_ps(r, K), exp_neg_rT), cdf_neg_d2);
+
+    // Convert to per-day (divide by 365)
+    __m256 theta = _mm256_div_ps(
+        _mm256_sub_ps(term2, term1),
+        _mm256_set1_ps(365.0f));
+
+    return theta;
+}
+
+/**
+ * Calculate Rho for puts
+ * Rho = -K * T * exp(-r*T) * N(-d2)
+ */
+inline auto rhoPutBatch(
+    __m256 S, __m256 K, __m256 T, __m256 r, __m256 sigma
+) -> __m256 {
+    __m256 sqrt_T = avx2_sqrt(T);
+    __m256 sigma_sqrt_T = _mm256_mul_ps(sigma, sqrt_T);
+
+    __m256 ln_S_K = avx2_log(_mm256_div_ps(S, K));
+    __m256 sigma_sq = _mm256_mul_ps(sigma, sigma);
+    __m256 half_sigma_sq = _mm256_mul_ps(sigma_sq, _mm256_set1_ps(0.5f));
+    __m256 numerator = _mm256_fmadd_ps(
+        _mm256_add_ps(r, half_sigma_sq), T, ln_S_K);
+
+    __m256 d1 = _mm256_div_ps(numerator, sigma_sqrt_T);
+    __m256 d2 = _mm256_sub_ps(d1, sigma_sqrt_T);
+
+    __m256 neg_d2 = _mm256_sub_ps(_mm256_setzero_ps(), d2);
+    __m256 cdf_neg_d2 = avx2_normalCDF(neg_d2);
+
+    __m256 neg_rT = _mm256_mul_ps(_mm256_sub_ps(_mm256_setzero_ps(), r), T);
+    __m256 exp_neg_rT = avx2_exp(neg_rT);
+
+    // Rho per 1% change in interest rate (negative for puts)
+    return _mm256_div_ps(
+        _mm256_sub_ps(_mm256_setzero_ps(),
+            _mm256_mul_ps(_mm256_mul_ps(_mm256_mul_ps(K, T), exp_neg_rT), cdf_neg_d2)),
+        _mm256_set1_ps(100.0f));
+}
+
 // ============================================================================
 // Scalar Wrapper Functions (for single option pricing)
 // ============================================================================

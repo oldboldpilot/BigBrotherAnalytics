@@ -18,6 +18,7 @@ module;
 
 #include <algorithm>
 #include <cmath>
+#include <immintrin.h>  // AVX2 intrinsics
 #include <memory>
 #include <optional>
 #include <span>
@@ -243,10 +244,46 @@ public:
         float T = leg.days_to_expiration / 365.0f;
 
         Greeks greeks;
-        // Similar to Long Call but use put Greeks functions
-        greeks.delta = simd::deltaPutBatch(...)[0];  // Negative
-        greeks.gamma = simd::gammaBatch(...)[0];
-        // ... other Greeks
+        greeks.delta = simd::deltaPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.gamma = simd::gammaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.theta = simd::thetaPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.vega = simd::vegaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.rho = simd::rhoPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
         return greeks;
     }
 
@@ -331,11 +368,46 @@ public:
 
         // Short position: negate all Greeks
         Greeks greeks;
-        greeks.delta = -simd::deltaCallBatch(...)[0];
-        greeks.gamma = -simd::gammaBatch(...)[0];
-        greeks.theta = -simd::thetaCallBatch(...)[0];  // Positive for short
-        greeks.vega = -simd::vegaBatch(...)[0];
-        greeks.rho = -simd::rhoCallBatch(...)[0];
+        greeks.delta = -simd::deltaCallBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.gamma = -simd::gammaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.theta = -simd::thetaCallBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.vega = -simd::vegaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.rho = -simd::rhoCallBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
         return greeks;
     }
 
@@ -417,11 +489,46 @@ public:
         float T = leg.days_to_expiration / 365.0f;
 
         Greeks greeks;
-        greeks.delta = -simd::deltaPutBatch(...)[0];  // Positive (short put)
-        greeks.gamma = -simd::gammaBatch(...)[0];
-        greeks.theta = -simd::thetaPutBatch(...)[0];  // Positive
-        greeks.vega = -simd::vegaBatch(...)[0];
-        greeks.rho = -simd::rhoPutBatch(...)[0];
+        greeks.delta = -simd::deltaPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.gamma = -simd::gammaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.theta = -simd::thetaPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.vega = -simd::vegaBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
+        greeks.rho = -simd::rhoPutBatch(
+            _mm256_set1_ps(underlying_price),
+            _mm256_set1_ps(leg.strike),
+            _mm256_set1_ps(T),
+            _mm256_set1_ps(risk_free_rate),
+            _mm256_set1_ps(leg.implied_volatility)
+        )[0];
+
         return greeks;
     }
 
