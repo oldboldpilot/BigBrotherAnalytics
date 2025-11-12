@@ -164,8 +164,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic")
 # -mavx2: Enable AVX2 SIMD instructions for vectorization (4x double or 8x float at once)
 # -mfma: Enable fused multiply-add instructions (a*b+c in single operation)
 # -fopenmp-simd: Enable OpenMP SIMD directives for loop vectorization
-# Removed -ffast-math due to isnan/infinity usage in Greeks calculations
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mavx2 -mfma -fopenmp-simd -DNDEBUG")
+# -ffast-math: Fast math optimizations (required for module consistency)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mavx2 -mfma -fopenmp-simd -ffast-math -DNDEBUG")
 
 # Clang-specific flags for C++23 modules
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -388,8 +388,6 @@ target_sources(utils
             src/utils/utils.cppm
 )
 
-# Optimization flags applied globally - no per-target flags needed
-
 target_link_libraries(utils
     PUBLIC
     Threads::Threads
@@ -533,13 +531,8 @@ target_sources(options_strategies
 )
 
 # AVX2 optimization flags for SIMD performance
+# Additional optimizations beyond global flags for performance-critical code
 target_compile_options(options_strategies PRIVATE
-    -O3
-    -march=native
-    -mavx2
-    -mfma
-    -fopenmp-simd
-    -ffast-math
     -funroll-loops
     -ftree-vectorize
 )
@@ -576,14 +569,20 @@ target_sources(trading_decision
             src/trading_decision/strategy.cppm
             src/trading_decision/strategy_iron_condor.cppm
             src/trading_decision/strategies.cppm
+            src/trading_decision/options_strategy_integrator.cppm
 )
-target_compile_options(trading_decision PRIVATE -fmodule-output)
+
+# Module output configuration
+target_compile_options(trading_decision PRIVATE
+    -fmodule-output
+)
 
 target_link_libraries(trading_decision
     PUBLIC
     utils
     correlation_engine
     options_pricing
+    options_strategies
     risk_management
     schwab_api
     market_intelligence
@@ -808,6 +807,24 @@ target_link_libraries(test_schwab_live
     options_pricing
     utils
     ${CURL_LIBRARIES}
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Options Strategy Integration Example
+# ============================================================================
+
+add_executable(options_strategy_integration_example
+    examples/options_strategy_integration_example.cpp
+)
+
+target_link_libraries(options_strategy_integration_example
+    PRIVATE
+    trading_decision
+    options_strategies
+    risk_management
+    utils
     c++
     c++abi
 )
