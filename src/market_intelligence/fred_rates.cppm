@@ -298,23 +298,25 @@ class FREDRatesFetcher {
                 Error::make(ErrorCode::NetworkError, "Failed to initialize CURL"));
         }
 
-        // RAII cleanup (Rule of Five)
+        // RAII cleanup (Rule of Five - all special members explicitly declared)
         struct CurlCleanup {
             CURL* handle;
 
-            // Explicit constructor
+            // Constructor
             explicit CurlCleanup(CURL* h) : handle(h) {}
 
+            // Destructor
             ~CurlCleanup() { if (handle) curl_easy_cleanup(handle); }
 
-            // Delete copy operations (RAII with unique ownership)
+            // Copy operations deleted (unique ownership)
             CurlCleanup(CurlCleanup const&) = delete;
             auto operator=(CurlCleanup const&) -> CurlCleanup& = delete;
 
-            // Delete move operations (simple RAII, no transfer needed)
-            CurlCleanup(CurlCleanup&&) = delete;
-            auto operator=(CurlCleanup&&) -> CurlCleanup& = delete;
-        } cleanup{curl};
+            // Move operations deleted (no transfer needed)
+            CurlCleanup(CurlCleanup&&) noexcept = delete;
+            auto operator=(CurlCleanup&&) noexcept -> CurlCleanup& = delete;
+        };
+        CurlCleanup cleanup{curl};
 
         // Set CURL options
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

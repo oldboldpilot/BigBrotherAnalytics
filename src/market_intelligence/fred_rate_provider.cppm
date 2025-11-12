@@ -198,7 +198,7 @@ class FREDRateProvider {
         refresh_interval_ = std::chrono::seconds(interval_seconds);
 
         // Start background thread
-        refresh_thread_ = std::thread([this, interval_seconds]() {
+        refresh_thread_ = std::thread([this, interval_seconds]() -> void {
             Logger::getInstance().info("FRED auto-refresh started (interval: {}s)", interval_seconds);
 
             while (auto_refresh_running_) {
