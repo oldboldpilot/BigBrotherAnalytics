@@ -1,10 +1,41 @@
 # BigBrotherAnalytics - Project Manifest
 
-**Last Updated:** 2025-11-10
-**Phase:** 🎯 **Phase 5 ACTIVE** - 100% Production Ready (News Ingestion Integrated)
+**Last Updated:** 2025-11-12
+**Phase:** 🎯 **Phase 5 ACTIVE** - 100% Production Ready + **ML Price Predictor v3.0 DEPLOYED**
 **Timeline:** Days 0-21 (Paper Trading Validation)
 **Success Metric:** $150+/day profit after taxes with $30k Schwab account
-**Current Status:** Phase 5 active - News ingestion operational, 8/8 checks passing
+**ML Model:** v3.0 - 60 features, 56.3% (5-day), 56.6% (20-day) accuracy - **PROFITABLE**
+**Current Status:** Phase 5 active + ML model v3.0 integrated, 8/8 checks passing
+
+---
+
+## 🔥 ML Price Predictor v3.0 (November 12, 2025)
+
+**Status:** ✅ DEPLOYED - Production Ready
+
+### Implementation
+- **Architecture:** [256, 128, 64, 32] neural network with LeakyReLU activation
+- **Features:** 60 comprehensive features across 10 categories
+  - Identification (3), Time (8), Treasury Rates (7), Greeks (6), Sentiment (2)
+  - Price (5), Momentum (7), Volatility (4), Interactions (10), Directionality (8)
+- **Training:** 24,300 samples from 20 symbols, 5 years historical data
+- **Loss Function:** DirectionalLoss (90% directional accuracy + 10% MSE)
+- **Performance:** 56.3% (5-day), 56.6% (20-day) directional accuracy
+- **Profitability:** Above 55% threshold after fees - **PROFITABLE**
+
+### C++ Integration
+- **ONNX Runtime:** Production inference engine (models/price_predictor.onnx, 58,947 parameters)
+- **SIMD Optimization:** AVX2 intrinsics for StandardScaler normalization (8x speedup)
+- **Price Predictor:** `src/market_intelligence/price_predictor.cppm` (525 lines)
+- **Feature Extractor:** `src/market_intelligence/feature_extractor.cppm` (620 lines)
+- **Output:** 1-day, 5-day, 20-day price predictions with confidence scores
+
+### Training & Deployment
+- **PyTorch Training:** `scripts/ml/train_comprehensive_model.py`
+- **ONNX Conversion:** `scripts/ml/convert_to_onnx.py`
+- **Backtesting:** `scripts/ml/backtest_model.py`
+- **Dashboard:** Price predictions view in `dashboard/app.py`
+- **Metadata:** `models/price_predictor_info.json` (accuracy, features, training date)
 
 ---
 

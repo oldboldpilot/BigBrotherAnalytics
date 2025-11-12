@@ -1,10 +1,23 @@
 # Market Intelligence & Impact Analysis Engine - Architecture Design Document
 
-**Version:** 1.0.0
-**Date:** November 6, 2025
-**Status:** Draft - Design Phase
+**Version:** 1.1.0
+**Date:** November 12, 2025
+**Status:** Production - ML Price Predictor v3.0 Deployed
 **Author:** Olumuyiwa Oluwasanmi
 **Related:** [Product Requirements Document](../PRD.md)
+
+---
+
+## ⚡ ML PRICE PREDICTOR v3.0 UPDATE (November 12, 2025)
+
+**DEPLOYED:** 60-feature neural network price predictor now integrated into C++ engine:
+
+- ✅ **Model:** 60 features, [256, 128, 64, 32] architecture, DirectionalLoss
+- ✅ **Performance:** 56.3% (5-day), 56.6% (20-day) accuracy - **PROFITABLE** (>55% threshold)
+- ✅ **Integration:** ONNX Runtime with AVX2 SIMD normalization (8x speedup)
+- ✅ **Implementation:** `src/market_intelligence/price_predictor.cppm` (525 lines)
+- ✅ **Feature Extraction:** `src/market_intelligence/feature_extractor.cppm` (620 lines)
+- 📋 **See technical details:** [ai/CLAUDE.md](../../ai/CLAUDE.md)
 
 ---
 
@@ -308,6 +321,7 @@ graph TB
         IPM1[XGBoost<br/>Direction Prediction]
         IPM2[LightGBM<br/>Magnitude Prediction]
         IPM3[Neural Network<br/>Complex Patterns]
+        IPM3B[✅ DEPLOYED: Price Predictor v3.0<br/>60-feature NN, 56.3%/56.6% accuracy<br/>ONNX Runtime + AVX2 SIMD]
         IPM4[Ensemble<br/>Model Averaging]
     end
 

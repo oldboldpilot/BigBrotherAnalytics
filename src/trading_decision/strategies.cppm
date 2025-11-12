@@ -17,6 +17,7 @@ module;
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include <format>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -24,7 +25,10 @@ module;
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
+
+#include "../schwab_api/duckdb_bridge.hpp"
 
 // Module declaration
 export module bigbrother.strategies;
@@ -1185,6 +1189,9 @@ class MLPredictorStrategy : public IStrategy {
                 Logger::getInstance().info("ML Predictor Strategy initialized with CUDA");
             }
         }
+
+        // Load historical price/volume data from database (last 30 days for SPY, QQQ, IWM, DIA)
+        loadHistoricalData();
     }
 
     [[nodiscard]] auto getName() const noexcept -> std::string override {
@@ -1365,30 +1372,29 @@ class MLPredictorStrategy : public IStrategy {
             auto [macd, signal, hist] = bigbrother::market_intelligence::FeatureExtractor::calculateMACD(price_span);
             features.macd = macd;
             features.macd_signal = signal;
-            features.macd_histogram = hist;
+            // Note: macd_histogram no longer in PriceFeatures (not used in 60-feature model)
 
             auto [bb_upper, bb_middle, bb_lower] =
                 bigbrother::market_intelligence::FeatureExtractor::calculateBollingerBands(
                     price_span.subspan(0, std::min(size_t(20), price_vec.size())));
             features.bb_upper = bb_upper;
-            features.bb_middle = bb_middle;
+            // Note: bb_middle no longer in PriceFeatures (not used in 60-feature model)
             features.bb_lower = bb_lower;
             features.bb_position = (last_price - bb_lower) / (bb_upper - bb_lower + 0.0001f);
 
             features.atr_14 = bigbrother::market_intelligence::FeatureExtractor::calculateATR(
                 price_span.subspan(0, std::min(size_t(14), price_vec.size())));
 
-            // Volume features - calculate SMA manually
+            // Volume features - calculate volume_ratio directly
             float volume_sum = 0.0f;
             size_t volume_count = std::min(size_t(20), volume_vec.size());
             for (size_t i = 0; i < volume_count; ++i) {
                 volume_sum += volume_vec[i];
             }
-            features.volume_sma20 = volume_sum / static_cast<float>(volume_count);
-            features.volume_ratio = current_volume / (features.volume_sma20 + 0.0001f);
+            float volume_sma20 = volume_sum / static_cast<float>(volume_count);
+            features.volume_ratio = current_volume / (volume_sma20 + 0.0001f);
 
-            // Extended features
-            features.momentum_5d = features.return_5d;
+            // Note: momentum_5d no longer in PriceFeatures (redundant with return_5d)
 
             Logger::getInstance().debug(
                 "Extracted features (accurate) for {}: price={:.2f}, rsi={:.2f}, macd={:.4f}, history_size={}",
@@ -1416,15 +1422,12 @@ class MLPredictorStrategy : public IStrategy {
             features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f;  // Centered around 50
             features.macd = volatility_estimate * last_price * 0.01f;
             features.macd_signal = features.macd * 0.7f;
-            features.macd_histogram = features.macd - features.macd_signal;
-            features.bb_middle = last_price;
+            // Note: macd_histogram, bb_middle, volume_sma20, momentum_5d removed from 60-feature model
             features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
             features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
             features.bb_position = price_position;
             features.atr_14 = spread;
-            features.volume_sma20 = current_volume;
             features.volume_ratio = 1.0f;
-            features.momentum_5d = features.return_5d;
 
             size_t hist_size = price_hist_it != price_history_.end() ?
                 price_hist_it->second.size() : 0;
@@ -1468,6 +1471,75 @@ class MLPredictorStrategy : public IStrategy {
             << "5d=" << (pred.day_5_change * 100) << "%, "
             << "20d=" << (pred.day_20_change * 100) << "%";
         return oss.str();
+    }
+
+    /**
+     * Load historical price/volume data from database on startup
+     *
+     * Loads last 30 days of data for watchlist symbols (SPY, QQQ, IWM, DIA)
+     */
+    auto loadHistoricalData() -> void {
+        try {
+            using namespace bigbrother::duckdb_bridge;
+
+            // Open database and create connection
+            auto db = openDatabase("data/bigbrother.duckdb");
+            if (!db) {
+                Logger::getInstance().error("Failed to open database for historical data");
+                return;
+            }
+
+            auto conn = createConnection(*db);
+            if (!conn) {
+                Logger::getInstance().error("Failed to create database connection");
+                return;
+            }
+
+            std::vector<std::string> symbols = {"SPY", "QQQ", "IWM", "DIA"};
+
+            for (auto const& symbol : symbols) {
+                // Query last 30 days of price data (most recent first)
+                auto sql_query = std::format(
+                    "SELECT date, close, volume FROM stock_prices "
+                    "WHERE symbol = '{}' ORDER BY date DESC LIMIT 30",
+                    symbol);
+
+                auto result = executeQueryWithResults(*conn, sql_query);
+                if (!result || hasError(*result)) {
+                    Logger::getInstance().warn("No historical data found for {}", symbol);
+                    continue;
+                }
+
+                auto row_count = getRowCount(*result);
+                if (row_count == 0) {
+                    Logger::getInstance().warn("No historical data found for {}", symbol);
+                    continue;
+                }
+
+                // Populate history buffers (most recent first)
+                // Column indices: 0=date, 1=close, 2=volume
+                for (size_t row = 0; row < row_count; ++row) {
+                    try {
+                        if (!isValueNull(*result, 1, row) && !isValueNull(*result, 2, row)) {
+                            float price = static_cast<float>(getValueAsDouble(*result, 1, row));
+                            float volume = static_cast<float>(getValueAsDouble(*result, 2, row));
+
+                            price_history_[symbol].push_back(price);
+                            volume_history_[symbol].push_back(volume);
+                        }
+                    } catch (std::exception const& e) {
+                        Logger::getInstance().warn("Failed to parse row {} for {}: {}", row, symbol, e.what());
+                    }
+                }
+
+                Logger::getInstance().info(
+                    "Loaded {} days of historical data for {}",
+                    price_history_[symbol].size(), symbol);
+            }
+
+        } catch (std::exception const& e) {
+            Logger::getInstance().error("Exception loading historical data: {}", e.what());
+        }
     }
 
     /**
