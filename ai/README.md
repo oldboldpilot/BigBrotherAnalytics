@@ -18,7 +18,7 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 > - **Process Management:** Auto-kills duplicate processes, prevents port conflicts
 > - **Health Monitoring:** Real-time token validation, system status checks
 > - **Security:** API keys removed from git, comprehensive .gitignore patterns
-> - **Paper Trading:** $100 position limit, 2-3 concurrent, ≥55% win rate target
+> - **Paper Trading:** $2,000 position limit, 2-3 concurrent, ≥55% win rate target
 > - **News Ingestion System:** C++23 sentiment analysis (260 lines), NewsAPI integration (402 lines), 236KB Python bindings
 > - **Trading Reporting System:** Daily/weekly reports (1,430+ lines), signal analysis, HTML+JSON output
 > - All 20 autonomous agents across Phases 1-4 achieved 100% success rate.

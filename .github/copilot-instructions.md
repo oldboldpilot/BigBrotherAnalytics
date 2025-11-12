@@ -48,7 +48,7 @@ uv run python scripts/phase5_shutdown.py
 - YTD tracking: Incremental throughout 2025
 
 **Paper Trading Limits:**
-- Max position size: $100
+- Max position size: $2,000
 - Max daily loss: $100
 - Max concurrent positions: 2-3
 - Manual position protection: 100% (bot never touches existing holdings)
@@ -133,7 +133,7 @@ uv run python scripts/phase5_shutdown.py
   - `risk_manager.cpp` - Risk limits enforcement
   - `position_sizer.cpp` - Position sizing algorithms
 - **Phase 5 Limits:**
-  - Max position size: $100
+  - Max position size: $2,000
   - Max daily loss: $100
   - Max portfolio heat: 15%
   - Max concurrent: 2-3 positions
@@ -998,7 +998,7 @@ docs/
 - Manual position protection testing
 
 **Days 15-21 (Week 3):**
-- Full paper trading ($100 positions)
+- Full paper trading ($2,000 positions)
 - ≥55% win rate target
 - YTD tax tracking validation
 - Production readiness final check

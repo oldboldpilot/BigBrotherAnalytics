@@ -19,6 +19,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import tax implications view
 from tax_implications_view import show_tax_implications
 
+# Import price predictions view
+from price_predictions_view import show_price_predictions
+
+# Import tax tracking view
+from tax_tracking_view import show_realtime_tax_tracking
+
 # Import new trading activity views
 try:
     from views import live_trading_activity, rejection_analysis
@@ -53,6 +59,14 @@ try:
 except ImportError:
     FRED_AVAILABLE = False
     print("⚠️  FRED rates not available")
+
+# Import yaml for API key loading
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+    print("⚠️  PyYAML not available - install with: pip install pyyaml")
 
 # Page configuration
 st.set_page_config(
@@ -221,15 +235,33 @@ def format_price(value):
         return "N/A"
     return f"${value:,.2f}"
 
-def display_risk_free_rates():
-    """Display current risk-free rates from FRED"""
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def fetch_fred_rates():
+    """
+    Fetch FRED rates with comprehensive error handling and caching
+
+    Returns:
+        dict with 'success', 'rates', 'last_updated', 'error' keys
+    """
     if not FRED_AVAILABLE:
-        return None
+        return {
+            'success': False,
+            'error': 'FRED module not available',
+            'rates': None,
+            'last_updated': None
+        }
 
     try:
-        fetcher = FREDRatesFetcher()
+        # Load API key from api_keys.yaml
+        api_key = None
+        api_keys_path = Path(__file__).parent.parent / "api_keys.yaml"
 
-        # Try to get rates from database first
+        if YAML_AVAILABLE and api_keys_path.exists():
+            with open(api_keys_path, 'r') as f:
+                config = yaml.safe_load(f)
+                api_key = config.get('fred_api_key')
+
+        # Try to get rates from database first (fast path)
         conn = get_db_connection()
         rates_df = conn.execute("""
             SELECT rate_name, rate_value, last_updated
@@ -238,38 +270,216 @@ def display_risk_free_rates():
         """).df()
 
         if not rates_df.empty:
-            st.markdown("### 📈 Current Risk-Free Rates (FRED)")
+            # Check if data is fresh (less than 24 hours old)
+            last_updated = pd.to_datetime(rates_df['last_updated'].max())
+            age_hours = (datetime.now() - last_updated).total_seconds() / 3600
 
-            cols = st.columns(5)
-            rate_names = {
-                '3_month_treasury': ('3M Treasury', cols[0]),
-                '2_year_treasury': ('2Y Treasury', cols[1]),
-                '5_year_treasury': ('5Y Treasury', cols[2]),
-                '10_year_treasury': ('10Y Treasury', cols[3]),
-                'fed_funds_rate': ('Fed Funds', cols[4])
+            rates_dict = {}
+            for _, row in rates_df.iterrows():
+                rates_dict[row['rate_name']] = row['rate_value']
+
+            return {
+                'success': True,
+                'rates': rates_dict,
+                'last_updated': last_updated,
+                'age_hours': age_hours,
+                'source': 'database'
             }
 
-            for idx, row in rates_df.iterrows():
-                rate_name = row['rate_name']
-                if rate_name in rate_names:
-                    display_name, col = rate_names[rate_name]
-                    rate_pct = row['rate_value'] * 100
-                    with col:
-                        st.metric(display_name, f"{rate_pct:.3f}%")
+        # If no data in DB or data is stale, fetch from FRED API
+        if api_key:
+            fetcher = FREDRatesFetcher(api_key=api_key)
+            rates = fetcher.fetch_all_latest_rates()
 
-            # Show last update time
-            if not rates_df.empty:
-                last_updated = rates_df['last_updated'].max()
-                st.caption(f"Last updated: {last_updated}")
+            # Store in database
+            fetcher.store_rates_in_db(rates)
 
-            return rates_df
+            return {
+                'success': True,
+                'rates': rates,
+                'last_updated': datetime.now(),
+                'age_hours': 0,
+                'source': 'fred_api'
+            }
         else:
-            st.info("💡 No risk-free rates available. Run `python scripts/data_collection/fred_rates.py` to fetch.")
-            return None
+            return {
+                'success': False,
+                'error': 'No API key found in api_keys.yaml',
+                'rates': None,
+                'last_updated': None
+            }
 
     except Exception as e:
-        st.warning(f"Could not load risk-free rates: {e}")
-        return None
+        return {
+            'success': False,
+            'error': str(e),
+            'rates': None,
+            'last_updated': None
+        }
+
+def show_fred_rates():
+    """
+    Display comprehensive FRED rates widget with yield curve visualization
+    """
+    st.markdown("### 📈 Risk-Free Rates (FRED)")
+
+    # Fetch rates
+    result = fetch_fred_rates()
+
+    if not result['success']:
+        st.error(f"Failed to fetch FRED rates: {result.get('error', 'Unknown error')}")
+        st.info("To enable FRED rates:\n1. Add `fred_api_key` to `api_keys.yaml`\n2. Run `python scripts/data_collection/fred_rates.py` to populate database")
+        return
+
+    rates = result['rates']
+    last_updated = result['last_updated']
+    age_hours = result.get('age_hours', 0)
+
+    if not rates or all(v is None for v in rates.values()):
+        st.warning("No rates available")
+        return
+
+    # Display metrics cards
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    rate_configs = [
+        ('3_month_treasury', '3M Treasury', col1),
+        ('2_year_treasury', '2Y Treasury', col2),
+        ('5_year_treasury', '5Y Treasury', col3),
+        ('10_year_treasury', '10Y Treasury', col4),
+        ('fed_funds_rate', 'Fed Funds', col5)
+    ]
+
+    for rate_key, display_name, col in rate_configs:
+        rate_value = rates.get(rate_key)
+        with col:
+            if rate_value is not None:
+                st.metric(display_name, f"{rate_value * 100:.3f}%")
+            else:
+                st.metric(display_name, "N/A")
+
+    # Last updated info with refresh button
+    col_info, col_refresh = st.columns([4, 1])
+    with col_info:
+        if last_updated:
+            age_str = f"{age_hours:.1f} hours ago" if age_hours >= 1 else f"{age_hours * 60:.0f} minutes ago"
+            st.caption(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')} ({age_str})")
+    with col_refresh:
+        if st.button("🔄 Refresh", key="fred_refresh", help="Force refresh rates from FRED"):
+            st.cache_data.clear()
+            st.rerun()
+
+    # Yield curve visualization
+    st.markdown("#### US Treasury Yield Curve")
+
+    # Prepare data for yield curve (exclude fed funds)
+    maturities = []
+    yields = []
+    maturity_map = {
+        '3_month_treasury': (0.25, '3M'),
+        '2_year_treasury': (2, '2Y'),
+        '5_year_treasury': (5, '5Y'),
+        '10_year_treasury': (10, '10Y')
+    }
+
+    # Add 30Y if available
+    if '30_year_treasury' in rates and rates['30_year_treasury'] is not None:
+        maturity_map['30_year_treasury'] = (30, '30Y')
+
+    for rate_key, (maturity_years, label) in maturity_map.items():
+        rate_value = rates.get(rate_key)
+        if rate_value is not None:
+            maturities.append(maturity_years)
+            yields.append(rate_value * 100)
+
+    if maturities and yields:
+        # Create plotly figure
+        fig = go.Figure()
+
+        # Add Treasury yield curve
+        fig.add_trace(go.Scatter(
+            x=maturities,
+            y=yields,
+            mode='lines+markers',
+            name='Treasury Yields',
+            line=dict(color='#1f77b4', width=3),
+            marker=dict(size=10, color='#1f77b4'),
+            hovertemplate='Maturity: %{x} years<br>Yield: %{y:.3f}%<extra></extra>'
+        ))
+
+        # Add Fed Funds Rate as horizontal line
+        fed_funds = rates.get('fed_funds_rate')
+        if fed_funds is not None:
+            fig.add_trace(go.Scatter(
+                x=[min(maturities), max(maturities)],
+                y=[fed_funds * 100, fed_funds * 100],
+                mode='lines',
+                name='Fed Funds Rate',
+                line=dict(color='#ff7f0e', width=2, dash='dash'),
+                hovertemplate=f'Fed Funds Rate: {fed_funds * 100:.3f}%<extra></extra>'
+            ))
+
+        fig.update_layout(
+            title='US Treasury Yield Curve',
+            xaxis_title='Maturity (Years)',
+            yaxis_title='Yield (%)',
+            hovermode='closest',
+            height=400,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+
+        # Add horizontal gridlines
+        fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Yield curve analysis
+        if len(yields) >= 2:
+            spread_2y10y = None
+            if '2_year_treasury' in rates and '10_year_treasury' in rates:
+                rate_2y = rates['2_year_treasury']
+                rate_10y = rates['10_year_treasury']
+                if rate_2y is not None and rate_10y is not None:
+                    spread_2y10y = (rate_10y - rate_2y) * 100
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if spread_2y10y is not None:
+                    st.metric(
+                        "2Y-10Y Spread",
+                        f"{spread_2y10y:.3f}%",
+                        delta="Normal" if spread_2y10y > 0 else "Inverted",
+                        delta_color="normal" if spread_2y10y > 0 else "inverse"
+                    )
+
+            with col2:
+                slope = (yields[-1] - yields[0]) / (maturities[-1] - maturities[0])
+                st.metric("Curve Slope", f"{slope:.3f}%/year")
+
+            with col3:
+                avg_yield = sum(yields) / len(yields)
+                st.metric("Average Yield", f"{avg_yield:.3f}%")
+
+        # Interpretation
+        if spread_2y10y is not None:
+            if spread_2y10y < 0:
+                st.warning("⚠️ Inverted yield curve detected - historically associated with recession risk")
+            elif spread_2y10y < 0.5:
+                st.info("ℹ️ Flattening yield curve - economic growth may be slowing")
+            else:
+                st.success("✅ Normal yield curve - healthy economic outlook")
+
+def display_risk_free_rates():
+    """Display current risk-free rates from FRED (legacy compatibility)"""
+    show_fred_rates()
 
 # Main Dashboard
 def main():
@@ -311,7 +521,7 @@ def main():
         if TRADING_VIEWS_AVAILABLE:
             views.extend(["📊 Live Activity", "🔍 Rejection Analysis"])
 
-        views.extend(["Employment Signals", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications"])
+        views.extend(["🔮 Price Predictions", "Employment Signals", "FRED Rates", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications", "Tax Tracking"])
 
         view = st.radio(
             "Select View",
@@ -345,8 +555,12 @@ def main():
             rejection_analysis.show_rejection_analysis()
         else:
             st.error("Rejection analysis view not available")
+    elif view == "🔮 Price Predictions":
+        show_price_predictions(get_db_connection())
     elif view == "Employment Signals":
         show_employment_signals()
+    elif view == "FRED Rates":
+        show_fred_rates()
     elif view == "Trade History":
         show_trade_history()
     elif view == "News Feed":
@@ -357,6 +571,8 @@ def main():
         show_system_health()
     elif view == "Tax Implications":
         show_tax_implications(get_db_connection())
+    elif view == "Tax Tracking":
+        show_realtime_tax_tracking(get_db_connection)
 
     # Auto-refresh with configurable interval
     if auto_refresh and refresh_interval:

@@ -215,13 +215,13 @@ uv run python scripts/phase5_shutdown.py
   - Trading fees: 1.5% (accurate Schwab $0.65/contract rate)
   - YTD incremental tracking throughout 2025
 - ✅ **End-of-Day Automation** - Reports, tax calculation, database backup
-- ✅ **Paper Trading** - $100 position limit, 2-3 concurrent positions
+- ✅ **Paper Trading** - $2,000 position limit, 2-3 concurrent positions
 - ✅ **Manual Position Protection** - Bot never touches existing holdings
 - ✅ **Health Monitoring** - Token validation, system status checks
 
 ### Success Criteria
 - **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
-- **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
+- **Risk Limits:** $2,000 position, $2,000 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
 

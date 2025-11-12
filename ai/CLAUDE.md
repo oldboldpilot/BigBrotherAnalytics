@@ -3,7 +3,7 @@
 **Project:** High-performance AI-powered trading intelligence platform
 **Phase:** Phase 5 - Paper Trading Validation (Days 0-21)
 **Status:** 100% Production Ready
-**Budget:** $100 position limit (paper trading validation)
+**Budget:** $2,000 position limit (paper trading validation)
 **Goal:** ≥55% win rate (profitable after 37.1% tax + 3% fees)
 
 ## Core Architecture
@@ -394,7 +394,7 @@ uv run python scripts/phase5_shutdown.py
 - ✅ **Auto-start services** (--start-all flag starts dashboard + trading engine)
 - ✅ **Tax tracking** (married joint CA, YTD accumulation, 1.5% accurate fees)
 - ✅ **End-of-day automation** (reports, tax calc, backup)
-- ✅ **Paper trading config** ($100 position limit)
+- ✅ **Paper trading config** ($2,000 position limit)
 - ✅ **Manual position protection** (100% verified)
 - ✅ **All tests passing** (87/87, 100% success rate)
 - ✅ **Complete documentation**
@@ -407,7 +407,7 @@ uv run python scripts/phase5_shutdown.py
 
 ### Success Criteria
 - **Win Rate:** ≥55% (profitable after 37.1% tax + 1.5% fees)
-- **Risk Limits:** $100 position, $100 daily loss, 2-3 concurrent
+- **Risk Limits:** $2,000 position, $2,000 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
 - **Token Management:** 100% automatic refresh (no manual intervention for 7 days)
