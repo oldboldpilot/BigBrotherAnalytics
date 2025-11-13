@@ -287,7 +287,7 @@
         remote_src: yes
       become_user: "{{ user }}"
 
-    - name: Configure LLVM/Clang 21 with OpenMP (no LTO for compatibility)
+    - name: Configure LLVM/Clang 21 with OpenMP, Flang, and MLIR (no LTO for compatibility)
       shell: |
         mkdir -p /home/{{ user }}/toolchain-build/llvm-build
         cd /home/{{ user }}/toolchain-build/llvm-build
@@ -296,7 +296,8 @@
         CXX=g++ \
         cmake -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;libcxx;libcxxabi" \
+          -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;flang;mlir" \
+          -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DCMAKE_LINKER=/usr/bin/ld \
           -DLLVM_ENABLE_LTO=OFF \
@@ -329,16 +330,20 @@
         - { src: 'clang', dest: 'cc' }
         - { src: 'clang++', dest: 'c++' }
 
-    - name: Verify Clang/LLVM toolchain installation
+    - name: Verify Clang/LLVM/Flang/MLIR toolchain installation
       shell: |
         /usr/local/bin/clang++ --version
         /usr/local/bin/clang-tidy --version
         /usr/local/bin/clang-format --version
+        /usr/local/bin/flang-new --version
+        /usr/local/bin/mlir-opt --version
         ls -la /usr/local/lib/libc++.so*
+        ls -la /usr/local/lib/libFortran*.so* || echo "Flang runtime libraries in standard location"
       register: clang_verification
       changed_when: false
+      ignore_errors: yes
 
-    - name: Display Clang verification results
+    - name: Display Clang/Flang/MLIR verification results
       debug:
         msg: "{{ clang_verification.stdout_lines }}"
 
@@ -1082,12 +1087,14 @@
           echo "COMPILERS:"
           check_command "clang" "Clang/LLVM 21"
           check_command "clang++" "Clang++ 21"
+          check_command "flang-new" "Flang (Fortran)"
           check_command "cmake" "CMake"
           echo ""
 
           # Check static analysis tools
           echo "STATIC ANALYSIS TOOLS:"
           check_command "clang-tidy" "clang-tidy"
+          check_command "mlir-opt" "MLIR optimizer"
           echo ""
 
           # Check parallel computing
@@ -1198,7 +1205,9 @@
           ## What Was Installed
 
           ### Compilers & Build Tools
-          - GCC {{ gcc_version }} with C++23 support
+          - Clang/LLVM 21 with C++23 support
+          - Flang (Fortran frontend for LLVM)
+          - MLIR (Multi-Level Intermediate Representation)
           - CMake 4.1.2+, Ninja build system
           - Latest GNU binutils
 

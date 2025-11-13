@@ -144,11 +144,48 @@ template <typename T>
 inline auto Config::get(std::string const& key, T const& default_value) const -> T {
     // Hardcoded Schwab credentials for Phase 5
     if constexpr (std::is_same_v<T, std::string>) {
-        if (key == "schwab.client_id") return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
-        if (key == "schwab.client_secret") return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
-        if (key == "schwab.redirect_uri") return "https://127.0.0.1:8182";
-        if (key == "schwab.token_file") return "configs/schwab_tokens.json";
+        if (key == "schwab.client_id")
+            return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
+        if (key == "schwab.client_secret")
+            return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
+        if (key == "schwab.redirect_uri")
+            return "https://127.0.0.1:8182";
+        if (key == "schwab.token_file")
+            return "configs/schwab_tokens.json";
+        if (key == "logging.file")
+            return "logs/bigbrother.log";
+        if (key == "logging.level")
+            return "info";
+        if (key == "database.path")
+            return "data/bigbrother.duckdb";
     }
+
+    // Hardcoded Risk Management config (matching configs/config.yaml)
+    if constexpr (std::is_same_v<T, double>) {
+        if (key == "risk.account_value")
+            return 30000.0;
+        if (key == "risk.max_daily_loss")
+            return 900.0;
+        if (key == "risk.max_position_size")
+            return 1500.0;
+        if (key == "risk.max_portfolio_heat")
+            return 0.15;
+        if (key == "risk.max_correlation_exposure")
+            return 0.30;
+    }
+
+    if constexpr (std::is_same_v<T, int>) {
+        if (key == "risk.max_concurrent_positions")
+            return 10;
+    }
+
+    if constexpr (std::is_same_v<T, bool>) {
+        if (key == "risk.require_stop_loss")
+            return true;
+        if (key == "trading.paper_trading")
+            return true;
+    }
+
     return default_value;
 }
 
@@ -156,11 +193,48 @@ template <typename T>
 inline auto Config::get(std::string const& key) const -> std::optional<T> {
     // Hardcoded Schwab credentials for Phase 5
     if constexpr (std::is_same_v<T, std::string>) {
-        if (key == "schwab.client_id") return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
-        if (key == "schwab.client_secret") return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
-        if (key == "schwab.redirect_uri") return "https://127.0.0.1:8182";
-        if (key == "schwab.token_file") return "configs/schwab_tokens.json";
+        if (key == "schwab.client_id")
+            return "8fOTwEsi51wbdmEsn5dSYxk6Y38ZJKH09etLXf3uJgyUXcIa";
+        if (key == "schwab.client_secret")
+            return "PKy7ILBYmEnxEkm0BQNt28AHtHoYs3c4y09cG51LqMsVkdZkmwuOqBBUDJWzMamT";
+        if (key == "schwab.redirect_uri")
+            return "https://127.0.0.1:8182";
+        if (key == "schwab.token_file")
+            return "configs/schwab_tokens.json";
+        if (key == "logging.file")
+            return "logs/bigbrother.log";
+        if (key == "logging.level")
+            return "info";
+        if (key == "database.path")
+            return "data/bigbrother.duckdb";
     }
+
+    // Hardcoded Risk Management config (matching configs/config.yaml)
+    if constexpr (std::is_same_v<T, double>) {
+        if (key == "risk.account_value")
+            return 30000.0;
+        if (key == "risk.max_daily_loss")
+            return 900.0;
+        if (key == "risk.max_position_size")
+            return 1500.0;
+        if (key == "risk.max_portfolio_heat")
+            return 0.15;
+        if (key == "risk.max_correlation_exposure")
+            return 0.30;
+    }
+
+    if constexpr (std::is_same_v<T, int>) {
+        if (key == "risk.max_concurrent_positions")
+            return 10;
+    }
+
+    if constexpr (std::is_same_v<T, bool>) {
+        if (key == "risk.require_stop_loss")
+            return true;
+        if (key == "trading.paper_trading")
+            return true;
+    }
+
     return std::nullopt;
 }
 

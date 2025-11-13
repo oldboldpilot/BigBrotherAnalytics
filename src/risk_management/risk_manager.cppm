@@ -51,27 +51,24 @@ struct RiskLimits {
     double max_daily_loss{900.0};
     double max_position_size{2'000.0};
     int max_concurrent_positions{15};
-    double max_portfolio_heat{0.15};  // 15% max exposure
-    double max_sector_concentration{0.40};  // 40% max in one sector
+    double max_portfolio_heat{0.15};       // 15% max exposure
+    double max_sector_concentration{0.40}; // 40% max in one sector
     bool allow_overnight{true};
     bool paper_trading{true};
 
     [[nodiscard]] auto validate() const noexcept -> Result<void> {
         if (account_value <= 0.0) {
-            return makeError<void>(ErrorCode::InvalidParameter,
-                                  "Account value must be positive");
+            return makeError<void>(ErrorCode::InvalidParameter, "Account value must be positive");
         }
         if (max_daily_loss <= 0.0 || max_daily_loss > account_value) {
-            return makeError<void>(ErrorCode::InvalidParameter,
-                                  "Invalid daily loss limit");
+            return makeError<void>(ErrorCode::InvalidParameter, "Invalid daily loss limit");
         }
         if (max_position_size <= 0.0 || max_position_size > account_value) {
-            return makeError<void>(ErrorCode::InvalidParameter,
-                                  "Invalid position size limit");
+            return makeError<void>(ErrorCode::InvalidParameter, "Invalid position size limit");
         }
         if (max_concurrent_positions <= 0) {
             return makeError<void>(ErrorCode::InvalidParameter,
-                                  "Invalid concurrent positions limit");
+                                   "Invalid concurrent positions limit");
         }
         return {};
     }
@@ -92,9 +89,7 @@ struct TradeRisk {
     bool approved{false};
     std::string rejection_reason;
 
-    [[nodiscard]] auto isApproved() const noexcept -> bool {
-        return approved;
-    }
+    [[nodiscard]] auto isApproved() const noexcept -> bool { return approved; }
 
     [[nodiscard]] auto getRiskScore() const noexcept -> double {
         // Higher score = better trade (considering EV and risk/reward)
@@ -113,10 +108,10 @@ struct PositionRisk {
     double unrealized_pnl_percent{0.0};
     double delta_exposure{0.0};
     double stop_distance{0.0};
-    double time_in_position{0.0};  // Hours
+    double time_in_position{0.0}; // Hours
 
     [[nodiscard]] auto isAtRisk() const noexcept -> bool {
-        return unrealized_pnl_percent < -0.05;  // Down 5%+
+        return unrealized_pnl_percent < -0.05; // Down 5%+
     }
 };
 
@@ -138,13 +133,15 @@ struct PortfolioRisk {
     }
 
     [[nodiscard]] auto getRiskLevel() const noexcept -> std::string {
-        if (portfolio_heat > 0.15) return "HIGH";
-        if (portfolio_heat > 0.10) return "MEDIUM";
+        if (portfolio_heat > 0.15)
+            return "HIGH";
+        if (portfolio_heat > 0.10)
+            return "MEDIUM";
         return "LOW";
     }
 
     [[nodiscard]] auto isDailyLossLimitNear() const noexcept -> bool {
-        return daily_loss_remaining < 300.0;  // Within $300 of limit
+        return daily_loss_remaining < 300.0; // Within $300 of limit
     }
 };
 
@@ -153,7 +150,7 @@ struct PortfolioRisk {
 // ============================================================================
 
 class RiskManager {
-public:
+  public:
     // Factory method
     [[nodiscard]] static auto create(RiskLimits limits) noexcept -> Result<RiskManager> {
         if (auto validation = limits.validate(); !validation) {
@@ -199,46 +196,31 @@ public:
     }
 
     // Trade assessment
-    [[nodiscard]] auto assessTrade(
-        std::string symbol,
-        double position_size,
-        Price entry_price,
-        Price stop_price,
-        Price target_price,
-        double win_probability
-    ) noexcept -> Result<TradeRisk>;
+    [[nodiscard]] auto assessTrade(std::string symbol, double position_size, Price entry_price,
+                                   Price stop_price, Price target_price,
+                                   double win_probability) noexcept -> Result<TradeRisk>;
 
-    [[nodiscard]] auto assessOptionsTrade(
-        std::string symbol,
-        PricingParams const& params,
-        double position_size,
-        double win_probability,
-        double target_profit
-    ) noexcept -> Result<TradeRisk>;
+    [[nodiscard]] auto assessOptionsTrade(std::string symbol, PricingParams const& params,
+                                          double position_size, double win_probability,
+                                          double target_profit) noexcept -> Result<TradeRisk>;
 
     [[nodiscard]] auto approveTrade(TradeRisk const& trade_risk) const noexcept -> Result<bool>;
 
     // Position management (chainable)
-    [[nodiscard]] auto registerPosition(
-        Position const& position,
-        Price stop_price
-    ) noexcept -> RiskManager& {
+    [[nodiscard]] auto registerPosition(Position const& position, Price stop_price) noexcept
+        -> RiskManager& {
         registerPositionInternal(position, stop_price);
         return *this;
     }
 
-    [[nodiscard]] auto updatePosition(
-        std::string const& symbol,
-        Price current_price
-    ) noexcept -> RiskManager& {
+    [[nodiscard]] auto updatePosition(std::string const& symbol, Price current_price) noexcept
+        -> RiskManager& {
         updatePositionInternal(symbol, current_price);
         return *this;
     }
 
-    [[nodiscard]] auto closePosition(
-        std::string const& symbol,
-        Price exit_price
-    ) noexcept -> RiskManager& {
+    [[nodiscard]] auto closePosition(std::string const& symbol, Price exit_price) noexcept
+        -> RiskManager& {
         closePositionInternal(symbol, exit_price);
         return *this;
     }
@@ -246,9 +228,8 @@ public:
     // Query methods
     [[nodiscard]] auto getPortfolioRisk() const noexcept -> PortfolioRisk;
 
-    [[nodiscard]] auto getPositionRisk(
-        std::string const& symbol
-    ) const noexcept -> Result<PositionRisk>;
+    [[nodiscard]] auto getPositionRisk(std::string const& symbol) const noexcept
+        -> Result<PositionRisk>;
 
     [[nodiscard]] auto isDailyLossLimitReached() const noexcept -> bool;
 
@@ -269,7 +250,7 @@ public:
         return *this;
     }
 
-private:
+  private:
     explicit RiskManager(RiskLimits limits);
 
     // Internal non-chainable methods
@@ -290,28 +271,18 @@ private:
 // ============================================================================
 
 class RiskManager::Impl {
-public:
+  public:
     explicit Impl(RiskLimits limits)
-        : limits_{limits},
-          daily_pnl_{0.0},
-          daily_loss_remaining_{limits.max_daily_loss},
+        : limits_{limits}, daily_pnl_{0.0}, daily_loss_remaining_{limits.max_daily_loss},
           positions_{} {
         Logger::getInstance().info(
-            "RiskManager initialized: Account=${:,.2f}, MaxLoss=${:,.2f}, MaxPos=${:,.2f}",
-            limits.account_value,
-            limits.max_daily_loss,
-            limits.max_position_size
-        );
+            "RiskManager initialized: Account=${:.2f}, MaxLoss=${:.2f}, MaxPos=${:.2f}",
+            limits.account_value, limits.max_daily_loss, limits.max_position_size);
     }
 
-    [[nodiscard]] auto assessTrade(
-        std::string symbol,
-        double position_size,
-        Price entry_price,
-        Price stop_price,
-        Price target_price,
-        double win_probability
-    ) noexcept -> Result<TradeRisk> {
+    [[nodiscard]] auto assessTrade(std::string symbol, double position_size, Price entry_price,
+                                   Price stop_price, Price target_price,
+                                   double win_probability) noexcept -> Result<TradeRisk> {
         std::lock_guard lock{mutex_};
 
         TradeRisk risk{};
@@ -320,10 +291,9 @@ public:
         risk.max_loss = std::abs(entry_price - stop_price) * (position_size / entry_price);
         risk.expected_return = (target_price - entry_price) * (position_size / entry_price);
         risk.win_probability = win_probability;
-        risk.expected_value = win_probability * risk.expected_return -
-                              (1.0 - win_probability) * risk.max_loss;
-        risk.risk_reward_ratio = (risk.max_loss > 0.0) ?
-                                 risk.expected_return / risk.max_loss : 0.0;
+        risk.expected_value =
+            win_probability * risk.expected_return - (1.0 - win_probability) * risk.max_loss;
+        risk.risk_reward_ratio = (risk.max_loss > 0.0) ? risk.expected_return / risk.max_loss : 0.0;
         risk.approved = true;
 
         // Check daily loss limit
@@ -351,43 +321,30 @@ public:
         }
 
         if (risk.approved) {
-            Logger::getInstance().info(
-                "Trade approved: {} ${:.2f} - EV: ${:.2f}, R/R: {:.2f}",
-                symbol,
-                risk.position_size,
-                risk.expected_value,
-                risk.risk_reward_ratio
-            );
+            Logger::getInstance().info("Trade approved: {} ${:.2f} - EV: ${:.2f}, R/R: {:.2f}",
+                                       symbol, risk.position_size, risk.expected_value,
+                                       risk.risk_reward_ratio);
         } else {
-            Logger::getInstance().warn(
-                "Trade rejected: {} - {}",
-                symbol,
-                risk.rejection_reason
-            );
+            Logger::getInstance().warn("Trade rejected: {} - {}", symbol, risk.rejection_reason);
         }
 
         return risk;
     }
 
-    [[nodiscard]] auto assessOptionsTrade(
-        std::string symbol,
-        PricingParams const& params,
-        double position_size,
-        double win_probability,
-        double target_profit
-    ) noexcept -> Result<TradeRisk> {
+    [[nodiscard]] auto assessOptionsTrade(std::string symbol, PricingParams const& params,
+                                          double position_size, double win_probability,
+                                          double target_profit) noexcept -> Result<TradeRisk> {
         std::lock_guard lock{mutex_};
 
         TradeRisk risk{};
         risk.symbol = symbol;
         risk.position_size = std::min(position_size, limits_.max_position_size);
-        risk.max_loss = position_size * 0.5;  // Conservative: 50% loss
+        risk.max_loss = position_size * 0.5; // Conservative: 50% loss
         risk.expected_return = target_profit;
         risk.win_probability = win_probability;
-        risk.expected_value = win_probability * target_profit -
-                              (1.0 - win_probability) * risk.max_loss;
-        risk.risk_reward_ratio = (risk.max_loss > 0.0) ?
-                                 target_profit / risk.max_loss : 0.0;
+        risk.expected_value =
+            win_probability * target_profit - (1.0 - win_probability) * risk.max_loss;
+        risk.risk_reward_ratio = (risk.max_loss > 0.0) ? target_profit / risk.max_loss : 0.0;
         risk.approved = true;
 
         if (daily_loss_remaining_ < risk.max_loss) {
@@ -412,11 +369,7 @@ public:
         std::string key = "POSITION_" + std::to_string(positions_.size());
         positions_.insert({key, position});
 
-        Logger::getInstance().info(
-            "Position registered: {} (total: {})",
-            key,
-            positions_.size()
-        );
+        Logger::getInstance().info("Position registered: {} (total: {})", key, positions_.size());
     }
 
     auto updatePosition(std::string const& symbol, Price current_price) -> void {
@@ -430,12 +383,8 @@ public:
         if (auto it = positions_.find(symbol); it != positions_.end()) {
             positions_.erase(it);
 
-            Logger::getInstance().info(
-                "Position closed: {} @ ${:.2f} (remaining: {})",
-                symbol,
-                exit_price,
-                positions_.size()
-            );
+            Logger::getInstance().info("Position closed: {} @ ${:.2f} (remaining: {})", symbol,
+                                       exit_price, positions_.size());
         }
     }
 
@@ -453,23 +402,20 @@ public:
         return portfolio;
     }
 
-    [[nodiscard]] auto getPositionRisk(
-        std::string const& symbol
-    ) const noexcept -> Result<PositionRisk> {
+    [[nodiscard]] auto getPositionRisk(std::string const& symbol) const noexcept
+        -> Result<PositionRisk> {
         std::lock_guard lock{mutex_};
 
         if (auto it = positions_.find(symbol); it != positions_.end()) {
             PositionRisk risk{};
             risk.symbol = symbol;
-            risk.position_value = 1000.0;  // Stub - would calculate from position
-            risk.unrealized_pnl = 0.0;     // Stub
+            risk.position_value = 1000.0; // Stub - would calculate from position
+            risk.unrealized_pnl = 0.0;    // Stub
             return risk;
         }
 
-        return makeError<PositionRisk>(
-            ErrorCode::InvalidParameter,
-            "Position not found: " + symbol
-        );
+        return makeError<PositionRisk>(ErrorCode::InvalidParameter,
+                                       "Position not found: " + symbol);
     }
 
     [[nodiscard]] auto isDailyLossLimitReached() const noexcept -> bool {
@@ -485,19 +431,14 @@ public:
         Logger::getInstance().info("Daily P&L reset");
     }
 
-    [[nodiscard]] auto getRiskLimits() const noexcept -> RiskLimits const& {
-        return limits_;
-    }
+    [[nodiscard]] auto getRiskLimits() const noexcept -> RiskLimits const& { return limits_; }
 
     auto updateRiskLimits(RiskLimits limits) -> void {
         std::lock_guard lock{mutex_};
         limits_ = limits;
 
-        Logger::getInstance().info(
-            "Risk limits updated: Account=${:,.2f}, MaxLoss=${:,.2f}",
-            limits.account_value,
-            limits.max_daily_loss
-        );
+        Logger::getInstance().info("Risk limits updated: Account=${:.2f}, MaxLoss=${:.2f}",
+                                   limits.account_value, limits.max_daily_loss);
     }
 
     auto emergencyStopAll() -> void {
@@ -507,7 +448,7 @@ public:
         Logger::getInstance().error("EMERGENCY STOP: All positions cleared");
     }
 
-private:
+  private:
     RiskLimits limits_;
     double daily_pnl_;
     mutable double daily_loss_remaining_;
@@ -519,8 +460,7 @@ private:
 // RiskManager Public Interface Implementation
 // ============================================================================
 
-RiskManager::RiskManager(RiskLimits limits)
-    : pImpl_{std::make_unique<Impl>(limits)} {}
+RiskManager::RiskManager(RiskLimits limits) : pImpl_{std::make_unique<Impl>(limits)} {}
 
 RiskManager::~RiskManager() = default;
 
@@ -528,27 +468,18 @@ RiskManager::RiskManager(RiskManager&&) noexcept = default;
 
 auto RiskManager::operator=(RiskManager&&) noexcept -> RiskManager& = default;
 
-auto RiskManager::assessTrade(
-    std::string symbol,
-    double position_size,
-    Price entry_price,
-    Price stop_price,
-    Price target_price,
-    double win_probability
-) noexcept -> Result<TradeRisk> {
-    return pImpl_->assessTrade(symbol, position_size, entry_price,
-                               stop_price, target_price, win_probability);
+auto RiskManager::assessTrade(std::string symbol, double position_size, Price entry_price,
+                              Price stop_price, Price target_price, double win_probability) noexcept
+    -> Result<TradeRisk> {
+    return pImpl_->assessTrade(symbol, position_size, entry_price, stop_price, target_price,
+                               win_probability);
 }
 
-auto RiskManager::assessOptionsTrade(
-    std::string symbol,
-    PricingParams const& params,
-    double position_size,
-    double win_probability,
-    double target_profit
-) noexcept -> Result<TradeRisk> {
-    return pImpl_->assessOptionsTrade(symbol, params, position_size,
-                                     win_probability, target_profit);
+auto RiskManager::assessOptionsTrade(std::string symbol, PricingParams const& params,
+                                     double position_size, double win_probability,
+                                     double target_profit) noexcept -> Result<TradeRisk> {
+    return pImpl_->assessOptionsTrade(symbol, params, position_size, win_probability,
+                                      target_profit);
 }
 
 auto RiskManager::approveTrade(TradeRisk const& trade_risk) const noexcept -> Result<bool> {
@@ -571,7 +502,8 @@ auto RiskManager::getPortfolioRisk() const noexcept -> PortfolioRisk {
     return pImpl_->getPortfolioRisk();
 }
 
-auto RiskManager::getPositionRisk(std::string const& symbol) const noexcept -> Result<PositionRisk> {
+auto RiskManager::getPositionRisk(std::string const& symbol) const noexcept
+    -> Result<PositionRisk> {
     return pImpl_->getPositionRisk(symbol);
 }
 

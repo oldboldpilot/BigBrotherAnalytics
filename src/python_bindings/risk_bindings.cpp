@@ -11,6 +11,37 @@
  * - Performance Metrics Calculator
  * - Correlation Analyzer
  *
+ * MEMORY MANAGEMENT APPROACH (CRITICAL):
+ * =======================================
+ * Several risk management classes contain std::mutex members for thread safety.
+ * std::mutex is neither movable nor copyable, which creates challenges for pybind11.
+ *
+ * SOLUTION: std::shared_ptr holder with RAII
+ * - All mutex-containing classes use std::shared_ptr<T> as pybind11 holder type
+ * - Factory methods return std::make_shared<T>() - NO raw new/delete used
+ * - std::shared_ptr provides automatic destruction via reference counting
+ * - When Python reference count reaches zero, shared_ptr destructor runs automatically
+ * - Fully RAII-compliant: no manual memory management, no leaks
+ * - Follows C++ Core Guidelines R.20/R.21 (use smart pointers for ownership)
+ *
+ * Classes using shared_ptr holder (due to mutex):
+ * - StopLossManager
+ * - VaRCalculator
+ * - StressTestingEngine
+ * - PerformanceMetricsCalculator
+ * - CorrelationAnalyzer
+ *
+ * Move semantics added to all mutex classes:
+ * - Move constructor: moves data members, default-constructs new mutex
+ * - Move assignment: moves data members, leaves mutex unchanged
+ * - Copy operations: explicitly deleted (non-copyable due to mutex)
+ *
+ * This approach ensures:
+ * 1. Zero memory leaks (shared_ptr RAII)
+ * 2. No manual new/delete (violates coding standards)
+ * 3. Thread-safe operations (mutex preserved)
+ * 4. Python interoperability (pybind11 compatible)
+ *
  * Author: Olumuyiwa Oluwasanmi
  * Date: 2025-11-13
  */
@@ -141,8 +172,11 @@ PYBIND11_MODULE(bigbrother_risk, m) {
         .def_readonly("expiration", &Stop::expiration)
         .def_readonly("triggered", &Stop::triggered);
 
-    py::class_<StopLossManager>(m, "StopLossManager")
-        .def_static("create", &StopLossManager::create)
+    py::class_<StopLossManager, std::shared_ptr<StopLossManager>>(m, "StopLossManager")
+        .def(py::init<>())
+        .def_static("create", []() {
+            return std::make_shared<StopLossManager>();
+        })
         .def("add_hard_stop", &StopLossManager::addHardStop,
              py::return_value_policy::reference_internal)
         .def("add_trailing_stop", &StopLossManager::addTrailingStop,
@@ -263,8 +297,11 @@ PYBIND11_MODULE(bigbrother_risk, m) {
         .def("is_valid", &VaRResult::isValid)
         .def("get_risk_level", &VaRResult::getRiskLevel);
 
-    py::class_<VaRCalculator>(m, "VaRCalculator")
-        .def_static("create", &VaRCalculator::create)
+    py::class_<VaRCalculator, std::shared_ptr<VaRCalculator>>(m, "VaRCalculator")
+        .def(py::init<>())
+        .def_static("create", []() {
+            return std::make_shared<VaRCalculator>();
+        })
         .def("with_returns", &VaRCalculator::withReturns,
              py::return_value_policy::reference_internal)
         .def("with_confidence_level", &VaRCalculator::withConfidenceLevel,
@@ -304,8 +341,11 @@ PYBIND11_MODULE(bigbrother_risk, m) {
         .def("get_severity", &StressTestResult::getSeverity)
         .def("is_portfolio_viable", &StressTestResult::isPortfolioViable);
 
-    py::class_<StressTestingEngine>(m, "StressTestingEngine")
-        .def_static("create", &StressTestingEngine::create)
+    py::class_<StressTestingEngine, std::shared_ptr<StressTestingEngine>>(m, "StressTestingEngine")
+        .def(py::init<>())
+        .def_static("create", []() {
+            return std::make_shared<StressTestingEngine>();
+        })
         .def("add_position", &StressTestingEngine::addPosition,
              py::return_value_policy::reference_internal)
         .def("clear_positions", &StressTestingEngine::clearPositions,
@@ -345,8 +385,11 @@ PYBIND11_MODULE(bigbrother_risk, m) {
         .def("is_healthy", &PerformanceMetrics::isHealthy)
         .def("get_rating", &PerformanceMetrics::getRating);
 
-    py::class_<PerformanceMetricsCalculator>(m, "PerformanceMetricsCalculator")
-        .def_static("create", &PerformanceMetricsCalculator::create)
+    py::class_<PerformanceMetricsCalculator, std::shared_ptr<PerformanceMetricsCalculator>>(m, "PerformanceMetricsCalculator")
+        .def(py::init<>())
+        .def_static("create", []() {
+            return std::make_shared<PerformanceMetricsCalculator>();
+        })
         .def("with_returns", &PerformanceMetricsCalculator::withReturns,
              py::return_value_policy::reference_internal)
         .def("with_risk_free_rate", &PerformanceMetricsCalculator::withRiskFreeRate,
@@ -393,8 +436,11 @@ PYBIND11_MODULE(bigbrother_risk, m) {
         .def("is_diversified", &DiversificationMetrics::isDiversified)
         .def("get_rating", &DiversificationMetrics::getRating);
 
-    py::class_<CorrelationAnalyzer>(m, "CorrelationAnalyzer")
-        .def_static("create", &CorrelationAnalyzer::create)
+    py::class_<CorrelationAnalyzer, std::shared_ptr<CorrelationAnalyzer>>(m, "CorrelationAnalyzer")
+        .def(py::init<>())
+        .def_static("create", []() {
+            return std::make_shared<CorrelationAnalyzer>();
+        })
         .def("add_series", &CorrelationAnalyzer::addSeries,
              py::return_value_policy::reference_internal)
         .def("clear_series", &CorrelationAnalyzer::clearSeries,

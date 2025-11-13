@@ -19,6 +19,7 @@ import plotly.express as px
 from datetime import datetime
 from pathlib import Path
 import sys
+import random
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
@@ -68,8 +69,8 @@ def generate_features_for_symbol(symbol: str, rates: dict):
     """
     Generate feature vector for prediction
 
-    NOTE: This is using placeholder features for demonstration.
-    In production, these would come from:
+    NOTE: This is using placeholder features for demonstration with random variation
+    to simulate changing market conditions. In production, these would come from:
     - Real-time market data (prices, volumes)
     - Technical indicators (RSI, MACD, Bollinger Bands)
     - Sentiment analysis (news, social media)
@@ -77,40 +78,44 @@ def generate_features_for_symbol(symbol: str, rates: dict):
     - Sector correlations
     """
 
-    # Placeholder features (in production, fetch from data sources)
+    # Helper to add realistic random variation (±5-10%)
+    def vary(base_value, pct=0.08):
+        return base_value * (1 + random.uniform(-pct, pct))
+
+    # Placeholder features with random variation to simulate live market changes
     features = {
         # Technical indicators (10)
-        'rsi_14': 55.3,                 # RSI slightly above neutral
-        'macd': 0.42,                   # Positive momentum
-        'macd_signal': 0.35,            # Below MACD (bullish)
-        'macd_histogram': 0.07,         # Positive histogram
-        'bb_upper': 152.50,             # Bollinger upper band
-        'bb_middle': 150.00,            # Bollinger middle band
-        'bb_lower': 147.50,             # Bollinger lower band
-        'atr_14': 2.15,                 # Average True Range
-        'volume_ratio': 1.23,           # Above average volume
-        'momentum_5d': 0.018,           # 1.8% gain over 5 days
+        'rsi_14': max(0, min(100, vary(55.3, 0.15))),     # RSI bounded 0-100
+        'macd': vary(0.42, 0.20),                          # Positive momentum
+        'macd_signal': vary(0.35, 0.20),                   # Below MACD (bullish)
+        'macd_histogram': vary(0.07, 0.30),                # Positive histogram
+        'bb_upper': vary(152.50, 0.05),                    # Bollinger upper band
+        'bb_middle': vary(150.00, 0.05),                   # Bollinger middle band
+        'bb_lower': vary(147.50, 0.05),                    # Bollinger lower band
+        'atr_14': vary(2.15, 0.15),                        # Average True Range
+        'volume_ratio': max(0.5, vary(1.23, 0.20)),        # Above average volume
+        'momentum_5d': vary(0.018, 0.50),                  # 1.8% gain over 5 days
 
         # Sentiment (5)
-        'news_sentiment': 0.35,         # Positive news sentiment
-        'social_sentiment': 0.15,       # Slightly positive social
-        'analyst_rating': 3.8,          # Buy rating (1-5 scale)
-        'put_call_ratio': 0.85,         # Slightly bullish
-        'vix_level': 16.5,              # Low fear
+        'news_sentiment': max(-1, min(1, vary(0.35, 0.40))),  # Bounded -1 to 1
+        'social_sentiment': max(-1, min(1, vary(0.15, 0.50))), # Bounded -1 to 1
+        'analyst_rating': max(1, min(5, vary(3.8, 0.15))),     # 1-5 scale
+        'put_call_ratio': max(0.5, vary(0.85, 0.15)),          # Slightly bullish
+        'vix_level': max(10, vary(16.5, 0.20)),                # Low fear
 
         # Economic indicators (5)
-        'employment_change': 185000,    # Strong job growth
-        'gdp_growth': 0.025,            # 2.5% quarterly
-        'inflation_rate': 0.031,        # 3.1% CPI
+        'employment_change': vary(185000, 0.10),           # Strong job growth
+        'gdp_growth': vary(0.025, 0.15),                   # 2.5% quarterly
+        'inflation_rate': vary(0.031, 0.10),               # 3.1% CPI
         'fed_rate': rates.get('fed_funds', 0.04),
         'treasury_yield_10y': rates.get('treasury_10y', 0.04),
 
         # Sector correlation (5)
-        'sector_momentum': 0.042,       # 4.2% sector gain
-        'spy_correlation': 0.78,        # High correlation with market
-        'sector_beta': 1.15,            # Slightly more volatile
-        'peer_avg_return': 0.025,       # Peers up 2.5%
-        'market_regime': 0.65,          # Bullish regime
+        'sector_momentum': vary(0.042, 0.30),              # 4.2% sector gain
+        'spy_correlation': max(0, min(1, vary(0.78, 0.10))), # Correlation 0-1
+        'sector_beta': max(0.5, vary(1.15, 0.15)),         # Slightly more volatile
+        'peer_avg_return': vary(0.025, 0.40),              # Peers up 2.5%
+        'market_regime': max(0, min(1, vary(0.65, 0.20))), # Bullish regime 0-1
     }
 
     return features

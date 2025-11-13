@@ -27,10 +27,12 @@ from tax_tracking_view import show_realtime_tax_tracking
 
 # Import new trading activity views
 try:
-    from views import live_trading_activity, rejection_analysis
+    from views import live_trading_activity, rejection_analysis, risk_analytics
     TRADING_VIEWS_AVAILABLE = True
+    RISK_ANALYTICS_AVAILABLE = True
 except ImportError:
     TRADING_VIEWS_AVAILABLE = False
+    RISK_ANALYTICS_AVAILABLE = False
     print("⚠️  Trading activity views not available")
 
 # Import JAX-accelerated utilities for fast numerical computations
@@ -243,25 +245,8 @@ def fetch_fred_rates():
     Returns:
         dict with 'success', 'rates', 'last_updated', 'error' keys
     """
-    if not FRED_AVAILABLE:
-        return {
-            'success': False,
-            'error': 'FRED module not available',
-            'rates': None,
-            'last_updated': None
-        }
-
     try:
-        # Load API key from api_keys.yaml
-        api_key = None
-        api_keys_path = Path(__file__).parent.parent / "api_keys.yaml"
-
-        if YAML_AVAILABLE and api_keys_path.exists():
-            with open(api_keys_path, 'r') as f:
-                config = yaml.safe_load(f)
-                api_key = config.get('fred_api_key')
-
-        # Try to get rates from database first (fast path)
+        # Try to get rates from database first (fast path - doesn't require FRED module)
         conn = get_db_connection()
         rates_df = conn.execute("""
             SELECT rate_name, rate_value, last_updated
@@ -285,6 +270,24 @@ def fetch_fred_rates():
                 'age_hours': age_hours,
                 'source': 'database'
             }
+
+        # If no data in DB, need FRED module to fetch fresh data
+        if not FRED_AVAILABLE:
+            return {
+                'success': False,
+                'error': 'FRED module not available and no cached data in database',
+                'rates': None,
+                'last_updated': None
+            }
+
+        # Load API key from api_keys.yaml
+        api_key = None
+        api_keys_path = Path(__file__).parent.parent / "api_keys.yaml"
+
+        if YAML_AVAILABLE and api_keys_path.exists():
+            with open(api_keys_path, 'r') as f:
+                config = yaml.safe_load(f)
+                api_key = config.get('fred_api_key')
 
         # If no data in DB or data is stale, fetch from FRED API
         if api_key:
@@ -521,6 +524,10 @@ def main():
         if TRADING_VIEWS_AVAILABLE:
             views.extend(["📊 Live Activity", "🔍 Rejection Analysis"])
 
+        # Add risk analytics if available
+        if RISK_ANALYTICS_AVAILABLE:
+            views.append("🎯 Risk Analytics")
+
         views.extend(["🔮 Price Predictions", "Employment Signals", "FRED Rates", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications", "Tax Tracking"])
 
         view = st.radio(
@@ -555,6 +562,11 @@ def main():
             rejection_analysis.show_rejection_analysis()
         else:
             st.error("Rejection analysis view not available")
+    elif view == "🎯 Risk Analytics":
+        if RISK_ANALYTICS_AVAILABLE:
+            risk_analytics.show_risk_analytics_view()
+        else:
+            st.error("Risk analytics view not available")
     elif view == "🔮 Price Predictions":
         show_price_predictions(get_db_connection())
     elif view == "Employment Signals":

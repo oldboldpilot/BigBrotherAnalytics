@@ -15,6 +15,12 @@ Date: 2025-11-13
 import time
 import sys
 from statistics import mean, stdev
+from pathlib import Path
+
+# Add python module path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "python"))
+
 import bigbrother_risk as risk
 
 # Terminal colors

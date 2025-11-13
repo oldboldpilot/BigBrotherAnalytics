@@ -31,10 +31,16 @@
 - **Parallelization:** MPI, OpenMP, UPC++, GASNet-EX, OpenSHMEM (32+ cores)
 - **ML/AI:** PyTorch, Transformers, XGBoost, SHAP
 - **C++/Python Integration:** pybind11 for performance-critical code (bypasses GIL)
+  - **Risk Analytics Bindings:** 8 modules exposed with RAII memory safety (Position Sizer, Monte Carlo, Stop Loss, Risk Manager, VaR Calculator, Stress Testing, Performance Metrics, Correlation Analyzer)
+  - **Memory Management:** `std::shared_ptr` holder pattern - **NO raw new/delete**
+  - **Integration Tests:** 210-line comprehensive test suite (8/8 modules passing)
 - **GPU Acceleration:** JAX with CUDA 13.0 (NVIDIA RTX 4070, 12GB VRAM)
 - **CUDA Development:** CUDA Toolkit 13.0 installed (nvcc compiler, cuBLAS, cuDNN)
 - **Document Processing:** Maven + OpenJDK 25 + Apache Tika
 - **Build System:** CMake 4.1.2+ with Ninja generator (required for C++23 modules)
+  - **LLVM 21 Configuration:** Proper separation of compiler projects vs runtime libraries
+  - **ENABLE_PROJECTS:** clang, clang-tools-extra, openmp, flang, mlir
+  - **ENABLE_RUNTIMES:** libcxx, libcxxabi, **libunwind** (proper exception handling)
 - **Code Quality:** clang-tidy (C++ Core Guidelines enforcement)
 - **Package Manager:** uv (10-100x faster than pip, project-based, no venv needed)
 - **Execution:** All Python code runs with `uv run python script.py`
@@ -44,15 +50,20 @@
 - **JIT Compilation:** Pre-compiled during startup for instant runtime execution
 - **Automatic Differentiation:** Exact Greeks calculation (not finite differences)
 - **Batch Vectorization:** 10-50x speedup for large-scale operations
-- **SIMD Risk Analytics (AVX-512/AVX2):** **NEWLY ADDED** - Comprehensive SIMD acceleration
-  - **Monte Carlo Simulator:** 8M simulations/sec (AVX2), 6-7x speedup over scalar
+- **SIMD Risk Analytics (AVX-512/AVX2):** **PRODUCTION READY** - Comprehensive SIMD acceleration with Python bindings
+  - **Monte Carlo Simulator:** **9.87M simulations/sec** (AVX2), 6-7x speedup over scalar
     - AVX-512: 8 doubles/iteration, AVX2: 4 doubles/iteration, scalar fallback
     - Statistics: vectorized_sum, vectorized_mean_variance with FMA instructions
-    - Benchmark: 250K sims in 31.88ms (7.8M sims/sec)
+    - Benchmark: 250K sims in 25.33ms (9.87M sims/sec peak)
+    - **Python Bindings:** Full pybind11 integration with RAII memory safety
   - **Correlation Analyzer:** AVX-512/AVX2 Pearson correlation (6-8x speedup)
     - Replaces MKL with direct intrinsics for better control
     - Horizontal reduction for efficient cross-lane summation
-  - **Documentation:** Comprehensive Doxygen-style comments with performance notes
+  - **8 Python-Bound Modules:** Position Sizer, Monte Carlo, Stop Loss, Risk Manager, VaR Calculator, Stress Testing, Performance Metrics, Correlation Analyzer
+  - **Memory Management:** `std::shared_ptr` holder pattern with automatic destruction - **NO raw new/delete**
+  - **Move Semantics:** Added to 5 mutex-containing classes for pybind11 compatibility
+  - **Integration Tests:** 210-line comprehensive test suite (100% passing, 8/8 modules)
+  - **Documentation:** Comprehensive Doxygen-style comments + 35-line RAII memory safety guide
 - **SIMD (AVX2):** C++ correlation engine (3-6x faster, 100K+ points/sec)
 - **SIMD JSON Parsing (simdjson v4.2.1):** 3-32x faster JSON parsing (ACTIVE, migrated all hot paths)
   - Quote parsing: **32.2x** (3449ns → 107ns, 120 req/min)

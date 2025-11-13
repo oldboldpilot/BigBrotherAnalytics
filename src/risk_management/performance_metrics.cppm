@@ -20,7 +20,7 @@ module;
 
 #include <algorithm>
 #include <cmath>
-#include <immintrin.h>  // AVX/AVX-512 intrinsics
+#include <immintrin.h> // AVX/AVX-512 intrinsics
 #include <mutex>
 #include <numeric>
 #include <string>
@@ -42,13 +42,7 @@ using bigbrother::utils::Logger;
 // Performance Period
 // ============================================================================
 
-enum class PerformancePeriod {
-    Daily,
-    Weekly,
-    Monthly,
-    Quarterly,
-    Annual
-};
+enum class PerformancePeriod { Daily, Weekly, Monthly, Quarterly, Annual };
 
 // ============================================================================
 // Performance Metrics Result
@@ -61,35 +55,39 @@ struct PerformanceMetrics {
     double average_return{0.0};
 
     // Risk metrics
-    double volatility{0.0};              // Annualized standard deviation
-    double downside_deviation{0.0};      // Downside volatility
-    double max_drawdown{0.0};            // Maximum peak-to-trough decline
-    double max_drawdown_duration{0};     // Days in drawdown
+    double volatility{0.0};          // Annualized standard deviation
+    double downside_deviation{0.0};  // Downside volatility
+    double max_drawdown{0.0};        // Maximum peak-to-trough decline
+    double max_drawdown_duration{0}; // Days in drawdown
 
     // Risk-adjusted returns
-    double sharpe_ratio{0.0};            // (Return - RFR) / Volatility
-    double sortino_ratio{0.0};           // (Return - RFR) / Downside Dev
-    double calmar_ratio{0.0};            // Annual Return / Max Drawdown
-    double omega_ratio{0.0};             // Gains / Losses
+    double sharpe_ratio{0.0};  // (Return - RFR) / Volatility
+    double sortino_ratio{0.0}; // (Return - RFR) / Downside Dev
+    double calmar_ratio{0.0};  // Annual Return / Max Drawdown
+    double omega_ratio{0.0};   // Gains / Losses
 
     // Win/Loss statistics
-    double win_rate{0.0};                // % of winning periods
-    double profit_factor{0.0};           // Gross profit / Gross loss
-    double expectancy{0.0};              // Average win/loss per trade
+    double win_rate{0.0};      // % of winning periods
+    double profit_factor{0.0}; // Gross profit / Gross loss
+    double expectancy{0.0};    // Average win/loss per trade
 
     // Distribution metrics
-    double skewness{0.0};                // Return distribution skew
-    double kurtosis{0.0};                // Return distribution tail risk
+    double skewness{0.0}; // Return distribution skew
+    double kurtosis{0.0}; // Return distribution tail risk
 
     [[nodiscard]] auto isHealthy() const noexcept -> bool {
         return sharpe_ratio > 1.0 && max_drawdown > -0.25;
     }
 
     [[nodiscard]] auto getRating() const noexcept -> char const* {
-        if (sharpe_ratio > 2.0) return "EXCELLENT";
-        if (sharpe_ratio > 1.5) return "GOOD";
-        if (sharpe_ratio > 1.0) return "FAIR";
-        if (sharpe_ratio > 0.5) return "POOR";
+        if (sharpe_ratio > 2.0)
+            return "EXCELLENT";
+        if (sharpe_ratio > 1.5)
+            return "GOOD";
+        if (sharpe_ratio > 1.0)
+            return "FAIR";
+        if (sharpe_ratio > 0.5)
+            return "POOR";
         return "VERY POOR";
     }
 };
@@ -99,7 +97,7 @@ struct PerformanceMetrics {
 // ============================================================================
 
 class PerformanceMetricsCalculator {
-public:
+  public:
     // Factory method
     [[nodiscard]] static auto create() noexcept -> PerformanceMetricsCalculator {
         return PerformanceMetricsCalculator{};
@@ -113,8 +111,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] auto withRiskFreeRate(double rfr) noexcept
-        -> PerformanceMetricsCalculator& {
+    [[nodiscard]] auto withRiskFreeRate(double rfr) noexcept -> PerformanceMetricsCalculator& {
         risk_free_rate_ = rfr;
         return *this;
     }
@@ -125,8 +122,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] auto withTargetReturn(double target) noexcept
-        -> PerformanceMetricsCalculator& {
+    [[nodiscard]] auto withTargetReturn(double target) noexcept -> PerformanceMetricsCalculator& {
         target_return_ = target;
         return *this;
     }
@@ -137,12 +133,12 @@ public:
 
         if (returns_.empty()) {
             return makeError<PerformanceMetrics>(ErrorCode::InvalidParameter,
-                                                "No returns data provided");
+                                                 "No returns data provided");
         }
 
         if (returns_.size() < 2) {
             return makeError<PerformanceMetrics>(ErrorCode::InvalidParameter,
-                                                "Need at least 2 return observations");
+                                                 "Need at least 2 return observations");
         }
 
         PerformanceMetrics metrics;
@@ -158,12 +154,12 @@ public:
         metrics.max_drawdown = calculateMaxDrawdown();
 
         // Risk-adjusted returns
-        metrics.sharpe_ratio = calculateSharpeRatio(metrics.annualized_return,
-                                                    metrics.volatility);
-        metrics.sortino_ratio = calculateSortinoRatio(metrics.annualized_return,
-                                                      metrics.downside_deviation);
-        metrics.calmar_ratio = (metrics.max_drawdown != 0.0) ?
-            metrics.annualized_return / std::abs(metrics.max_drawdown) : 0.0;
+        metrics.sharpe_ratio = calculateSharpeRatio(metrics.annualized_return, metrics.volatility);
+        metrics.sortino_ratio =
+            calculateSortinoRatio(metrics.annualized_return, metrics.downside_deviation);
+        metrics.calmar_ratio = (metrics.max_drawdown != 0.0)
+                                   ? metrics.annualized_return / std::abs(metrics.max_drawdown)
+                                   : 0.0;
         metrics.omega_ratio = calculateOmegaRatio();
 
         // Win/Loss statistics
@@ -178,8 +174,8 @@ public:
         Logger::getInstance().info(
             "Performance Metrics: Sharpe={:.2f}, Sortino={:.2f}, MaxDD={:.1f}%, "
             "Win Rate={:.1f}%",
-            metrics.sharpe_ratio, metrics.sortino_ratio,
-            metrics.max_drawdown * 100, metrics.win_rate * 100);
+            metrics.sharpe_ratio, metrics.sortino_ratio, metrics.max_drawdown * 100,
+            metrics.win_rate * 100);
 
         return metrics;
     }
@@ -191,7 +187,7 @@ public:
 
         if (equity.size() < 2) {
             return makeError<PerformanceMetrics>(ErrorCode::InvalidParameter,
-                                                "Need at least 2 equity values");
+                                                 "Need at least 2 equity values");
         }
 
         // Convert equity curve to returns
@@ -199,8 +195,8 @@ public:
         returns.reserve(equity.size() - 1);
 
         for (size_t i = 1; i < equity.size(); ++i) {
-            if (equity[i-1] != 0.0) {
-                returns.push_back((equity[i] - equity[i-1]) / equity[i-1]);
+            if (equity[i - 1] != 0.0) {
+                returns.push_back((equity[i] - equity[i - 1]) / equity[i - 1]);
             }
         }
 
@@ -210,8 +206,36 @@ public:
             .calculate();
     }
 
-private:
+  public:
+    // Public constructor for pybind11 shared_ptr holder
     PerformanceMetricsCalculator() = default;
+
+  private:
+    // Move constructor - mutex cannot be moved, so we default-construct a new one
+    PerformanceMetricsCalculator(PerformanceMetricsCalculator&& other) noexcept
+        : returns_(std::move(other.returns_)), risk_free_rate_(std::move(other.risk_free_rate_)),
+          target_return_(std::move(other.target_return_)), period_(std::move(other.period_)) {
+        // mutex_ is default-constructed
+    }
+
+    // Move assignment - mutex cannot be moved
+    auto operator=(PerformanceMetricsCalculator&& other) noexcept -> PerformanceMetricsCalculator& {
+        if (this != &other) {
+            returns_ = std::move(other.returns_);
+            risk_free_rate_ = std::move(other.risk_free_rate_);
+            target_return_ = std::move(other.target_return_);
+            period_ = std::move(other.period_);
+            // mutex_ remains as-is
+        }
+        return *this;
+    }
+
+    // Destructor - complete Rule of Five
+    ~PerformanceMetricsCalculator() = default;
+
+    // Explicitly delete copy operations
+    PerformanceMetricsCalculator(PerformanceMetricsCalculator const&) = delete;
+    auto operator=(PerformanceMetricsCalculator const&) -> PerformanceMetricsCalculator& = delete;
 
     mutable std::mutex mutex_;
     std::vector<double> returns_;
@@ -225,12 +249,18 @@ private:
 
     [[nodiscard]] auto getAnnualizationFactor() const noexcept -> double {
         switch (period_) {
-            case PerformancePeriod::Daily:     return 252.0;
-            case PerformancePeriod::Weekly:    return 52.0;
-            case PerformancePeriod::Monthly:   return 12.0;
-            case PerformancePeriod::Quarterly: return 4.0;
-            case PerformancePeriod::Annual:    return 1.0;
-            default:                           return 252.0;
+            case PerformancePeriod::Daily:
+                return 252.0;
+            case PerformancePeriod::Weekly:
+                return 52.0;
+            case PerformancePeriod::Monthly:
+                return 12.0;
+            case PerformancePeriod::Quarterly:
+                return 4.0;
+            case PerformancePeriod::Annual:
+                return 1.0;
+            default:
+                return 252.0;
         }
     }
 
@@ -238,10 +268,10 @@ private:
     // Basic Statistics (SIMD-accelerated)
     // ========================================================================
 
-    [[nodiscard]] auto calculateMean(std::vector<double> const& data) const noexcept
-        -> double {
+    [[nodiscard]] auto calculateMean(std::vector<double> const& data) const noexcept -> double {
 
-        if (data.empty()) return 0.0;
+        if (data.empty())
+            return 0.0;
 
         size_t n = data.size();
         double sum = 0.0;
@@ -276,7 +306,8 @@ private:
     [[nodiscard]] auto calculateVariance(std::vector<double> const& data,
                                          double mean) const noexcept -> double {
 
-        if (data.empty()) return 0.0;
+        if (data.empty())
+            return 0.0;
 
         size_t n = data.size();
         double sum_sq_diff = 0.0;
@@ -356,9 +387,10 @@ private:
             }
         }
 
-        if (downside_returns.empty()) return 0.0;
+        if (downside_returns.empty())
+            return 0.0;
 
-        double mean = 0.0;  // Target is already subtracted
+        double mean = 0.0; // Target is already subtracted
         double variance = calculateVariance(downside_returns, mean);
         double downside_dev = std::sqrt(variance);
 
@@ -367,7 +399,8 @@ private:
     }
 
     [[nodiscard]] auto calculateMaxDrawdown() const noexcept -> double {
-        if (returns_.empty()) return 0.0;
+        if (returns_.empty())
+            return 0.0;
 
         double peak = 1.0;
         double max_dd = 0.0;
@@ -393,15 +426,17 @@ private:
     // Risk-Adjusted Returns
     // ========================================================================
 
-    [[nodiscard]] auto calculateSharpeRatio(double annual_return,
-                                           double volatility) const noexcept -> double {
-        if (volatility == 0.0) return 0.0;
+    [[nodiscard]] auto calculateSharpeRatio(double annual_return, double volatility) const noexcept
+        -> double {
+        if (volatility == 0.0)
+            return 0.0;
         return (annual_return - risk_free_rate_) / volatility;
     }
 
     [[nodiscard]] auto calculateSortinoRatio(double annual_return,
-                                            double downside_dev) const noexcept -> double {
-        if (downside_dev == 0.0) return 0.0;
+                                             double downside_dev) const noexcept -> double {
+        if (downside_dev == 0.0)
+            return 0.0;
         return (annual_return - risk_free_rate_) / downside_dev;
     }
 
@@ -425,11 +460,13 @@ private:
     // ========================================================================
 
     [[nodiscard]] auto calculateWinRate() const noexcept -> double {
-        if (returns_.empty()) return 0.0;
+        if (returns_.empty())
+            return 0.0;
 
         size_t wins = 0;
         for (double ret : returns_) {
-            if (ret > 0.0) ++wins;
+            if (ret > 0.0)
+                ++wins;
         }
 
         return static_cast<double>(wins) / static_cast<double>(returns_.size());
@@ -459,7 +496,8 @@ private:
         double variance = calculateVariance(returns_, mean);
         double std_dev = std::sqrt(variance);
 
-        if (std_dev == 0.0) return 0.0;
+        if (std_dev == 0.0)
+            return 0.0;
 
         double sum_cubed = 0.0;
         for (double ret : returns_) {
@@ -476,7 +514,8 @@ private:
         double variance = calculateVariance(returns_, mean);
         double std_dev = std::sqrt(variance);
 
-        if (std_dev == 0.0) return 0.0;
+        if (std_dev == 0.0)
+            return 0.0;
 
         double sum_fourth = 0.0;
         for (double ret : returns_) {
@@ -485,7 +524,7 @@ private:
         }
 
         size_t n = returns_.size();
-        return (sum_fourth / static_cast<double>(n)) - 3.0;  // Excess kurtosis
+        return (sum_fourth / static_cast<double>(n)) - 3.0; // Excess kurtosis
     }
 };
 

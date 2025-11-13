@@ -1,0 +1,276 @@
+==2201380== Helgrind, a thread error detector
+==2201380== Copyright (C) 2007-2024, and GNU GPL'd, by OpenWorks LLP et al.
+==2201380== Using Valgrind-3.24.0 and LibVEX; rerun with -h for copyright info
+==2201380== Command: ./build/bin/test_simdjson_wrapper --gtest_filter=*Thread*
+==2201380== Parent PID: 2201245
+==2201380== 
+==2201380== ---Thread-Announcement------------------------------------------
+==2201380== 
+==2201380== Thread #3 was created
+==2201380==    at 0x8014233: clone (clone.S:76)
+==2201380==    by 0x80143B2: __clone_internal_fallback (clone-internal.c:64)
+==2201380==    by 0x80143B2: __clone_internal (clone-internal.c:109)
+==2201380==    by 0x7F82A4F: create_thread (pthread_create.c:298)
+==2201380==    by 0x7F836D0: pthread_create@@GLIBC_2.34 (pthread_create.c:841)
+==2201380==    by 0x4854EF1: pthread_create_WRK (hg_intercepts.c:445)
+==2201380==    by 0x12180F: _ZNSt3__116allocator_traitsINS_9allocatorINS_6threadEEEE9constructIS2_JZN48SimdJsonWrapper_ThreadSafeConcurrentParsing_Test8TestBodyEvE3$_0ETnNS_9enable_ifIXnt17__has_construct_vIS3_PT_DpT0_EEiE4typeELi0EEEvRS3_SA_DpOSB_ (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x119B99: SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380== 
+==2201380== ---Thread-Announcement------------------------------------------
+==2201380== 
+==2201380== Thread #2 was created
+==2201380==    at 0x8014233: clone (clone.S:76)
+==2201380==    by 0x80143B2: __clone_internal_fallback (clone-internal.c:64)
+==2201380==    by 0x80143B2: __clone_internal (clone-internal.c:109)
+==2201380==    by 0x7F82A4F: create_thread (pthread_create.c:298)
+==2201380==    by 0x7F836D0: pthread_create@@GLIBC_2.34 (pthread_create.c:841)
+==2201380==    by 0x4854EF1: pthread_create_WRK (hg_intercepts.c:445)
+==2201380==    by 0x12180F: _ZNSt3__116allocator_traitsINS_9allocatorINS_6threadEEEE9constructIS2_JZN48SimdJsonWrapper_ThreadSafeConcurrentParsing_Test8TestBodyEvE3$_0ETnNS_9enable_ifIXnt17__has_construct_vIS3_PT_DpT0_EEiE4typeELi0EEEvRS3_SA_DpOSB_ (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x119B99: SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 1 at 0x7D89718 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x7CE7A11: std::__1::__thread_local_data() (in /usr/local/lib/libc++.so.1)
+==2201380==    by 0x12189A: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 1 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x487E9EC: __cxa_guard_release (in /usr/local/lib/libc++abi.so.1)
+==2201380==    by 0x7CE7A56: std::__1::__thread_local_data() (in /usr/local/lib/libc++.so.1)
+==2201380==    by 0x12189A: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x7d89718 is 0 bytes inside data symbol "_ZGVZNSt3__119__thread_local_dataEvE3__p"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 8 at 0x7D89710 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x7CE7A1C: std::__1::__thread_local_data() (in /usr/local/lib/libc++.so.1)
+==2201380==    by 0x12189A: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 8 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x7CE7A44: std::__1::__thread_local_data() (in /usr/local/lib/libc++.so.1)
+==2201380==    by 0x12189A: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x7d89710 is 0 bytes inside data symbol "_ZZNSt3__119__thread_local_dataEvE3__p"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 4 at 0x7D89708 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x1218A5: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 4 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x7F84DC1: pthread_key_create@@GLIBC_2.34 (pthread_key_create.c:40)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x7d89708 is 0 bytes inside data symbol "_ZZNSt3__119__thread_local_dataEvE3__b"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 1 at 0x4B53540 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x4B32115: simdjson::get_active_implementation() (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x122D7E: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 1 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x487E9EC: __cxa_guard_release (in /usr/local/lib/libc++abi.so.1)
+==2201380==    by 0x4B52A4F: ??? (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x8011A2C: syscall (syscall.S:37)
+==2201380==  Address 0x4b53540 is 0 bytes inside data symbol "_ZGVZN8simdjson25get_active_implementationEvE59detect_best_supported_implementation_on_first_use_singleton"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 1 at 0x4B53530 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x4B32120: simdjson::get_active_implementation() (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x122D7E: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 1 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x487E9EC: __cxa_guard_release (in /usr/local/lib/libc++abi.so.1)
+==2201380==    by 0x4B321EC: simdjson::get_active_implementation() (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x122D7E: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x4b53530 is 0 bytes inside data symbol "_ZGVZN8simdjson25get_active_implementationEvE21active_implementation"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 8 at 0x4B53538 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x122D89: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 8 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x4B321E1: simdjson::get_active_implementation() (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x122D7E: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x4b53538 is 0 bytes inside data symbol "_ZZN8simdjson25get_active_implementationEvE21active_implementation"
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 8 at 0x4B53680 by thread #3
+==2201380== Locks held: none
+==2201380==    at 0x122D8C: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 8 by thread #2
+==2201380== Locks held: none
+==2201380==    at 0x4B2FF29: simdjson::internal::get_available_implementation_pointers() [clone .part.0] (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x4B320A8: simdjson::internal::available_implementation_list::detect_best_supported() const (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x4B3233C: simdjson::internal::detect_best_supported_implementation_on_first_use::set_best() const (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x4B483E5: simdjson::internal::detect_best_supported_implementation_on_first_use::create_dom_parser_implementation(unsigned long, unsigned long, std::unique_ptr<simdjson::internal::dom_parser_implementation, std::default_delete<simdjson::internal::dom_parser_implementation> >&) const (in /home/linuxbrew/.linuxbrew/Cellar/simdjson/4.2.1/lib/libsimdjson.so.29.0.0)
+==2201380==    by 0x122D97: std::__1::expected<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, bigbrother::simdjson::Error@bigbrother.utils.simdjson_wrapper> bigbrother::simdjson::parseAndGet@bigbrother.utils.simdjson_wrapper<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > >(std::__1::basic_string_view<char, std::__1::char_traits<char> >, std::__1::basic_string_view<char, std::__1::char_traits<char> >) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1218FF: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsing_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==  Address 0x4b53680 is 0 bytes inside data symbol "_ZZN8simdjson8internalL21get_haswell_singletonEvE17haswell_singleton"
+==2201380== 
+==2201380== ---Thread-Announcement------------------------------------------
+==2201380== 
+==2201380== Thread #13 was created
+==2201380==    at 0x8014233: clone (clone.S:76)
+==2201380==    by 0x80143B2: __clone_internal_fallback (clone-internal.c:64)
+==2201380==    by 0x80143B2: __clone_internal (clone-internal.c:109)
+==2201380==    by 0x7F82A4F: create_thread (pthread_create.c:298)
+==2201380==    by 0x7F836D0: pthread_create@@GLIBC_2.34 (pthread_create.c:841)
+==2201380==    by 0x4854EF1: pthread_create_WRK (hg_intercepts.c:445)
+==2201380==    by 0x121ABF: _ZNSt3__116allocator_traitsINS_9allocatorINS_6threadEEEE9constructIS2_JZN61SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test8TestBodyEvE3$_0ETnNS_9enable_ifIXnt17__has_construct_vIS3_PT_DpT0_EEiE4typeELi0EEEvRS3_SA_DpOSB_ (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x11A23E: SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380== 
+==2201380== ---Thread-Announcement------------------------------------------
+==2201380== 
+==2201380== Thread #12 was created
+==2201380==    at 0x8014233: clone (clone.S:76)
+==2201380==    by 0x80143B2: __clone_internal_fallback (clone-internal.c:64)
+==2201380==    by 0x80143B2: __clone_internal (clone-internal.c:109)
+==2201380==    by 0x7F82A4F: create_thread (pthread_create.c:298)
+==2201380==    by 0x7F836D0: pthread_create@@GLIBC_2.34 (pthread_create.c:841)
+==2201380==    by 0x4854EF1: pthread_create_WRK (hg_intercepts.c:445)
+==2201380==    by 0x121ABF: _ZNSt3__116allocator_traitsINS_9allocatorINS_6threadEEEE9constructIS2_JZN61SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test8TestBodyEvE3$_0ETnNS_9enable_ifIXnt17__has_construct_vIS3_PT_DpT0_EEiE4typeELi0EEEvRS3_SA_DpOSB_ (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x11A23E: SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380== 
+==2201380== ---Thread-Announcement------------------------------------------
+==2201380== 
+==2201380== Thread #1 is the program's root thread
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during read of size 8 at 0x83BE270 by thread #13
+==2201380== Locks held: none
+==2201380==    at 0x121DCE: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 8 by thread #12
+==2201380== Locks held: none
+==2201380==    at 0x121DCE: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x83be270 is 0 bytes inside a block of size 8 alloc'd
+==2201380==    at 0x484CFB4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==2201380==    by 0x11A0DD: SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x162728: bool testing::internal::HandleExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool>(testing::internal::UnitTestImpl*, bool (testing::internal::UnitTestImpl::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1575F8: testing::UnitTest::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x16C65A: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==  Block was alloc'd by thread #1
+==2201380== 
+==2201380== ----------------------------------------------------------------
+==2201380== 
+==2201380== Possible data race during write of size 8 at 0x83BE270 by thread #13
+==2201380== Locks held: none
+==2201380==    at 0x121DCE: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380== 
+==2201380== This conflicts with a previous write of size 8 by thread #12
+==2201380== Locks held: none
+==2201380==    at 0x121DCE: void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody()::$_0> >(void*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x485E9A6: mythread_wrapper (hg_intercepts.c:406)
+==2201380==    by 0x7F82EF0: start_thread (pthread_create.c:448)
+==2201380==    by 0x8014243: clone (clone.S:100)
+==2201380==  Address 0x83be270 is 0 bytes inside a block of size 8 alloc'd
+==2201380==    at 0x484CFB4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==2201380==    by 0x11A0DD: SimdJsonWrapper_ThreadSafeConcurrentParsingDifferentJSON_Test::TestBody() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x161CA8: void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x144F7F: testing::Test::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x145E50: testing::TestInfo::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x146C94: testing::TestSuite::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x157B19: testing::internal::UnitTestImpl::RunAllTests() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x162728: bool testing::internal::HandleExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool>(testing::internal::UnitTestImpl*, bool (testing::internal::UnitTestImpl::*)(), char const*) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x1575F8: testing::UnitTest::Run() (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==    by 0x16C65A: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/test_simdjson_wrapper)
+==2201380==  Block was alloc'd by thread #1
+==2201380== 
+==2201380== 
+==2201380== Use --history-level=approx or =none to gain increased speed, at
+==2201380== the cost of reduced accuracy of conflicting-access information
+==2201380== For lists of detected and suppressed errors, rerun with: -s
+==2201380== ERROR SUMMARY: 77 errors from 9 contexts (suppressed: 185 from 12)

@@ -39,17 +39,16 @@ export namespace bigbrother::risk {
 using namespace bigbrother::types;
 using bigbrother::utils::Logger;
 
-
 // ============================================================================
 // Stop Loss Types
 // ============================================================================
 
 enum class StopType {
-    Hard,              // Fixed price stop
-    Trailing,          // Stop that trails price movement
-    TimeStop,          // Exit after time limit
-    VolatilityStop,    // Stop based on volatility expansion
-    Greeks             // Stop based on option Greeks deterioration
+    Hard,           // Fixed price stop
+    Trailing,       // Stop that trails price movement
+    TimeStop,       // Exit after time limit
+    VolatilityStop, // Stop based on volatility expansion
+    Greeks          // Stop based on option Greeks deterioration
 };
 
 // ============================================================================
@@ -61,8 +60,8 @@ struct Stop {
     StopType type{StopType::Hard};
     Price trigger_price{0.0};
     Price initial_price{0.0};
-    double trail_amount{0.0};      // For trailing stops or volatility threshold
-    int64_t expiration{0};         // For time stops (timestamp)
+    double trail_amount{0.0}; // For trailing stops or volatility threshold
+    int64_t expiration{0};    // For time stops (timestamp)
     bool triggered{false};
 
     [[nodiscard]] auto isTriggered(Price current_price) const noexcept -> bool;
@@ -73,122 +72,70 @@ struct Stop {
 // ============================================================================
 
 class StopLossManager {
-public:
+  public:
     // Factory method
-    [[nodiscard]] static auto create() noexcept -> StopLossManager {
-        return StopLossManager{};
-    }
+    [[nodiscard]] static auto create() noexcept -> StopLossManager { return StopLossManager{}; }
 
     // Fluent API - Add various stop types
-    [[nodiscard]] auto addHardStop(
-        std::string position_id,
-        Price trigger_price,
-        Price initial_price
-    ) noexcept -> StopLossManager& {
-        addStopInternal(
-            std::move(position_id),
-            StopType::Hard,
-            trigger_price,
-            initial_price,
-            0.0
-        );
+    [[nodiscard]] auto addHardStop(std::string position_id, Price trigger_price,
+                                   Price initial_price) noexcept -> StopLossManager& {
+        addStopInternal(std::move(position_id), StopType::Hard, trigger_price, initial_price, 0.0);
         return *this;
     }
 
-    [[nodiscard]] auto addTrailingStop(
-        std::string position_id,
-        Price trigger_price,
-        Price initial_price,
-        double trail_amount
-    ) noexcept -> StopLossManager& {
-        addStopInternal(
-            std::move(position_id),
-            StopType::Trailing,
-            trigger_price,
-            initial_price,
-            trail_amount
-        );
+    [[nodiscard]] auto addTrailingStop(std::string position_id, Price trigger_price,
+                                       Price initial_price, double trail_amount) noexcept
+        -> StopLossManager& {
+        addStopInternal(std::move(position_id), StopType::Trailing, trigger_price, initial_price,
+                        trail_amount);
         return *this;
     }
 
-    [[nodiscard]] auto addTimeStop(
-        std::string position_id,
-        Price trigger_price,
-        Price initial_price,
-        int64_t expiration_time
-    ) noexcept -> StopLossManager& {
+    [[nodiscard]] auto addTimeStop(std::string position_id, Price trigger_price,
+                                   Price initial_price, int64_t expiration_time) noexcept
+        -> StopLossManager& {
         std::lock_guard lock{mutex_};
 
         // Remove existing stop for this position
         removeStopInternal(position_id);
 
         // Add new time stop
-        Stop stop{
-            .position_id = std::move(position_id),
-            .type = StopType::TimeStop,
-            .trigger_price = trigger_price,
-            .initial_price = initial_price,
-            .trail_amount = 0.0,
-            .expiration = expiration_time,
-            .triggered = false
-        };
+        Stop stop{.position_id = std::move(position_id),
+                  .type = StopType::TimeStop,
+                  .trigger_price = trigger_price,
+                  .initial_price = initial_price,
+                  .trail_amount = 0.0,
+                  .expiration = expiration_time,
+                  .triggered = false};
 
         stops_.push_back(std::move(stop));
 
-        Logger::getInstance().info(
-            "Added time stop for {}: expiration={}",
-            stop.position_id,
-            expiration_time
-        );
+        Logger::getInstance().info("Added time stop for {}: expiration={}", stop.position_id,
+                                   expiration_time);
 
         return *this;
     }
 
-    [[nodiscard]] auto addVolatilityStop(
-        std::string position_id,
-        Price initial_price,
-        double volatility_threshold
-    ) noexcept -> StopLossManager& {
-        addStopInternal(
-            std::move(position_id),
-            StopType::VolatilityStop,
-            0.0,  // Not used for volatility stops
-            initial_price,
-            volatility_threshold
-        );
+    [[nodiscard]] auto addVolatilityStop(std::string position_id, Price initial_price,
+                                         double volatility_threshold) noexcept -> StopLossManager& {
+        addStopInternal(std::move(position_id), StopType::VolatilityStop,
+                        0.0, // Not used for volatility stops
+                        initial_price, volatility_threshold);
         return *this;
     }
 
-    [[nodiscard]] auto addGreeksStop(
-        std::string position_id,
-        Price trigger_price,
-        Price initial_price
-    ) noexcept -> StopLossManager& {
-        addStopInternal(
-            std::move(position_id),
-            StopType::Greeks,
-            trigger_price,
-            initial_price,
-            0.0
-        );
+    [[nodiscard]] auto addGreeksStop(std::string position_id, Price trigger_price,
+                                     Price initial_price) noexcept -> StopLossManager& {
+        addStopInternal(std::move(position_id), StopType::Greeks, trigger_price, initial_price,
+                        0.0);
         return *this;
     }
 
     // Generic add stop (for advanced use)
-    [[nodiscard]] auto addStop(
-        std::string position_id,
-        StopType type,
-        Price trigger_price,
-        Price initial_price,
-        double trail_amount = 0.0
-    ) noexcept -> StopLossManager& {
-        addStopInternal(
-            std::move(position_id),
-            type,
-            trigger_price,
-            initial_price,
-            trail_amount
-        );
+    [[nodiscard]] auto addStop(std::string position_id, StopType type, Price trigger_price,
+                               Price initial_price, double trail_amount = 0.0) noexcept
+        -> StopLossManager& {
+        addStopInternal(std::move(position_id), type, trigger_price, initial_price, trail_amount);
         return *this;
     }
 
@@ -200,9 +147,8 @@ public:
     }
 
     // Update all stops and return triggered positions
-    [[nodiscard]] auto update(
-        std::unordered_map<std::string, Price> const& current_prices
-    ) noexcept -> std::vector<std::string> {
+    [[nodiscard]] auto update(std::unordered_map<std::string, Price> const& current_prices) noexcept
+        -> std::vector<std::string> {
 
         std::lock_guard lock{mutex_};
 
@@ -210,13 +156,13 @@ public:
 
         for (auto& stop : stops_) {
             if (stop.triggered) {
-                continue;  // Already triggered
+                continue; // Already triggered
             }
 
             // Find current price for this position
             auto it = current_prices.find(stop.position_id);
             if (it == current_prices.end()) {
-                continue;  // No price update for this position
+                continue; // No price update for this position
             }
 
             Price const current_price = it->second;
@@ -226,12 +172,8 @@ public:
                 stop.triggered = true;
                 triggered_positions.push_back(stop.position_id);
 
-                Logger::getInstance().warn(
-                    "STOP LOSS TRIGGERED: {} at ${:.2f} (stop: ${:.2f})",
-                    stop.position_id,
-                    current_price,
-                    stop.trigger_price
-                );
+                Logger::getInstance().warn("STOP LOSS TRIGGERED: {} at ${:.2f} (stop: ${:.2f})",
+                                           stop.position_id, current_price, stop.trigger_price);
             }
 
             // Update trailing stops
@@ -257,15 +199,13 @@ public:
     [[nodiscard]] auto getTriggeredCount() const noexcept -> size_t {
         std::lock_guard lock{mutex_};
         return std::count_if(stops_.begin(), stops_.end(),
-            [](Stop const& s) { return s.triggered; }
-        );
+                             [](Stop const& s) -> bool { return s.triggered; });
     }
 
     [[nodiscard]] auto hasStop(std::string const& position_id) const noexcept -> bool {
         std::lock_guard lock{mutex_};
         return std::any_of(stops_.begin(), stops_.end(),
-            [&](Stop const& s) { return s.position_id == position_id; }
-        );
+                           [&](Stop const& s) -> bool { return s.position_id == position_id; });
     }
 
     // Clear all stops (chainable)
@@ -280,61 +220,69 @@ public:
     [[nodiscard]] auto clearTriggered() noexcept -> StopLossManager& {
         std::lock_guard lock{mutex_};
         stops_.erase(
-            std::remove_if(stops_.begin(), stops_.end(),
-                [](Stop const& s) { return s.triggered; }),
-            stops_.end()
-        );
+            std::remove_if(stops_.begin(), stops_.end(), [](Stop const& s) { return s.triggered; }),
+            stops_.end());
         Logger::getInstance().debug("Cleared triggered stops");
         return *this;
     }
 
-private:
+  public:
+    // Public constructor for pybind11 shared_ptr holder
     StopLossManager() = default;
+
+  private:
+    // Move constructor - mutex cannot be moved, so we default-construct a new one
+    StopLossManager(StopLossManager&& other) noexcept : stops_(std::move(other.stops_)) {
+        // mutex_ is default-constructed
+    }
+
+    // Move assignment - mutex cannot be moved
+    auto operator=(StopLossManager&& other) noexcept -> StopLossManager& {
+        if (this != &other) {
+            stops_ = std::move(other.stops_);
+            // mutex_ remains as-is
+        }
+        return *this;
+    }
+
+    // Destructor - complete Rule of Five
+    ~StopLossManager() = default;
+
+    // Explicitly delete copy operations
+    StopLossManager(StopLossManager const&) = delete;
+    auto operator=(StopLossManager const&) -> StopLossManager& = delete;
 
     mutable std::mutex mutex_;
     std::vector<Stop> stops_;
 
     // Internal helper methods
-    auto addStopInternal(
-        std::string position_id,
-        StopType type,
-        Price trigger_price,
-        Price initial_price,
-        double trail_amount
-    ) noexcept -> void {
+    auto addStopInternal(std::string position_id, StopType type, Price trigger_price,
+                         Price initial_price, double trail_amount) noexcept -> void {
         std::lock_guard lock{mutex_};
 
         // Remove existing stop for this position
         removeStopInternal(position_id);
 
         // Add new stop
-        Stop stop{
-            .position_id = position_id,
-            .type = type,
-            .trigger_price = trigger_price,
-            .initial_price = initial_price,
-            .trail_amount = trail_amount,
-            .expiration = 0,
-            .triggered = false
-        };
+        Stop stop{.position_id = position_id,
+                  .type = type,
+                  .trigger_price = trigger_price,
+                  .initial_price = initial_price,
+                  .trail_amount = trail_amount,
+                  .expiration = 0,
+                  .triggered = false};
 
         stops_.push_back(std::move(stop));
 
-        Logger::getInstance().info(
-            "Added {} stop for {}: trigger=${:.2f}",
-            stopTypeToString(type),
-            position_id,
-            trigger_price
-        );
+        Logger::getInstance().info("Added {} stop for {}: trigger=${:.2f}", stopTypeToString(type),
+                                   position_id, trigger_price);
     }
 
     auto removeStopInternal(std::string const& position_id) noexcept -> void {
         // Must be called with mutex locked
-        stops_.erase(
-            std::remove_if(stops_.begin(), stops_.end(),
-                [&](Stop const& s) { return s.position_id == position_id; }),
-            stops_.end()
-        );
+        stops_.erase(std::remove_if(stops_.begin(), stops_.end(),
+                                    [&](Stop const& s) { return s.position_id == position_id; }),
+                     stops_.end());
     }
 
     auto updateTrailingStop(Stop& stop, Price current_price) noexcept -> void {
@@ -344,24 +292,16 @@ private:
             // Long position - raise stop if price increases
             double const new_stop = current_price - stop.trail_amount;
             if (new_stop > stop.trigger_price) {
-                Logger::getInstance().debug(
-                    "Trailing stop updated for {}: ${:.2f} -> ${:.2f}",
-                    stop.position_id,
-                    stop.trigger_price,
-                    new_stop
-                );
+                Logger::getInstance().debug("Trailing stop updated for {}: ${:.2f} -> ${:.2f}",
+                                            stop.position_id, stop.trigger_price, new_stop);
                 stop.trigger_price = new_stop;
             }
         } else {
             // Short position - lower stop if price decreases
             double const new_stop = current_price + stop.trail_amount;
             if (new_stop < stop.trigger_price) {
-                Logger::getInstance().debug(
-                    "Trailing stop updated for {}: ${:.2f} -> ${:.2f}",
-                    stop.position_id,
-                    stop.trigger_price,
-                    new_stop
-                );
+                Logger::getInstance().debug("Trailing stop updated for {}: ${:.2f} -> ${:.2f}",
+                                            stop.position_id, stop.trigger_price, new_stop);
                 stop.trigger_price = new_stop;
             }
         }
@@ -369,12 +309,18 @@ private:
 
     [[nodiscard]] static auto stopTypeToString(StopType type) noexcept -> char const* {
         switch (type) {
-            case StopType::Hard: return "hard";
-            case StopType::Trailing: return "trailing";
-            case StopType::TimeStop: return "time";
-            case StopType::VolatilityStop: return "volatility";
-            case StopType::Greeks: return "greeks";
-            default: return "unknown";
+            case StopType::Hard:
+                return "hard";
+            case StopType::Trailing:
+                return "trailing";
+            case StopType::TimeStop:
+                return "time";
+            case StopType::VolatilityStop:
+                return "volatility";
+            case StopType::Greeks:
+                return "greeks";
+            default:
+                return "unknown";
         }
     }
 };
@@ -385,7 +331,7 @@ private:
 
 [[nodiscard]] auto Stop::isTriggered(Price current_price) const noexcept -> bool {
     if (triggered) {
-        return true;  // Already triggered
+        return true; // Already triggered
     }
 
     switch (type) {
@@ -426,9 +372,8 @@ private:
         case StopType::VolatilityStop: {
             // Stop based on volatility expansion
             // trail_amount represents volatility threshold
-            double const price_change_pct = std::abs(
-                (current_price - initial_price) / initial_price
-            );
+            double const price_change_pct =
+                std::abs((current_price - initial_price) / initial_price);
             return price_change_pct > trail_amount;
         }
 

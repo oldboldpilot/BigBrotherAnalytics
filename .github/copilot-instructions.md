@@ -311,10 +311,16 @@ set(CMAKE_CUDA_ARCHITECTURES 89)  # RTX 4070
 
 ### Libraries
 - **pybind11** - Python/C++ interop (GIL-free bindings)
+  - **Risk Analytics Python Bindings:** 8 modules (Position Sizer, Monte Carlo, Stop Loss, Risk Manager, VaR, Stress Testing, Performance Metrics, Correlation)
+  - **Memory Safety:** `std::shared_ptr` holder pattern with RAII - **NO raw new/delete**
+  - **Move Semantics:** Custom implementations for 5 mutex-containing classes
+  - **Integration Tests:** 210-line test suite (8/8 modules passing, 100% success rate)
 - **DuckDB** - In-process OLAP database (5.3MB, 41,969 rows)
 - **JAX** - GPU-accelerated numerical computing (CUDA 12, RTX 4070)
 - **OpenMP** - CPU parallelization (multi-threaded options pricing)
-- **SIMD (AVX2)** - Vectorized operations (4-wide parallel computation)
+- **SIMD (AVX2/AVX-512)** - Vectorized operations (4-8 wide parallel computation)
+  - **Monte Carlo:** 9.87M simulations/sec (AVX2 peak)
+  - **Correlation:** 6-8x speedup with horizontal reduction
 - **MPI** - Distributed computing
 - **spdlog** - High-performance logging
 - **CURL** - HTTP requests (libcurl)
@@ -325,7 +331,10 @@ set(CMAKE_CUDA_ARCHITECTURES 89)  # RTX 4070
 - **JIT Compilation:** Pre-compiled during startup for instant runtime
 - **Automatic Differentiation:** Exact Greeks (not finite differences)
 - **Batch Vectorization:** 10-50x speedup for 100+ options
-- **SIMD (AVX2):** 3-6x faster correlation (100K+ points/sec)
+- **SIMD (AVX2/AVX-512):** Risk analytics with Python bindings
+  - **Monte Carlo:** 9.87M simulations/sec (6-7x speedup)
+  - **Correlation:** 6-8x speedup with Pearson correlation
+  - **8 Modules:** Full Python integration with RAII memory safety
 - **OpenMP:** Multi-threaded matrix operations (8-16x speedup)
 
 ### Data Sources
@@ -495,8 +504,12 @@ throw std::runtime_error("Error");  // Only for unrecoverable errors
 3. **Modules:** Use C++23 modules (not headers) for new code
 4. **Error Handling:** Use `Result<T>` with `std::unexpected(Error::make(...))`
 5. **Rule of Five:** Delete copy, carefully consider move (ERROR level in clang-tidy)
+   - **Move Semantics for Mutex Classes:** Custom move constructors/assignment for classes with `std::mutex` members
+   - Pattern: Move all data members, default-construct new mutex (mutex cannot be moved)
 6. **const Correctness:** Use `const&` for expensive types, value for primitives
 7. **RAII:** No raw new/delete - use smart pointers and containers
+   - **Python Bindings:** Use `std::shared_ptr` holder for pybind11 with automatic destruction
+   - **Factory Pattern:** Return `std::make_shared<T>()` from `create()` methods
 8. **Documentation:** All public APIs must have doc comments
 
 ### DuckDB Bridge Library (MANDATORY for C++23 Modules)
@@ -773,6 +786,7 @@ ninja
 ninja bigbrother
 ninja backtest
 ninja news_ingestion_py       # Python bindings for news system
+ninja risk_bindings           # Python bindings for risk analytics (8 modules)
 ```
 
 ### Key CMake Variables
@@ -780,6 +794,13 @@ ninja news_ingestion_py       # Python bindings for news system
 - `CMAKE_CXX_COMPILER`: clang++ (Clang 21.1.5)
 - `CMAKE_GENERATOR`: Ninja (REQUIRED for C++23 modules)
 - `CMAKE_BUILD_TYPE`: Release (for production)
+
+### LLVM 21 Build Configuration (Ansible Playbook)
+**Proper separation of compiler projects vs runtime libraries:**
+- **LLVM_ENABLE_PROJECTS:** clang, clang-tools-extra, openmp, flang, mlir
+- **LLVM_ENABLE_RUNTIMES:** libcxx, libcxxabi, **libunwind** (exception handling)
+- **Why libunwind:** Provides proper C++ exception handling and stack unwinding
+- **Location:** `playbooks/complete-tier1-setup.yml` lines 299-300
 
 ### clang-tidy Enforcement
 - **Status**: MANDATORY - Runs automatically before every build

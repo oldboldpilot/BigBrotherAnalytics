@@ -74,13 +74,12 @@ files_checked=0
 for file in $CPP_FILES; do
     echo "Checking: $file"
 
-    output=$(clang-tidy "$file" -p=./build -- \
+    output=$(/usr/local/bin/clang-tidy "$file" -p=./build -- \
         -std=c++23 \
         -I./src \
-        -isystem /usr/include \
+        -isystem /usr/local/lib/clang/21/include \
         -isystem /usr/local/include \
-        -isystem /usr/include/c++/15 \
-        -isystem /usr/lib/gcc/x86_64-linux-gnu/15/include \
+        -isystem /usr/include \
         --system-header-prefix=/usr/ \
         2>&1 || true)
 

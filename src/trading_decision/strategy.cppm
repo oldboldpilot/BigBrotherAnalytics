@@ -1074,10 +1074,22 @@ auto StrategyExecutor::execute() -> Result<std::vector<std::string>> {
                 }
             }
         } else {
-            // Stock order
-            order.quantity = static_cast<Quantity>(signal.max_risk /
-                                                   context_->current_quotes[signal.symbol].last);
-            order.limit_price = context_->current_quotes[signal.symbol].ask;
+            // Stock order - validate quote exists
+            if (!context_->current_quotes.contains(signal.symbol)) {
+                utils::Logger::getInstance().error("No quote available for {}", signal.symbol);
+                continue;
+            }
+
+            auto const& quote = context_->current_quotes[signal.symbol];
+            order.quantity = static_cast<Quantity>(signal.max_risk / quote.last);
+            order.limit_price = quote.ask;
+
+            // Validate price is positive
+            if (order.limit_price <= 0.0) {
+                utils::Logger::getInstance().error("Invalid ask price for {}: ${:.2f}",
+                                                   signal.symbol, order.limit_price);
+                continue;
+            }
         }
 
         // Validate order quantity

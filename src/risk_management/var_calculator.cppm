@@ -47,10 +47,10 @@ using bigbrother::utils::Logger;
 // ============================================================================
 
 enum class VaRMethod {
-    Parametric,    // Normal distribution assumption
-    Historical,    // Historical simulation
-    MonteCarlo,    // Monte Carlo simulation
-    Hybrid         // Combines multiple methods
+    Parametric, // Normal distribution assumption
+    Historical, // Historical simulation
+    MonteCarlo, // Monte Carlo simulation
+    Hybrid      // Combines multiple methods
 };
 
 // ============================================================================
@@ -59,12 +59,12 @@ enum class VaRMethod {
 
 struct VaRConfig {
     VaRMethod method{VaRMethod::Parametric};
-    double confidence_level{0.95};     // 95% confidence
-    int holding_period{1};              // Days
-    int lookback_period{252};           // Trading days
-    int simulations{10000};             // For Monte Carlo
-    bool use_ewma{false};               // Exponentially weighted moving average
-    double ewma_lambda{0.94};           // EWMA decay factor
+    double confidence_level{0.95}; // 95% confidence
+    int holding_period{1};         // Days
+    int lookback_period{252};      // Trading days
+    int simulations{10000};        // For Monte Carlo
+    bool use_ewma{false};          // Exponentially weighted moving average
+    double ewma_lambda{0.94};      // EWMA decay factor
 };
 
 // ============================================================================
@@ -72,10 +72,10 @@ struct VaRConfig {
 // ============================================================================
 
 struct VaRResult {
-    double var_amount{0.0};             // VaR in dollars
-    double var_percentage{0.0};         // VaR as % of portfolio
-    double expected_shortfall{0.0};     // CVaR/ES
-    double volatility{0.0};             // Portfolio volatility
+    double var_amount{0.0};         // VaR in dollars
+    double var_percentage{0.0};     // VaR as % of portfolio
+    double expected_shortfall{0.0}; // CVaR/ES
+    double volatility{0.0};         // Portfolio volatility
     VaRMethod method_used;
     double confidence_level{0.0};
     int holding_period{0};
@@ -85,8 +85,10 @@ struct VaRResult {
     }
 
     [[nodiscard]] auto getRiskLevel() const noexcept -> char const* {
-        if (var_percentage > 0.10) return "HIGH";
-        if (var_percentage > 0.05) return "MEDIUM";
+        if (var_percentage > 0.10)
+            return "HIGH";
+        if (var_percentage > 0.05)
+            return "MEDIUM";
         return "LOW";
     }
 };
@@ -96,11 +98,15 @@ struct VaRResult {
 // ============================================================================
 
 class VaRCalculator {
-public:
+  public:
+    // Public constructor for pybind11 shared_ptr holder
+    VaRCalculator() = default;
+
+    // Destructor
+    ~VaRCalculator() = default;
+
     // Factory method
-    [[nodiscard]] static auto create() noexcept -> VaRCalculator {
-        return VaRCalculator{};
-    }
+    [[nodiscard]] static auto create() noexcept -> VaRCalculator { return VaRCalculator{}; }
 
     // Fluent API - Configuration
     [[nodiscard]] auto withMethod(VaRMethod method) noexcept -> VaRCalculator& {
@@ -147,12 +153,11 @@ public:
 
         if (portfolio_value <= 0.0) {
             return makeError<VaRResult>(ErrorCode::InvalidParameter,
-                                       "Portfolio value must be positive");
+                                        "Portfolio value must be positive");
         }
 
         if (returns_.empty()) {
-            return makeError<VaRResult>(ErrorCode::InvalidParameter,
-                                       "No returns data provided");
+            return makeError<VaRResult>(ErrorCode::InvalidParameter, "No returns data provided");
         }
 
         switch (config_.method) {
@@ -170,17 +175,33 @@ public:
     }
 
     // Query methods
-    [[nodiscard]] auto getConfig() const noexcept -> VaRConfig {
-        return config_;
-    }
+    [[nodiscard]] auto getConfig() const noexcept -> VaRConfig { return config_; }
 
     [[nodiscard]] auto getDataSize() const noexcept -> size_t {
         std::lock_guard lock{mutex_};
         return returns_.size();
     }
 
-private:
-    VaRCalculator() = default;
+  private:
+    // Move constructor - mutex cannot be moved, so we default-construct a new one
+    VaRCalculator(VaRCalculator&& other) noexcept
+        : config_(std::move(other.config_)), returns_(std::move(other.returns_)) {
+        // mutex_ is default-constructed
+    }
+
+    // Move assignment - mutex cannot be moved
+    auto operator=(VaRCalculator&& other) noexcept -> VaRCalculator& {
+        if (this != &other) {
+            config_ = std::move(other.config_);
+            returns_ = std::move(other.returns_);
+            // mutex_ remains as-is
+        }
+        return *this;
+    }
+
+    // Explicitly delete copy operations
+    VaRCalculator(VaRCalculator const&) = delete;
+    auto operator=(VaRCalculator const&) -> VaRCalculator& = delete;
 
     mutable std::mutex mutex_;
     VaRConfig config_;
@@ -217,8 +238,8 @@ private:
             std::vector<double> squared(n);
 
             // Subtract mean: centered = returns - mean
-            vdLinearFrac(n, returns_.data(), returns_.data(),
-                        1.0, -mean, 0.0, 0.0, centered.data());
+            vdLinearFrac(n, returns_.data(), returns_.data(), 1.0, -mean, 0.0, 0.0,
+                         centered.data());
 
             // Square: squared = centered^2
             vdSqr(n, centered.data(), squared.data());
@@ -245,19 +266,17 @@ private:
         double es_percentage = scaled_std * pdf_at_z / (1.0 - config_.confidence_level);
         double expected_shortfall = portfolio_value * es_percentage;
 
-        VaRResult result{
-            .var_amount = var_amount,
-            .var_percentage = var_percentage,
-            .expected_shortfall = expected_shortfall,
-            .volatility = scaled_std,
-            .method_used = VaRMethod::Parametric,
-            .confidence_level = config_.confidence_level,
-            .holding_period = config_.holding_period
-        };
+        VaRResult result{.var_amount = var_amount,
+                         .var_percentage = var_percentage,
+                         .expected_shortfall = expected_shortfall,
+                         .volatility = scaled_std,
+                         .method_used = VaRMethod::Parametric,
+                         .confidence_level = config_.confidence_level,
+                         .holding_period = config_.holding_period};
 
-        Logger::getInstance().debug(
-            "Parametric VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}, Vol: {:.2f}%",
-            var_amount, var_percentage * 100, expected_shortfall, scaled_std * 100);
+        Logger::getInstance().debug("Parametric VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}, Vol: {:.2f}%",
+                                    var_amount, var_percentage * 100, expected_shortfall,
+                                    scaled_std * 100);
 
         return result;
     }
@@ -286,7 +305,7 @@ private:
         index = std::clamp(index, 0, n - 1);
 
         // VaR is the return at the percentile
-        double var_return = -sorted_returns[index];  // Negative because losses are negative
+        double var_return = -sorted_returns[index]; // Negative because losses are negative
         double var_percentage = var_return * std::sqrt(static_cast<double>(config_.holding_period));
         double var_amount = portfolio_value * var_percentage;
 
@@ -305,25 +324,21 @@ private:
         double mean = cblas_dasum(n, returns_.data(), 1) / n;
         std::vector<double> centered(n);
         std::vector<double> squared(n);
-        vdLinearFrac(n, returns_.data(), returns_.data(),
-                    1.0, -mean, 0.0, 0.0, centered.data());
+        vdLinearFrac(n, returns_.data(), returns_.data(), 1.0, -mean, 0.0, 0.0, centered.data());
         vdSqr(n, centered.data(), squared.data());
         double variance = cblas_dasum(n, squared.data(), 1) / (n - 1);
         double volatility = std::sqrt(variance);
 
-        VaRResult result{
-            .var_amount = var_amount,
-            .var_percentage = var_percentage,
-            .expected_shortfall = expected_shortfall,
-            .volatility = volatility,
-            .method_used = VaRMethod::Historical,
-            .confidence_level = config_.confidence_level,
-            .holding_period = config_.holding_period
-        };
+        VaRResult result{.var_amount = var_amount,
+                         .var_percentage = var_percentage,
+                         .expected_shortfall = expected_shortfall,
+                         .volatility = volatility,
+                         .method_used = VaRMethod::Historical,
+                         .confidence_level = config_.confidence_level,
+                         .holding_period = config_.holding_period};
 
-        Logger::getInstance().debug(
-            "Historical VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}",
-            var_amount, var_percentage * 100, expected_shortfall);
+        Logger::getInstance().debug("Historical VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}", var_amount,
+                                    var_percentage * 100, expected_shortfall);
 
         return result;
     }
@@ -345,8 +360,7 @@ private:
 
         std::vector<double> centered(n);
         std::vector<double> squared(n);
-        vdLinearFrac(n, returns_.data(), returns_.data(),
-                    1.0, -mean, 0.0, 0.0, centered.data());
+        vdLinearFrac(n, returns_.data(), returns_.data(), 1.0, -mean, 0.0, 0.0, centered.data());
         vdSqr(n, centered.data(), squared.data());
         double variance = cblas_dasum(n, squared.data(), 1) / (n - 1);
         double std_dev = std::sqrt(variance);
@@ -358,8 +372,8 @@ private:
         vslNewStream(&stream, VSL_BRNG_MT19937, static_cast<unsigned int>(std::random_device{}()));
 
         // Generate normal random numbers
-        vdRngGaussian(VSL_RNG_METHOD_GAUSSIAN_BOXMULLER, stream,
-                     config_.simulations, simulated_returns.data(), mean, std_dev);
+        vdRngGaussian(VSL_RNG_METHOD_GAUSSIAN_BOXMULLER, stream, config_.simulations,
+                      simulated_returns.data(), mean, std_dev);
 
         vslDeleteStream(&stream);
 
@@ -386,19 +400,17 @@ private:
         double es_percentage = es_sum / (index + 1);
         double expected_shortfall = portfolio_value * es_percentage;
 
-        VaRResult result{
-            .var_amount = var_amount,
-            .var_percentage = var_percentage,
-            .expected_shortfall = expected_shortfall,
-            .volatility = std_dev * scale_factor,
-            .method_used = VaRMethod::MonteCarlo,
-            .confidence_level = config_.confidence_level,
-            .holding_period = config_.holding_period
-        };
+        VaRResult result{.var_amount = var_amount,
+                         .var_percentage = var_percentage,
+                         .expected_shortfall = expected_shortfall,
+                         .volatility = std_dev * scale_factor,
+                         .method_used = VaRMethod::MonteCarlo,
+                         .confidence_level = config_.confidence_level,
+                         .holding_period = config_.holding_period};
 
-        Logger::getInstance().debug(
-            "Monte Carlo VaR ({} sims): ${:.2f} ({:.2f}%), ES: ${:.2f}",
-            config_.simulations, var_amount, var_percentage * 100, expected_shortfall);
+        Logger::getInstance().debug("Monte Carlo VaR ({} sims): ${:.2f} ({:.2f}%), ES: ${:.2f}",
+                                    config_.simulations, var_amount, var_percentage * 100,
+                                    expected_shortfall);
 
         return result;
     }
@@ -420,18 +432,22 @@ private:
 
         // Average the results
         VaRResult result{
-            .var_amount = (parametric->var_amount + historical->var_amount + monte_carlo->var_amount) / 3.0,
-            .var_percentage = (parametric->var_percentage + historical->var_percentage + monte_carlo->var_percentage) / 3.0,
-            .expected_shortfall = (parametric->expected_shortfall + historical->expected_shortfall + monte_carlo->expected_shortfall) / 3.0,
-            .volatility = (parametric->volatility + historical->volatility + monte_carlo->volatility) / 3.0,
+            .var_amount =
+                (parametric->var_amount + historical->var_amount + monte_carlo->var_amount) / 3.0,
+            .var_percentage = (parametric->var_percentage + historical->var_percentage +
+                               monte_carlo->var_percentage) /
+                              3.0,
+            .expected_shortfall = (parametric->expected_shortfall + historical->expected_shortfall +
+                                   monte_carlo->expected_shortfall) /
+                                  3.0,
+            .volatility =
+                (parametric->volatility + historical->volatility + monte_carlo->volatility) / 3.0,
             .method_used = VaRMethod::Hybrid,
             .confidence_level = config_.confidence_level,
-            .holding_period = config_.holding_period
-        };
+            .holding_period = config_.holding_period};
 
-        Logger::getInstance().info(
-            "Hybrid VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}",
-            result.var_amount, result.var_percentage * 100, result.expected_shortfall);
+        Logger::getInstance().info("Hybrid VaR: ${:.2f} ({:.2f}%), ES: ${:.2f}", result.var_amount,
+                                   result.var_percentage * 100, result.expected_shortfall);
 
         return result;
     }
@@ -441,7 +457,8 @@ private:
     // ========================================================================
 
     [[nodiscard]] auto calculateEWMAVariance() const noexcept -> double {
-        if (returns_.empty()) return 0.0;
+        if (returns_.empty())
+            return 0.0;
 
         double lambda = config_.ewma_lambda;
         double variance = 0.0;
@@ -458,7 +475,8 @@ private:
     }
 
     [[nodiscard]] auto calculateEWMAMean() const noexcept -> double {
-        if (returns_.empty()) return 0.0;
+        if (returns_.empty())
+            return 0.0;
 
         double lambda = config_.ewma_lambda;
         double mean = 0.0;
@@ -475,11 +493,15 @@ private:
 
     [[nodiscard]] static auto getZScore(double confidence_level) noexcept -> double {
         // Approximation of inverse normal CDF for common confidence levels
-        if (confidence_level >= 0.99) return 2.326;
-        if (confidence_level >= 0.975) return 1.960;
-        if (confidence_level >= 0.95) return 1.645;
-        if (confidence_level >= 0.90) return 1.282;
-        return 1.645;  // Default to 95%
+        if (confidence_level >= 0.99)
+            return 2.326;
+        if (confidence_level >= 0.975)
+            return 1.960;
+        if (confidence_level >= 0.95)
+            return 1.645;
+        if (confidence_level >= 0.90)
+            return 1.282;
+        return 1.645; // Default to 95%
     }
 };
 

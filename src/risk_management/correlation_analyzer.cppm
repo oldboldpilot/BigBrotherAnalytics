@@ -20,7 +20,7 @@ module;
 
 #include <algorithm>
 #include <cmath>
-#include <immintrin.h>  // AVX-512/AVX2 intrinsics
+#include <immintrin.h> // AVX-512/AVX2 intrinsics
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -44,11 +44,11 @@ using bigbrother::utils::Logger;
 
 struct CorrelationMatrix {
     std::vector<std::string> symbols;
-    std::vector<std::vector<double>> matrix;  // NxN correlation matrix
+    std::vector<std::vector<double>> matrix; // NxN correlation matrix
     size_t dimension{0};
 
     [[nodiscard]] auto getCorrelation(std::string const& sym1,
-                                     std::string const& sym2) const noexcept
+                                      std::string const& sym2) const noexcept
         -> std::optional<double> {
 
         // Find indices
@@ -66,8 +66,7 @@ struct CorrelationMatrix {
     }
 
     [[nodiscard]] auto isValid() const noexcept -> bool {
-        return dimension > 0 && matrix.size() == dimension &&
-               symbols.size() == dimension;
+        return dimension > 0 && matrix.size() == dimension && symbols.size() == dimension;
     }
 };
 
@@ -76,21 +75,24 @@ struct CorrelationMatrix {
 // ============================================================================
 
 struct DiversificationMetrics {
-    double avg_correlation{0.0};         // Average pairwise correlation
-    double max_correlation{0.0};         // Maximum pairwise correlation
-    double min_correlation{0.0};         // Minimum pairwise correlation
-    double diversification_ratio{1.0};   // Weighted avg vol / Portfolio vol
-    double concentration_index{0.0};     // Herfindahl index (0-1)
-    size_t highly_correlated_pairs{0};   // Pairs with corr > 0.7
+    double avg_correlation{0.0};       // Average pairwise correlation
+    double max_correlation{0.0};       // Maximum pairwise correlation
+    double min_correlation{0.0};       // Minimum pairwise correlation
+    double diversification_ratio{1.0}; // Weighted avg vol / Portfolio vol
+    double concentration_index{0.0};   // Herfindahl index (0-1)
+    size_t highly_correlated_pairs{0}; // Pairs with corr > 0.7
 
     [[nodiscard]] auto isDiversified() const noexcept -> bool {
         return avg_correlation < 0.5 && concentration_index < 0.3;
     }
 
     [[nodiscard]] auto getRating() const noexcept -> char const* {
-        if (avg_correlation < 0.3) return "HIGHLY DIVERSIFIED";
-        if (avg_correlation < 0.5) return "WELL DIVERSIFIED";
-        if (avg_correlation < 0.7) return "MODERATELY DIVERSIFIED";
+        if (avg_correlation < 0.3)
+            return "HIGHLY DIVERSIFIED";
+        if (avg_correlation < 0.5)
+            return "WELL DIVERSIFIED";
+        if (avg_correlation < 0.7)
+            return "MODERATELY DIVERSIFIED";
         return "POORLY DIVERSIFIED";
     }
 };
@@ -100,7 +102,7 @@ struct DiversificationMetrics {
 // ============================================================================
 
 class CorrelationAnalyzer {
-public:
+  public:
     // Factory method
     [[nodiscard]] static auto create() noexcept -> CorrelationAnalyzer {
         return CorrelationAnalyzer{};
@@ -123,19 +125,18 @@ public:
     }
 
     // Compute correlation matrix using MKL
-    [[nodiscard]] auto computeCorrelationMatrix() const noexcept
-        -> Result<CorrelationMatrix> {
+    [[nodiscard]] auto computeCorrelationMatrix() const noexcept -> Result<CorrelationMatrix> {
 
         std::lock_guard lock{mutex_};
 
         if (return_series_.empty()) {
             return makeError<CorrelationMatrix>(ErrorCode::InvalidParameter,
-                                               "No return series provided");
+                                                "No return series provided");
         }
 
         if (return_series_.size() != symbols_.size()) {
             return makeError<CorrelationMatrix>(ErrorCode::InvalidParameter,
-                                               "Series and symbol count mismatch");
+                                                "Series and symbol count mismatch");
         }
 
         // Validate all series have same length
@@ -143,7 +144,7 @@ public:
         for (auto const& series : return_series_) {
             if (series.size() != n_obs) {
                 return makeError<CorrelationMatrix>(ErrorCode::InvalidParameter,
-                                                   "All series must have same length");
+                                                    "All series must have same length");
             }
         }
 
@@ -161,37 +162,35 @@ public:
                 if (i == j) {
                     result.matrix[i][j] = 1.0;
                 } else {
-                    double corr = computePearsonCorrelation(
-                        return_series_[i], return_series_[j], n_obs);
+                    double corr =
+                        computePearsonCorrelation(return_series_[i], return_series_[j], n_obs);
                     result.matrix[i][j] = corr;
-                    result.matrix[j][i] = corr;  // Symmetric
+                    result.matrix[j][i] = corr; // Symmetric
                 }
             }
         }
 
-        Logger::getInstance().info(
-            "Computed {}x{} correlation matrix with {} observations",
-            n_assets, n_assets, n_obs);
+        Logger::getInstance().info("Computed {}x{} correlation matrix with {} observations",
+                                   n_assets, n_assets, n_obs);
 
         return result;
     }
 
     // Analyze portfolio diversification
-    [[nodiscard]] auto analyzeDiversification(
-        std::vector<double> const& weights) const noexcept
+    [[nodiscard]] auto analyzeDiversification(std::vector<double> const& weights) const noexcept
         -> Result<DiversificationMetrics> {
 
         auto corr_result = computeCorrelationMatrix();
         if (!corr_result) {
             return makeError<DiversificationMetrics>(ErrorCode::InvalidParameter,
-                                                    "Failed to compute correlation");
+                                                     "Failed to compute correlation");
         }
 
         auto const& corr_matrix = *corr_result;
 
         if (weights.size() != corr_matrix.dimension) {
             return makeError<DiversificationMetrics>(ErrorCode::InvalidParameter,
-                                                    "Weight count mismatch");
+                                                     "Weight count mismatch");
         }
 
         DiversificationMetrics metrics;
@@ -232,11 +231,10 @@ public:
         // For now, set to placeholder
         metrics.diversification_ratio = 1.0 / std::sqrt(1.0 + metrics.avg_correlation);
 
-        Logger::getInstance().info(
-            "Diversification: Avg Corr={:.2f}, Max Corr={:.2f}, "
-            "Concentration Index={:.2f}",
-            metrics.avg_correlation, metrics.max_correlation,
-            metrics.concentration_index);
+        Logger::getInstance().info("Diversification: Avg Corr={:.2f}, Max Corr={:.2f}, "
+                                   "Concentration Index={:.2f}",
+                                   metrics.avg_correlation, metrics.max_correlation,
+                                   metrics.concentration_index);
 
         return metrics;
     }
@@ -259,27 +257,22 @@ public:
             for (size_t j = i + 1; j < corr_matrix.dimension; ++j) {
                 double corr = corr_matrix.matrix[i][j];
                 if (std::abs(corr) > threshold) {
-                    pairs.emplace_back(corr_matrix.symbols[i],
-                                     corr_matrix.symbols[j],
-                                     corr);
+                    pairs.emplace_back(corr_matrix.symbols[i], corr_matrix.symbols[j], corr);
                 }
             }
         }
 
         // Sort by correlation magnitude (descending)
-        std::sort(pairs.begin(), pairs.end(),
-            [](auto const& a, auto const& b) {
-                return std::abs(std::get<2>(a)) > std::abs(std::get<2>(b));
-            });
+        std::sort(pairs.begin(), pairs.end(), [](auto const& a, auto const& b) -> bool {
+            return std::abs(std::get<2>(a)) > std::abs(std::get<2>(b));
+        });
 
         return pairs;
     }
 
     // Compute rolling correlation window
-    [[nodiscard]] auto computeRollingCorrelation(
-        std::string const& sym1,
-        std::string const& sym2,
-        size_t window_size) const noexcept
+    [[nodiscard]] auto computeRollingCorrelation(std::string const& sym1, std::string const& sym2,
+                                                 size_t window_size) const noexcept
         -> Result<std::vector<double>> {
 
         std::lock_guard lock{mutex_};
@@ -289,8 +282,7 @@ public:
         auto it2 = std::find(symbols_.begin(), symbols_.end(), sym2);
 
         if (it1 == symbols_.end() || it2 == symbols_.end()) {
-            return makeError<std::vector<double>>(ErrorCode::InvalidParameter,
-                                                 "Symbol not found");
+            return makeError<std::vector<double>>(ErrorCode::InvalidParameter, "Symbol not found");
         }
 
         size_t idx1 = std::distance(symbols_.begin(), it1);
@@ -301,7 +293,7 @@ public:
 
         if (series1.size() < window_size || series2.size() < window_size) {
             return makeError<std::vector<double>>(ErrorCode::InvalidParameter,
-                                                 "Series too short for window");
+                                                  "Series too short for window");
         }
 
         std::vector<double> rolling_corr;
@@ -309,10 +301,8 @@ public:
 
         for (size_t i = 0; i < n_windows; ++i) {
             // Extract window
-            std::vector<double> window1(series1.begin() + i,
-                                       series1.begin() + i + window_size);
-            std::vector<double> window2(series2.begin() + i,
-                                       series2.begin() + i + window_size);
+            std::vector<double> window1(series1.begin() + i, series1.begin() + i + window_size);
+            std::vector<double> window2(series2.begin() + i, series2.begin() + i + window_size);
 
             double corr = computePearsonCorrelation(window1, window2, window_size);
             rolling_corr.push_back(corr);
@@ -321,8 +311,33 @@ public:
         return rolling_corr;
     }
 
-private:
+  public:
+    // Public constructor for pybind11 shared_ptr holder
     CorrelationAnalyzer() = default;
+
+  private:
+    // Move constructor - mutex cannot be moved, so we default-construct a new one
+    CorrelationAnalyzer(CorrelationAnalyzer&& other) noexcept
+        : symbols_(std::move(other.symbols_)), return_series_(std::move(other.return_series_)) {
+        // mutex_ is default-constructed
+    }
+
+    // Move assignment - mutex cannot be moved
+    auto operator=(CorrelationAnalyzer&& other) noexcept -> CorrelationAnalyzer& {
+        if (this != &other) {
+            symbols_ = std::move(other.symbols_);
+            return_series_ = std::move(other.return_series_);
+            // mutex_ remains as-is
+        }
+        return *this;
+    }
+
+    // Destructor - complete Rule of Five
+    ~CorrelationAnalyzer() = default;
+
+    // Explicitly delete copy operations
+    CorrelationAnalyzer(CorrelationAnalyzer const&) = delete;
+    auto operator=(CorrelationAnalyzer const&) -> CorrelationAnalyzer& = delete;
 
     mutable std::mutex mutex_;
     std::vector<std::string> symbols_;
@@ -332,12 +347,12 @@ private:
     // Pearson Correlation with AVX-512/AVX2 SIMD
     // ========================================================================
 
-    [[nodiscard]] auto computePearsonCorrelation(
-        std::vector<double> const& x,
-        std::vector<double> const& y,
-        size_t n) const noexcept -> double {
+    [[nodiscard]] auto computePearsonCorrelation(std::vector<double> const& x,
+                                                 std::vector<double> const& y,
+                                                 size_t n) const noexcept -> double {
 
-        if (n < 2) return 0.0;
+        if (n < 2)
+            return 0.0;
 
         double mean_x = 0.0;
         double mean_y = 0.0;
@@ -508,7 +523,8 @@ private:
         -> std::vector<std::vector<double>> {
 
         size_t n_assets = return_series_.size();
-        if (n_assets == 0) return {};
+        if (n_assets == 0)
+            return {};
 
         size_t n_obs = return_series_[0].size();
 
@@ -522,21 +538,19 @@ private:
         }
 
         // Compute covariance matrix
-        std::vector<std::vector<double>> cov_matrix(
-            n_assets, std::vector<double>(n_assets, 0.0));
+        std::vector<std::vector<double>> cov_matrix(n_assets, std::vector<double>(n_assets, 0.0));
 
         for (size_t i = 0; i < n_assets; ++i) {
             for (size_t j = i; j < n_assets; ++j) {
                 double cov = 0.0;
 
                 for (size_t k = 0; k < n_obs; ++k) {
-                    cov += (return_series_[i][k] - means[i]) *
-                           (return_series_[j][k] - means[j]);
+                    cov += (return_series_[i][k] - means[i]) * (return_series_[j][k] - means[j]);
                 }
 
                 cov /= (n_obs - 1);
                 cov_matrix[i][j] = cov;
-                cov_matrix[j][i] = cov;  // Symmetric
+                cov_matrix[j][i] = cov; // Symmetric
             }
         }
 
@@ -547,12 +561,13 @@ private:
     // Matrix Eigenvalue Decomposition (Placeholder for future PCA)
     // ========================================================================
 
-    [[nodiscard]] auto computeEigenvalues(
-        std::vector<std::vector<double>> const& matrix) const noexcept
+    [[nodiscard]] auto
+    computeEigenvalues(std::vector<std::vector<double>> const& matrix) const noexcept
         -> std::vector<double> {
 
         size_t n = matrix.size();
-        if (n == 0) return {};
+        if (n == 0)
+            return {};
 
         // Placeholder implementation - return uniform eigenvalues
         // TODO: Implement power iteration or use MKL LAPACK in the future
