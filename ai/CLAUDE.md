@@ -110,6 +110,89 @@
 - **Coding Standards:** `docs/CODING_STANDARDS.md` - simdjson usage patterns and migration guide
 - **Testing:** `python_tests/README.md` - Centralized test suite documentation (12 test files)
 
+## Socket-Based OAuth Token Refresh System
+
+**Status:** ✅ PRODUCTION READY - Real-time token updates via Unix domain sockets
+
+### Architecture
+
+The OAuth token refresh system eliminates manual token management and bot restarts:
+
+**C++ Trading Bot (token_manager.cpp):**
+- **Socket Server:** Unix domain socket on `/tmp/bigbrother_token.sock`
+- **Threading:** Separate non-blocking thread with `select()` timeout (1 second)
+- **Thread Safety:** `std::mutex` protection for all OAuth2Config updates
+- **Protocol:** JSON messages (`access_token`, `refresh_token`, `expires_at`)
+- **Resource Management:** RAII-compliant (socket FD cleanup, thread join, file unlink)
+- **Implementation:** 135 lines of production-ready C++ code
+
+**Python Token Refresh Service (token_refresh_service.py):**
+- **Refresh Cycle:** Every 25 minutes (configurable)
+- **Token Source:** Schwab OAuth API (refresh_token grant)
+- **Socket Client:** Connects to C++ bot, sends updated tokens
+- **Error Handling:** Automatic retry on failures, comprehensive logging
+- **Signal Handlers:** Graceful shutdown (SIGTERM, SIGINT)
+- **Implementation:** 182 lines of production-ready Python code
+
+**Token Parsing Fix (main.cpp):**
+- Fixed `expires_at` parsing from ISO 8601 to Unix timestamps (`std::stoll()`)
+- Proper `time_t` conversion with `std::chrono::system_clock::from_time_t()`
+- Time remaining calculation and logging for monitoring
+
+### Key Features
+
+1. **Zero Downtime:** Tokens update while bot runs (no restarts)
+2. **Thread-Safe:** All token updates protected by `std::mutex`
+3. **Non-Blocking:** Socket server doesn't interfere with trading operations
+4. **Fail-Safe:** Bot continues operating if refresh service unavailable
+5. **Auditable:** Complete logging to `logs/token_refresh.log` and `logs/bigbrother.log`
+6. **Robust:** Handles network failures, JSON parse errors, socket errors gracefully
+
+### Integration Points
+
+**Startup (scripts/phase5_setup.py):**
+```bash
+# Automatically starts token refresh service
+uv run python scripts/phase5_setup.py --quick --start-all
+```
+
+**Shutdown (scripts/shutdown.sh):**
+```bash
+# Enhanced with pgrep pattern matching to kill ALL instances
+./scripts/shutdown.sh
+# Kills: bigbrother, streamlit, token_refresh_service.py
+# Cleans: /tmp/bigbrother_token.sock, PID files
+```
+
+**Monitoring:**
+```bash
+# Token refresh logs
+tail -f logs/token_refresh.log
+
+# Bot token updates
+tail -f logs/bigbrother.log | grep -i token
+
+# Socket verification
+ls -l /tmp/bigbrother_token.sock
+```
+
+### Benefits
+
+- **Automatic:** No manual token management for 7 days
+- **Seamless:** Trading continues uninterrupted during token updates
+- **Reliable:** Tested with live OAuth flow and multiple concurrent instances
+- **Maintainable:** Clean separation of concerns (Python handles OAuth, C++ receives updates)
+- **Portable:** Works on any Unix system (Linux, macOS, WSL2)
+
+### Testing & Validation
+
+✅ Token refresh service tested with live Schwab OAuth flow
+✅ Socket communication verified with running bot
+✅ Shutdown script tested with multiple concurrent instances
+✅ Token expiry parsing validated with Unix timestamps
+✅ Time remaining calculations confirmed accurate
+✅ No memory leaks (RAII-compliant resource management)
+
 ## Phase 5: Paper Trading Validation (ACTIVE)
 
 **Timeline:** Days 0-21 | **Started:** November 10, 2025
@@ -707,10 +790,11 @@ cd /home/muyiwa/Development/BigBrotherAnalytics
 uv run python scripts/phase5_setup.py --quick --start-all
 
 # Automatic features:
-# - OAuth token refresh (no manual intervention for 7 days)
+# - Socket-based OAuth token refresh (real-time updates every 25 min, no restarts)
 # - Kills duplicate processes (prevents port conflicts)
 # - Starts dashboard (http://localhost:8501)
 # - Starts trading engine (background)
+# - Starts token refresh service (Python → C++ socket)
 # - Comprehensive health checks
 ```
 
@@ -739,6 +823,7 @@ uv run python scripts/phase5_shutdown.py
 - **YTD Tracking:** Incremental throughout 2025
 
 ### Phase 5 Complete (100% Production Ready)
+- ✅ **Socket-based OAuth token refresh** (real-time updates, 25-min cycle, Python ↔ C++ IPC)
 - ✅ **Unified setup script** (replaces 10+ commands, automatic OAuth refresh)
 - ✅ **Auto-start services** (--start-all flag starts dashboard + trading engine)
 - ✅ **Tax tracking** (married joint CA, YTD accumulation, 1.5% accurate fees)
@@ -759,7 +844,7 @@ uv run python scripts/phase5_shutdown.py
 - **Risk Limits:** $2,000 position, $2,000 daily loss, 2-3 concurrent
 - **Tax Accuracy:** Real-time YTD cumulative tracking
 - **Zero Manual Position Violations:** 100% protection
-- **Token Management:** 100% automatic refresh (no manual intervention for 7 days)
+- **Token Management:** Socket-based real-time refresh (25-min cycle, zero downtime, thread-safe)
 
 ## AI Orchestration System
 

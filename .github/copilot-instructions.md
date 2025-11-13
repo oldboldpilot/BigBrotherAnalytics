@@ -80,6 +80,44 @@ uv run python scripts/phase5_shutdown.py
 7. ✅ Paper Trading Limits ($2,000)
 8. ✅ Comprehensive Feature Test Suite (`scripts/test_dashboard_features.py`)
 
+### Socket-Based OAuth Token Refresh (November 13, 2025)
+
+**Status:** ✅ PRODUCTION READY - Real-time token updates via Unix domain sockets
+
+**Architecture:**
+- **C++ Trading Bot:** Socket server on `/tmp/bigbrother_token.sock` (separate thread)
+- **Python Service:** Auto-refresh every 25 minutes, sends updates via socket
+- **Protocol:** JSON messages with `access_token`, `refresh_token`, `expires_at`
+- **Thread Safety:** `std::mutex` protection for all token updates
+- **Zero Downtime:** Tokens update while bot runs (no restarts)
+
+**Implementation:**
+- `src/schwab_api/token_manager.cpp` - 135 lines C++ socket server
+- `scripts/token_refresh_service.py` - 182 lines Python refresh service
+- `scripts/shutdown.sh` - Enhanced to kill all instances (pgrep pattern matching)
+
+**Benefits:**
+1. Automatic token refresh (no manual intervention for 7 days)
+2. Trading continues uninterrupted during token updates
+3. Thread-safe with comprehensive error handling
+4. RAII-compliant resource management (no memory leaks)
+5. Complete audit logging (`logs/token_refresh.log`, `logs/bigbrother.log`)
+
+**Monitoring:**
+```bash
+# Check token refresh service
+ps aux | grep token_refresh_service.py
+
+# View refresh logs
+tail -f logs/token_refresh.log
+
+# View bot token updates
+tail -f logs/bigbrother.log | grep -i token
+
+# Verify socket
+ls -l /tmp/bigbrother_token.sock
+```
+
 ---
 
 ## Quick Reference
@@ -630,7 +668,7 @@ uv run python scripts/phase5_setup.py --skip-oauth
 ```
 
 **Checks:**
-1. OAuth token status (expires 30 min, auto-refresh if possible)
+1. OAuth token status (socket-based auto-refresh every 25 min, zero downtime)
 2. Tax configuration (married joint, CA, $300K, 37.1%/28.1%)
 3. Database initialization
 4. Paper trading configuration
@@ -987,10 +1025,14 @@ export LD_LIBRARY_PATH=/usr/local/lib:build/lib:$LD_LIBRARY_PATH
 **Problem:** OAuth token expired
 **Solution:**
 ```bash
-# Auto-refresh (if refresh token valid)
-uv run python scripts/phase5_setup.py
+# Socket-based auto-refresh runs every 25 minutes (started automatically)
+# Check if token refresh service is running:
+ps aux | grep token_refresh_service.py
 
-# Manual re-authentication
+# If not running, start it:
+uv run python scripts/token_refresh_service.py &
+
+# Manual re-authentication (if refresh token expired):
 uv run python scripts/run_schwab_oauth_interactive.py
 ```
 

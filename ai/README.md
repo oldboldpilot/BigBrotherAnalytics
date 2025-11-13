@@ -8,7 +8,13 @@ This directory contains the AI agent orchestration system for structured, high-q
 
 The AI orchestration system coordinates multiple specialized AI agents to handle complex development tasks with consistency, quality, and automation.
 
-> **Latest Update (2025-11-13):** **Phase 5 ACTIVE + SIMD Risk Analytics COMPLETE + Python Bindings Production Ready + ML Price Predictor v3.0 DEPLOYED**. System is 100% production ready with:
+> **Latest Update (2025-11-13):** **Phase 5 ACTIVE + Socket-Based OAuth Token Refresh + SIMD Risk Analytics COMPLETE + Python Bindings Production Ready + ML Price Predictor v3.0 DEPLOYED**. System is 100% production ready with:
+> - **✅ Socket-Based OAuth Token Refresh:** Real-time token updates via Unix domain sockets (C++ bot ↔ Python service)
+>   - **Zero Downtime:** Tokens update every 25 minutes without bot restart
+>   - **Thread-Safe:** Separate socket server thread with std::mutex protection
+>   - **Robust:** Graceful shutdown, comprehensive error handling, full audit logging
+>   - **Implementation:** 135 lines C++ (token_manager.cpp) + 182 lines Python (token_refresh_service.py)
+>   - **Testing:** Live OAuth flow verified, shutdown tested with multiple instances
 > - **✅ Risk Analytics Python Bindings (pybind11):** Complete C++23 ↔ Python integration with RAII memory safety
 >   - **8 Modules Exposed:** Position Sizer, Monte Carlo, Stop Loss, Risk Manager, VaR Calculator, Stress Testing, Performance Metrics, Correlation Analyzer
 >   - **Memory Management:** `std::shared_ptr` holder pattern with automatic destruction - **NO raw new/delete** (fully RAII-compliant, C++ Core Guidelines R.20/R.21)
@@ -38,7 +44,7 @@ The AI orchestration system coordinates multiple specialized AI agents to handle
 >   - **Account data:** 28.4x faster (3383ns → 119ns, 60 req/min)
 >   - **Annual savings:** ~6.7B CPU cycles
 >   - **Testing:** 23 unit tests, 4 benchmark workloads, thread safety verified
-> - **Automatic OAuth Token Refresh:** No manual intervention for 7 days (auto-refresh using Schwab API)
+> - **Automatic OAuth Token Refresh:** Socket-based real-time updates (Python service → C++ bot), no restarts needed, 25-minute refresh cycle
 > - **Auto-Start Services:** Single command starts dashboard + trading engine (--start-all flag)
 > - **Complete Portability:** One-command deployment via [bootstrap.sh](../scripts/bootstrap.sh) (fresh machine → production in 5-15 min)
 > - **Auto-detection:** Compilers, libraries, and paths detected automatically (works on any Unix system)
@@ -276,6 +282,104 @@ target_link_libraries(schwab_api PUBLIC trading_core)
 
 - Architecture guide: `docs/TRADING_PLATFORM_ARCHITECTURE.md` (590 lines)
 - Step-by-step guide for adding new trading platforms
+
+---
+
+## OAuth Token Refresh System (Phase 5+)
+
+**Status:** ✅ IMPLEMENTED - Production Ready | **Location:** Socket-based real-time token updates
+
+### Socket-Based Token Refresh Architecture
+
+The OAuth token refresh system ensures the C++ trading bot always has current access tokens without manual restarts:
+
+**1. C++ Trading Bot (token_manager.cpp)**
+- Unix domain socket server on `/tmp/bigbrother_token.sock`
+- Runs in separate thread (non-blocking with select() timeout)
+- Thread-safe token updates using `std::mutex`
+- Accepts JSON token updates from Python service
+- Graceful shutdown with socket cleanup (RAII-compliant)
+- 135 lines of socket server implementation
+
+**2. Python Token Refresh Service (token_refresh_service.py)**
+- Refreshes OAuth tokens every 25 minutes (1500s)
+- Automatic retry on refresh failures
+- Sends updated tokens to C++ bot via socket
+- Comprehensive logging to `logs/token_refresh.log`
+- Signal handlers for graceful shutdown (SIGTERM, SIGINT)
+- 182 lines of production-ready code
+
+**3. Token Parsing Fix (main.cpp)**
+- Fixed `expires_at` parsing: Unix timestamp (integer) not ISO 8601
+- Changed from `std::get_time()` to `std::stoll()`
+- Proper `time_t` conversion with `system_clock::from_time_t()`
+- Added time remaining calculation and logging
+
+### Key Features
+
+- **Real-time Updates:** Bot receives tokens while running (no restarts)
+- **Thread Safety:** `std::mutex` protection for OAuth2Config updates
+- **Non-blocking:** Socket server uses `select()` with 1-second timeout
+- **Fail-safe:** Bot continues if refresh service unavailable
+- **Clean Shutdown:** Socket FD cleanup, thread join, file unlink
+- **Comprehensive Logging:** Full audit trail of token operations
+
+### Socket Protocol
+
+- **Transport:** Unix domain sockets (AF_UNIX, SOCK_STREAM)
+- **Format:** JSON messages with `access_token`, `refresh_token`, `expires_at`
+- **ACK Protocol:** "OK" on success, "ERROR" on failure
+- **Timeout:** 5-second client timeout
+- **Error Handling:** Socket creation, JSON parse, connection errors all logged
+
+### Integration
+
+**Startup Sequence:**
+1. C++ bot starts and creates socket server thread
+2. Python token refresh service starts (25-minute timer)
+3. On each refresh:
+   - Python fetches new token from Schwab API
+   - Updates `configs/schwab_tokens.json`
+   - Sends token to C++ bot via socket
+   - C++ bot updates in-memory OAuth2Config
+4. Bot uses current token for all API calls
+
+**Shutdown Sequence:**
+1. Run `scripts/shutdown.sh`
+2. Sends SIGTERM to all services
+3. Kills any remaining instances (pgrep pattern matching)
+4. Cleans up socket files
+5. Removes PID files
+
+### Testing
+
+- Token refresh service tested with live OAuth flow
+- Socket communication verified with bot running
+- Shutdown script tested with multiple concurrent instances
+- Token expiry parsing validated with Unix timestamps
+- Time remaining calculations confirmed accurate
+
+### Quick Reference
+
+```bash
+# Start token refresh service (automatically started by startup script)
+uv run python scripts/token_refresh_service.py &
+
+# Tokens automatically refresh every 25 minutes
+# C++ bot receives updates via socket (no restart needed)
+
+# Check logs
+tail -f logs/token_refresh.log
+tail -f logs/bigbrother.log | grep -i token
+```
+
+### Benefits
+
+1. **Zero Downtime:** Tokens update while bot runs
+2. **Automatic:** No manual token management
+3. **Secure:** Tokens never expire during trading hours
+4. **Robust:** Handles network failures gracefully
+5. **Auditable:** Complete logging of all token operations
 
 ---
 

@@ -6,7 +6,7 @@ BigBrotherAnalytics is a sophisticated trading and economic data analysis system
 - **Database**: DuckDB (embedded SQL database at `data/bigbrother.duckdb`)
 - **Frontend**: Streamlit dashboard (`dashboard/app.py`)
 - **Data Collection**: Multiple API integrations (BLS, FRED, Schwab)
-- **Trading**: Phase 5 implementation with Schwab API OAuth integration
+- **Trading**: Phase 5 implementation with socket-based OAuth token refresh (real-time updates, zero downtime)
 - **Configuration**: YAML-based config system with environment variable support
 
 ---
@@ -174,17 +174,19 @@ def show_system_health():    # System status
 **File**: `scripts/phase5_setup.py`
 
 Handles:
-- OAuth token refresh with automatic mechanism
+- OAuth token refresh with socket-based real-time updates (C++ ↔ Python IPC)
 - Database initialization
 - System health checks
 - Schwab API connectivity testing
-- Optional auto-start of services
+- Optional auto-start of services (dashboard + bot + token refresh service)
 
 **Key Features**:
-- Reads `configs/schwab_app_config.yaml` for app credentials
-- Updates `configs/schwab_tokens.json` with new tokens
-- Refreshes tokens when expired (30-min access token, 7-day refresh)
-- Stores tokens in `oauth_tokens` DuckDB table
+- Starts token refresh service (`scripts/token_refresh_service.py`)
+- Socket-based token updates every 25 minutes (zero downtime)
+- C++ bot receives tokens via Unix domain socket (`/tmp/bigbrother_token.sock`)
+- Thread-safe token updates with `std::mutex`
+- Updates `configs/schwab_tokens.json` (access token, refresh token, expires_at)
+- Comprehensive logging to `logs/token_refresh.log`
 
 ### Configuration Files
 
@@ -1085,7 +1087,11 @@ bigbrother.schwab.account_types (foundation data types)
 
 **Key Components**:
 - `account_types.cppm` - Core data structures (Account, Balance, Position, Transaction)
-- `schwab_api.cppm` - OAuth token management and AccountClient (lightweight API wrapper)
+- `schwab_api.cppm` - OAuth token management with socket-based real-time refresh + AccountClient (lightweight API wrapper)
+  - **Token Refresh:** Unix domain socket server (135 lines, `/tmp/bigbrother_token.sock`)
+  - **Threading:** Non-blocking separate thread with `select()` timeout
+  - **Thread Safety:** `std::mutex` protection for OAuth2Config updates
+  - **IPC Protocol:** JSON messages from Python refresh service
 - `account_manager.cppm` - Full-featured account manager with position tracking and analytics
 
 ### Module Details
