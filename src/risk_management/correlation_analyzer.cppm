@@ -332,13 +332,15 @@ class CorrelationAnalyzer {
         return *this;
     }
 
-    // Destructor - complete Rule of Five
+  public:
+    // Destructor - complete Rule of Five (public for std::make_shared compatibility)
     ~CorrelationAnalyzer() = default;
 
     // Explicitly delete copy operations
     CorrelationAnalyzer(CorrelationAnalyzer const&) = delete;
     auto operator=(CorrelationAnalyzer const&) -> CorrelationAnalyzer& = delete;
 
+  private:
     mutable std::mutex mutex_;
     std::vector<std::string> symbols_;
     std::vector<std::vector<double>> return_series_;
@@ -428,7 +430,7 @@ class CorrelationAnalyzer {
         __m512d var_x_vec = _mm512_setzero_pd();
         __m512d var_y_vec = _mm512_setzero_pd();
 
-        size_t vec_size = n / 8 * 8;
+        // vec_size already defined above (reuse for covariance calculation)
 
         for (size_t i = 0; i < vec_size; i += 8) {
             __m512d x_vec = _mm512_loadu_pd(&x[i]);

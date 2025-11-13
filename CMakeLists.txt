@@ -388,6 +388,8 @@ target_sources(utils
             src/utils/tax.cppm
             src/utils/risk_free_rate.cppm
             src/utils/simdjson_wrapper.cppm
+            src/utils/validation.cppm
+            src/utils/token_receiver.cppm
             src/utils/utils.cppm
 )
 
@@ -853,6 +855,21 @@ target_link_libraries(options_strategy_integration_example
     trading_decision
     options_strategies
     risk_management
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Token Receiver Example
+# ============================================================================
+
+add_executable(test_token_receiver
+    examples/test_token_receiver.cpp
+)
+
+target_link_libraries(test_token_receiver
+    PRIVATE
     utils
     c++
     c++abi

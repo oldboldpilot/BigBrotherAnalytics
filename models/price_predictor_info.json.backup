@@ -1,0 +1,17 @@
+{
+  "training_date": "2025-11-12T13:56:57.884379",
+  "train_samples": 17000,
+  "val_samples": 3640,
+  "test_samples": 3660,
+  "features": 17,
+  "epochs_trained": 25,
+  "best_val_loss": 0.003105768235400319,
+  "test_rmse_1d": 0.023796577006578445,
+  "test_rmse_5d": 0.05021096393465996,
+  "test_rmse_20d": 0.0872809886932373,
+  "test_acc_1d": 0.5259562841530054,
+  "test_acc_5d": 0.5691256830601092,
+  "test_acc_20d": 0.5778688524590164,
+  "profitable": false,
+  "training_time_minutes": 0.02700193723042806
+}

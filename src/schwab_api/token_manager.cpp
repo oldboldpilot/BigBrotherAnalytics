@@ -12,7 +12,8 @@ module;
 #include <atomic>
 #include <cstring>
 #include <curl/curl.h>
-#include <duckdb.hpp>
+// Use duckdb_bridge to avoid C++23 module conflicts
+#include "schwab_api/duckdb_bridge.hpp"
 #include <errno.h>
 #include <fstream>
 #include <iomanip>
@@ -246,13 +247,13 @@ class TokenManager::Impl {
 
     auto initializeDatabase() -> void {
         try {
-            db_ = std::make_unique<duckdb::DuckDB>(db_path_);
-            conn_ = std::make_unique<duckdb::Connection>(*db_);
+            db_ = duckdb_bridge::openDatabase(db_path_);
+            conn_ = duckdb_bridge::createConnection(*db_);
 
             // Create OAuth tokens table
-            auto result = conn_->Query(OAUTH_TABLE_SCHEMA);
-            if (result->HasError()) {
-                LOG_ERROR("Failed to create oauth_tokens table: {}", result->GetError());
+            bool success = duckdb_bridge::executeQuery(*conn_, OAUTH_TABLE_SCHEMA);
+            if (!success) {
+                LOG_ERROR("Failed to create oauth_tokens table");
             } else {
                 LOG_INFO("DuckDB OAuth schema initialized successfully");
             }
@@ -780,9 +781,10 @@ class TokenManager::Impl {
             // Delete existing tokens for this client_id
             std::string delete_query =
                 "DELETE FROM oauth_tokens WHERE client_id = '" + config_.client_id + "'";
-            auto delete_result = conn_->Query(delete_query);
-            if (delete_result->HasError()) {
-                LOG_WARN("Failed to delete old tokens: {}", delete_result->GetError());
+            auto delete_result = duckdb_bridge::executeQueryWithResults(*conn_, delete_query);
+            if (delete_result && duckdb_bridge::hasError(*delete_result)) {
+                LOG_WARN("Failed to delete old tokens: {}",
+                         duckdb_bridge::getErrorMessage(*delete_result));
             }
 
             // Insert new tokens
@@ -798,11 +800,11 @@ class TokenManager::Impl {
                          << "'" << code_verifier_ << "', "
                          << "'" << code_challenge_ << "')";
 
-            auto insert_result = conn_->Query(insert_query.str());
-            if (insert_result->HasError()) {
+            auto insert_result = duckdb_bridge::executeQueryWithResults(*conn_, insert_query.str());
+            if (insert_result && duckdb_bridge::hasError(*insert_result)) {
                 return makeError<void>(ErrorCode::DatabaseError,
                                        "Failed to save tokens to DuckDB: " +
-                                           insert_result->GetError());
+                                           duckdb_bridge::getErrorMessage(*insert_result));
             }
 
             LOG_INFO("Tokens saved to DuckDB successfully");
@@ -829,48 +831,50 @@ class TokenManager::Impl {
                                 "' "
                                 "ORDER BY created_at DESC LIMIT 1";
 
-            auto result = conn_->Query(query);
+            auto result = duckdb_bridge::executeQueryWithResults(*conn_, query);
 
-            if (result->HasError()) {
+            if (!result) {
                 return makeError<void>(ErrorCode::DatabaseError,
-                                       "Failed to load tokens: " + result->GetError());
+                                       "Failed to execute query for loading tokens");
             }
 
-            if (result->RowCount() == 0) {
+            if (duckdb_bridge::hasError(*result)) {
+                return makeError<void>(ErrorCode::DatabaseError,
+                                       "Failed to load tokens: " +
+                                           duckdb_bridge::getErrorMessage(*result));
+            }
+
+            if (duckdb_bridge::getRowCount(*result) == 0) {
                 return makeError<void>(ErrorCode::DatabaseError,
                                        "No tokens found for client_id: " + config_.client_id);
             }
 
             // Extract tokens from first row
-            auto chunk = result->Fetch();
-            if (chunk && chunk->size() > 0) {
-                config_.access_token = chunk->GetValue(0, 0).ToString();
-                config_.refresh_token = chunk->GetValue(1, 0).ToString();
+            size_t const row_idx = 0;
+            config_.access_token = duckdb_bridge::getValueAsString(*result, 0, row_idx);
+            config_.refresh_token = duckdb_bridge::getValueAsString(*result, 1, row_idx);
 
-                // Parse timestamp
-                std::string expires_at_str = chunk->GetValue(2, 0).ToString();
-                std::tm tm = {};
-                std::istringstream ss(expires_at_str);
-                ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+            // Parse timestamp
+            std::string expires_at_str = duckdb_bridge::getValueAsString(*result, 2, row_idx);
+            std::tm tm = {};
+            std::istringstream ss(expires_at_str);
+            ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
 
-                if (!ss.fail()) {
-                    config_.token_expiry = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                }
-
-                code_verifier_ = chunk->GetValue(3, 0).ToString();
-                code_challenge_ = chunk->GetValue(4, 0).ToString();
-
-                LOG_INFO("Tokens loaded from DuckDB successfully");
-
-                // Check if token needs refresh
-                if (config_.isAccessTokenExpired()) {
-                    LOG_INFO("Loaded token is expired, will refresh on next access");
-                }
-
-                return {};
+            if (!ss.fail()) {
+                config_.token_expiry = std::chrono::system_clock::from_time_t(std::mktime(&tm));
             }
 
-            return makeError<void>(ErrorCode::DatabaseError, "Failed to parse token data");
+            code_verifier_ = duckdb_bridge::getValueAsString(*result, 3, row_idx);
+            code_challenge_ = duckdb_bridge::getValueAsString(*result, 4, row_idx);
+
+            LOG_INFO("Tokens loaded from DuckDB successfully");
+
+            // Check if token needs refresh
+            if (config_.isAccessTokenExpired()) {
+                LOG_INFO("Loaded token is expired, will refresh on next access");
+            }
+
+            return {};
 
         } catch (std::exception const& e) {
             return makeError<void>(ErrorCode::DatabaseError,
@@ -888,10 +892,10 @@ class TokenManager::Impl {
     std::atomic<bool> socket_thread_running_;
     int socket_fd_{-1};
 
-    // DuckDB connection
+    // DuckDB connection (via bridge)
     std::string db_path_;
-    std::unique_ptr<duckdb::DuckDB> db_;
-    std::unique_ptr<duckdb::Connection> conn_;
+    std::unique_ptr<duckdb_bridge::DatabaseHandle> db_;
+    std::unique_ptr<duckdb_bridge::ConnectionHandle> conn_;
 
     // PKCE parameters (stored for code exchange)
     std::string code_verifier_;

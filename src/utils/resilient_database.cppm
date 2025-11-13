@@ -50,21 +50,16 @@ using namespace bigbrother::types;
  * Operating mode for database
  */
 enum class DatabaseMode {
-    Normal,         // Full database functionality
-    Degraded,       // Database available but experiencing issues
-    InMemory,       // Fallback to in-memory cache (no persistence)
-    Unavailable     // Database completely unavailable
+    Normal,     // Full database functionality
+    Degraded,   // Database available but experiencing issues
+    InMemory,   // Fallback to in-memory cache (no persistence)
+    Unavailable // Database completely unavailable
 };
 
 /**
  * Transaction isolation levels
  */
-enum class IsolationLevel {
-    ReadUncommitted,
-    ReadCommitted,
-    RepeatableRead,
-    Serializable
-};
+enum class IsolationLevel { ReadUncommitted, ReadCommitted, RepeatableRead, Serializable };
 
 // ============================================================================
 // Database Configuration
@@ -81,7 +76,7 @@ struct ResilientDatabaseConfig {
     std::chrono::milliseconds retry_delay{100};
     int connection_pool_size{4};
     bool auto_checkpoint{true};
-    std::chrono::seconds checkpoint_interval{300};  // 5 minutes
+    std::chrono::seconds checkpoint_interval{300}; // 5 minutes
 
     [[nodiscard]] static auto defaultConfig() noexcept -> ResilientDatabaseConfig {
         return ResilientDatabaseConfig{};
@@ -102,14 +97,12 @@ struct CachedOperation {
 };
 
 class OperationCache {
-public:
+  public:
     auto add(std::string sql) -> void {
         std::lock_guard<std::mutex> lock(mutex_);
-        cached_operations_.push({std::move(sql),
-                                std::chrono::system_clock::now(),
-                                0});
+        cached_operations_.push({std::move(sql), std::chrono::system_clock::now(), 0});
         Logger::getInstance().warn("Cached database operation (queue size: {})",
-                                  cached_operations_.size());
+                                   cached_operations_.size());
     }
 
     [[nodiscard]] auto getNext() -> std::optional<CachedOperation> {
@@ -134,7 +127,7 @@ public:
         }
     }
 
-private:
+  private:
     mutable std::mutex mutex_;
     std::queue<CachedOperation> cached_operations_;
 };
@@ -159,13 +152,13 @@ struct DatabaseHealth {
 
     [[nodiscard]] auto getSuccessRate() const noexcept -> double {
         int total = total_operations.load();
-        if (total == 0) return 1.0;
+        if (total == 0)
+            return 1.0;
         return static_cast<double>(successful_operations.load()) / total;
     }
 
     [[nodiscard]] auto isHealthy() const noexcept -> bool {
-        return mode == DatabaseMode::Normal &&
-               getSuccessRate() >= 0.95;
+        return mode == DatabaseMode::Normal && getSuccessRate() >= 0.95;
     }
 };
 
@@ -177,11 +170,10 @@ struct DatabaseHealth {
  * Database wrapper with automatic retry and graceful degradation
  */
 class ResilientDatabase {
-public:
-    explicit ResilientDatabase(ResilientDatabaseConfig config = ResilientDatabaseConfig::defaultConfig())
-        : config_{std::move(config)},
-          retry_engine_{getRetryEngine()},
-          health_{} {
+  public:
+    explicit ResilientDatabase(
+        ResilientDatabaseConfig config = ResilientDatabaseConfig::defaultConfig())
+        : config_{std::move(config)}, retry_engine_{getRetryEngine()}, health_{} {
 
         health_.mode = DatabaseMode::Unavailable;
     }
@@ -192,9 +184,7 @@ public:
     ResilientDatabase(ResilientDatabase&&) noexcept = delete;
     auto operator=(ResilientDatabase&&) noexcept -> ResilientDatabase& = delete;
 
-    ~ResilientDatabase() {
-        disconnect();
-    }
+    ~ResilientDatabase() { disconnect(); }
 
     /**
      * Connect to database with retry
@@ -216,21 +206,15 @@ public:
                 Logger::getInstance().info("Database connected successfully");
                 return {};
 
-            } catch (duckdb::Exception const& e) {
-                return makeError<void>(ErrorCode::DatabaseError,
-                                     std::string("DuckDB connection failed: ") + e.what());
             } catch (std::exception const& e) {
                 return makeError<void>(ErrorCode::DatabaseError,
-                                     std::string("Database connection failed: ") + e.what());
+                                       std::string("Database connection failed: ") + e.what());
             }
         };
 
         // Retry connection with conservative policy
-        auto result = retry_engine_.execute<void>(
-            connect_operation,
-            "database_connect",
-            RetryPolicy::conservativePolicy()
-        );
+        auto result = retry_engine_.execute<void>(connect_operation, "database_connect",
+                                                  RetryPolicy::conservativePolicy());
 
         if (!result) {
             health_.mode = DatabaseMode::Unavailable;
@@ -282,7 +266,7 @@ public:
             }
 
             return makeError<void>(ErrorCode::DatabaseError,
-                                 "Database unavailable and in-memory fallback disabled");
+                                   "Database unavailable and in-memory fallback disabled");
         }
 
         // In-memory mode - just cache
@@ -306,38 +290,33 @@ public:
                 health_.last_successful_operation = std::chrono::steady_clock::now();
                 return {};
 
-            } catch (duckdb::Exception const& e) {
+            } catch (std::exception const& e) {
                 std::string error_msg = e.what();
 
                 // Check if this is a lock contention error (transient)
                 if (error_msg.find("locked") != std::string::npos ||
                     error_msg.find("busy") != std::string::npos) {
                     return makeError<void>(ErrorCode::DatabaseLocked,
-                                         "Database locked: " + error_msg);
+                                           "Database locked: " + error_msg);
                 }
 
                 // Other database errors (potentially permanent)
-                return makeError<void>(ErrorCode::DatabaseError,
-                                     "Database error: " + error_msg);
+                return makeError<void>(ErrorCode::DatabaseError, "Database error: " + error_msg);
 
             } catch (std::exception const& e) {
                 return makeError<void>(ErrorCode::DatabaseError,
-                                     std::string("Unexpected error: ") + e.what());
+                                       std::string("Unexpected error: ") + e.what());
             }
         };
 
         // Use database-specific retry policy
-        auto result = retry_engine_.execute<void>(
-            execute_operation,
-            "database_execute",
-            RetryPolicy{
-                .max_attempts = config_.max_retry_attempts,
-                .initial_backoff = config_.retry_delay,
-                .max_backoff = config_.lock_timeout,
-                .backoff_multiplier = 1.5,
-                .add_jitter = true
-            }
-        );
+        auto result =
+            retry_engine_.execute<void>(execute_operation, "database_execute",
+                                        RetryPolicy{.max_attempts = config_.max_retry_attempts,
+                                                    .initial_backoff = config_.retry_delay,
+                                                    .max_backoff = config_.lock_timeout,
+                                                    .backoff_multiplier = 1.5,
+                                                    .add_jitter = true});
 
         if (!result) {
             health_.failed_operations++;
@@ -346,8 +325,9 @@ public:
 
             // Check if we should enter degraded mode
             if (health_.getSuccessRate() < 0.80 && health_.mode == DatabaseMode::Normal) {
-                Logger::getInstance().warn("Database entering DEGRADED mode (success rate: {:.1f}%)",
-                                         health_.getSuccessRate() * 100.0);
+                Logger::getInstance().warn(
+                    "Database entering DEGRADED mode (success rate: {:.1f}%)",
+                    health_.getSuccessRate() * 100.0);
                 health_.mode = DatabaseMode::Degraded;
             }
 
@@ -356,7 +336,7 @@ public:
                 operation_cache_.add(sql);
                 health_.cached_operations++;
                 Logger::getInstance().warn("Operation cached due to database error: {}",
-                                         result.error().message);
+                                           result.error().message);
                 // Return success since we cached it
                 return {};
             }
@@ -369,66 +349,62 @@ public:
      * Execute query with result set
      */
     [[nodiscard]] auto query(std::string const& sql)
-        -> Result<std::unique_ptr<duckdb::MaterializedQueryResult>> {
+        -> Result<std::unique_ptr<duckdb_bridge::QueryResultHandle>> {
 
         health_.total_operations++;
 
         if (health_.mode == DatabaseMode::Unavailable || health_.mode == DatabaseMode::InMemory) {
-            return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
+            return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
                 ErrorCode::DatabaseError, "Database unavailable - cannot execute queries");
         }
 
-        auto query_operation = [this, &sql]()
-            -> Result<std::unique_ptr<duckdb::MaterializedQueryResult>> {
+        auto query_operation =
+            [this, &sql]() -> Result<std::unique_ptr<duckdb_bridge::QueryResultHandle>> {
             std::lock_guard<std::mutex> lock(mutex_);
 
             if (!conn_) {
-                return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
+                return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
                     ErrorCode::DatabaseError, "No active connection");
             }
 
             try {
-                auto result = conn_->Query(sql);
+                auto result = duckdb_bridge::executeQueryWithResults(*conn_, sql);
 
-                if (result->HasError()) {
-                    return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
-                        ErrorCode::DatabaseError, result->GetError());
+                if (!result) {
+                    return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
+                        ErrorCode::DatabaseError, "Query execution failed");
+                }
+
+                if (duckdb_bridge::hasError(*result)) {
+                    return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
+                        ErrorCode::DatabaseError, duckdb_bridge::getErrorMessage(*result));
                 }
 
                 health_.successful_operations++;
                 health_.last_successful_operation = std::chrono::steady_clock::now();
 
-                return std::unique_ptr<duckdb::MaterializedQueryResult>(
-                    static_cast<duckdb::MaterializedQueryResult*>(result.release()));
+                return result;
 
-            } catch (duckdb::Exception const& e) {
+            } catch (std::exception const& e) {
                 std::string error_msg = e.what();
 
                 if (error_msg.find("locked") != std::string::npos ||
                     error_msg.find("busy") != std::string::npos) {
-                    return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
+                    return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
                         ErrorCode::DatabaseLocked, "Database locked: " + error_msg);
                 }
 
-                return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
+                return makeError<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
                     ErrorCode::DatabaseError, "Database error: " + error_msg);
-
-            } catch (std::exception const& e) {
-                return makeError<std::unique_ptr<duckdb::MaterializedQueryResult>>(
-                    ErrorCode::DatabaseError, std::string("Unexpected error: ") + e.what());
             }
         };
 
-        auto result = retry_engine_.execute<std::unique_ptr<duckdb::MaterializedQueryResult>>(
-            query_operation,
-            "database_query",
-            RetryPolicy{
-                .max_attempts = config_.max_retry_attempts,
-                .initial_backoff = config_.retry_delay,
-                .max_backoff = config_.lock_timeout,
-                .backoff_multiplier = 1.5
-            }
-        );
+        auto result = retry_engine_.execute<std::unique_ptr<duckdb_bridge::QueryResultHandle>>(
+            query_operation, "database_query",
+            RetryPolicy{.max_attempts = config_.max_retry_attempts,
+                        .initial_backoff = config_.retry_delay,
+                        .max_backoff = config_.lock_timeout,
+                        .backoff_multiplier = 1.5});
 
         if (!result) {
             health_.failed_operations++;
@@ -442,28 +418,22 @@ public:
     /**
      * Begin transaction with automatic retry
      */
-    [[nodiscard]] auto beginTransaction() -> Result<void> {
-        return execute("BEGIN TRANSACTION");
-    }
+    [[nodiscard]] auto beginTransaction() -> Result<void> { return execute("BEGIN TRANSACTION"); }
 
     /**
      * Commit transaction
      */
-    [[nodiscard]] auto commit() -> Result<void> {
-        return execute("COMMIT");
-    }
+    [[nodiscard]] auto commit() -> Result<void> { return execute("COMMIT"); }
 
     /**
      * Rollback transaction
      */
-    [[nodiscard]] auto rollback() -> Result<void> {
-        return execute("ROLLBACK");
-    }
+    [[nodiscard]] auto rollback() -> Result<void> { return execute("ROLLBACK"); }
 
     /**
      * Execute operation within transaction (with automatic rollback on failure)
      */
-    template<typename Func>
+    template <typename Func>
     [[nodiscard]] auto executeInTransaction(Func&& operation) -> Result<void> {
         auto begin_result = beginTransaction();
         if (!begin_result) {
@@ -494,7 +464,7 @@ public:
             Logger::getInstance().error("Transaction exception: {}, rolling back", e.what());
             rollback();
             return makeError<void>(ErrorCode::DatabaseError,
-                                 std::string("Transaction failed: ") + e.what());
+                                   std::string("Transaction failed: ") + e.what());
         }
     }
 
@@ -502,17 +472,15 @@ public:
      * Flush cached operations when database becomes available
      */
     [[nodiscard]] auto flushCache() -> Result<int> {
-        if (health_.mode == DatabaseMode::Unavailable ||
-            health_.mode == DatabaseMode::InMemory) {
+        if (health_.mode == DatabaseMode::Unavailable || health_.mode == DatabaseMode::InMemory) {
             return makeError<int>(ErrorCode::DatabaseError,
-                                "Cannot flush cache - database unavailable");
+                                  "Cannot flush cache - database unavailable");
         }
 
         int flushed_count = 0;
         int failed_count = 0;
 
-        Logger::getInstance().info("Flushing {} cached operations",
-                                 operation_cache_.size());
+        Logger::getInstance().info("Flushing {} cached operations", operation_cache_.size());
 
         while (auto op = operation_cache_.getNext()) {
             auto result = execute(op->sql);
@@ -521,7 +489,7 @@ public:
             } else {
                 failed_count++;
                 Logger::getInstance().error("Failed to flush cached operation: {}",
-                                          result.error().message);
+                                            result.error().message);
 
                 // Re-cache if retry count is low
                 if (op->retry_count < 3) {
@@ -531,8 +499,8 @@ public:
             }
         }
 
-        Logger::getInstance().info("Flushed {} operations ({} failed)",
-                                 flushed_count, failed_count);
+        Logger::getInstance().info("Flushed {} operations ({} failed)", flushed_count,
+                                   failed_count);
 
         return flushed_count;
     }
@@ -540,33 +508,26 @@ public:
     /**
      * Get current database mode
      */
-    [[nodiscard]] auto getMode() const -> DatabaseMode {
-        return health_.mode;
-    }
+    [[nodiscard]] auto getMode() const -> DatabaseMode { return health_.mode; }
 
     /**
      * Get database health metrics
      */
-    [[nodiscard]] auto getHealth() const -> DatabaseHealth {
-        return health_;
-    }
+    [[nodiscard]] auto getHealth() const -> DatabaseHealth { return health_; }
 
     /**
      * Check if database is available
      */
     [[nodiscard]] auto isAvailable() const -> bool {
-        return health_.mode == DatabaseMode::Normal ||
-               health_.mode == DatabaseMode::Degraded;
+        return health_.mode == DatabaseMode::Normal || health_.mode == DatabaseMode::Degraded;
     }
 
     /**
      * Get number of cached operations
      */
-    [[nodiscard]] auto getCachedOperationCount() const -> size_t {
-        return operation_cache_.size();
-    }
+    [[nodiscard]] auto getCachedOperationCount() const -> size_t { return operation_cache_.size(); }
 
-private:
+  private:
     ResilientDatabaseConfig config_;
     RetryEngine& retry_engine_;
     // TODO: Full migration to bridge API requires converting all conn_->Query() calls

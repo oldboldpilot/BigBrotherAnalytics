@@ -600,6 +600,45 @@ class TokenManager {
         return *this;
     }
 
+    /**
+     * Update access token at runtime (thread-safe)
+     * Called by TokenReceiver when new token arrives from token refresh service
+     */
+    auto updateAccessToken(std::string access_token, std::chrono::system_clock::time_point expiry)
+        -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        config_.access_token = std::move(access_token);
+        config_.token_expiry = expiry;
+
+        auto now = std::chrono::system_clock::now();
+        auto time_remaining =
+            std::chrono::duration_cast<std::chrono::minutes>(config_.token_expiry - now);
+
+        Logger::getInstance().info("Access token updated via socket - expires in {} minutes",
+                                   time_remaining.count());
+    }
+
+    /**
+     * Update both access and refresh tokens at runtime (thread-safe)
+     * Called by TokenReceiver for full token refresh
+     */
+    auto updateTokens(std::string access_token, std::string refresh_token,
+                      std::chrono::system_clock::time_point expiry) -> void {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        config_.access_token = std::move(access_token);
+        config_.refresh_token = std::move(refresh_token);
+        config_.token_expiry = expiry;
+
+        auto now = std::chrono::system_clock::now();
+        auto time_remaining =
+            std::chrono::duration_cast<std::chrono::minutes>(config_.token_expiry - now);
+
+        Logger::getInstance().info("Tokens updated via socket - expires in {} minutes",
+                                   time_remaining.count());
+    }
+
   private:
     OAuth2Config config_;
     std::atomic<bool> refreshing_;
@@ -680,7 +719,8 @@ class MarketDataClient {
         if ((quote.bid <= 0.0 || quote.ask <= 0.0) && quote.last > 0.0) {
             if (!from_cache) {
                 Logger::getInstance().info(
-                    "Market closed for {} - using last price ${:.2f} for bid/ask", symbol, quote.last);
+                    "Market closed for {} - using last price ${:.2f} for bid/ask", symbol,
+                    quote.last);
             }
             quote.bid = quote.last;
             quote.ask = quote.last;
@@ -689,7 +729,7 @@ class MarketDataClient {
         // Final validation: ensure we have valid price data
         if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
             return makeError<Quote>(ErrorCode::InvalidParameter,
-                "Quote contains no valid price data for symbol: " + symbol);
+                                    "Quote contains no valid price data for symbol: " + symbol);
         }
 
         return quote;
@@ -1058,7 +1098,8 @@ class MarketDataClient {
                 // Market is closed and bid/ask quotes are not available
                 if ((quote.bid <= 0.0 || quote.ask <= 0.0) && quote.last > 0.0) {
                     utils::Logger::getInstance().info(
-                        "Market closed for {} - using last price ${:.2f} for bid/ask", symbol, quote.last);
+                        "Market closed for {} - using last price ${:.2f} for bid/ask", symbol,
+                        quote.last);
                     quote.bid = quote.last;
                     quote.ask = quote.last;
                 }
@@ -1082,8 +1123,8 @@ class MarketDataClient {
     }
 
     // NEW: High-performance simdjson parser (2.5x faster: 50μs → 20μs)
-    [[nodiscard]] auto parseQuoteFromSimdJson(std::string_view json_response, std::string const& symbol)
-        -> Result<Quote> {
+    [[nodiscard]] auto parseQuoteFromSimdJson(std::string_view json_response,
+                                              std::string const& symbol) -> Result<Quote> {
 
         Quote quote;
         quote.symbol = symbol;
@@ -1096,7 +1137,7 @@ class MarketDataClient {
                 auto symbol_result = doc[symbol];
                 ::simdjson::ondemand::value symbol_value;
                 if (symbol_result.get(symbol_value) != ::simdjson::SUCCESS) {
-                    return;  // Symbol not found
+                    return; // Symbol not found
                 }
 
                 found = true;
@@ -1113,11 +1154,14 @@ class MarketDataClient {
                         quote.bid = bid_val;
                     if (extended_value["askPrice"].get_double().get(ask_val) == ::simdjson::SUCCESS)
                         quote.ask = ask_val;
-                    if (extended_value["lastPrice"].get_double().get(last_val) == ::simdjson::SUCCESS)
+                    if (extended_value["lastPrice"].get_double().get(last_val) ==
+                        ::simdjson::SUCCESS)
                         quote.last = last_val;
-                    if (extended_value["totalVolume"].get_int64().get(vol_val) == ::simdjson::SUCCESS)
+                    if (extended_value["totalVolume"].get_int64().get(vol_val) ==
+                        ::simdjson::SUCCESS)
                         quote.volume = vol_val;
-                    if (extended_value["quoteTime"].get_int64().get(time_val) == ::simdjson::SUCCESS)
+                    if (extended_value["quoteTime"].get_int64().get(time_val) ==
+                        ::simdjson::SUCCESS)
                         quote.timestamp = time_val;
                 } else {
                     // Fallback to regular fields
@@ -1142,12 +1186,13 @@ class MarketDataClient {
 
         if (!parse_result) {
             return makeError<Quote>(ErrorCode::InvalidParameter,
-                std::string("simdjson parse error: ") + parse_result.error().message);
+                                    std::string("simdjson parse error: ") +
+                                        parse_result.error().message);
         }
 
         if (!found) {
             return makeError<Quote>(ErrorCode::InvalidParameter,
-                "Symbol not found in response: " + symbol);
+                                    "Symbol not found in response: " + symbol);
         }
 
         // After-hours fix
@@ -1161,7 +1206,7 @@ class MarketDataClient {
         // Validate quote has valid data
         if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
             return makeError<Quote>(ErrorCode::InvalidParameter,
-                "Quote contains no valid price data for symbol: " + symbol);
+                                    "Quote contains no valid price data for symbol: " + symbol);
         }
 
         return quote;
@@ -2109,7 +2154,8 @@ class OrderManager {
         // Get all positions
         auto positions_result = account_mgr_->getPositions();
         if (!positions_result) {
-            Logger::getInstance().error("Failed to fetch positions: {}", positions_result.error().message);
+            Logger::getInstance().error("Failed to fetch positions: {}",
+                                        positions_result.error().message);
             return false; // Fail open - allow trade if we can't verify
         }
 

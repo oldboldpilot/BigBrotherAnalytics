@@ -32,7 +32,7 @@ module;
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <onnxruntime_cxx_api.h>
+#include <onnxruntime/onnxruntime_cxx_api.h>
 #include <sstream>
 #include <string>
 #include <unordered_map>

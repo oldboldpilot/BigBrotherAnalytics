@@ -111,3 +111,5 @@ models/sentiment/*.onnx
 models/sentiment/*.onnx.data
 models/sentiment/*.bin
 build_log.txt
+*.core.*
+valgrind_reports/*.core.*

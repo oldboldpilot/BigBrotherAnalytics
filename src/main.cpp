@@ -33,13 +33,13 @@
 // NOTE: Minimal header set to avoid transitive chrono includes that conflict with C++23 modules
 #include <atomic>
 #include <csignal>
+#include <ctime> // For time_t, needed for token parsing
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <thread>
-#include <ctime>  // For time_t, needed for token parsing
 
 // Core string types - MUST be included before modules for ABI compatibility
 #include <string>
@@ -50,6 +50,7 @@ import bigbrother.utils.logger;
 import bigbrother.utils.config;
 import bigbrother.utils.database;
 import bigbrother.utils.timer;
+import bigbrother.utils.validation;
 import bigbrother.options.pricing;
 import bigbrother.correlation;
 import bigbrother.risk_management;
@@ -287,9 +288,9 @@ class TradingEngine {
         strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
         // Add default strategies
-        // TEMPORARY: ML strategy disabled due to quote lookup crash (corrupted symbols from JSON parsing)
-        // strategy_manager_->addStrategy(
-        //     strategies::createMLPredictorStrategy()); // AI-powered predictions
+        // ML strategy now has defensive validation to prevent crashes from corrupted symbols
+        strategy_manager_->addStrategy(
+            strategies::createMLPredictorStrategy()); // AI-powered predictions with validation
         strategy_manager_->addStrategy(strategies::createStraddleStrategy());
         strategy_manager_->addStrategy(strategies::createStrangleStrategy());
         strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());
@@ -511,8 +512,21 @@ class TradingEngine {
         };
 
         for (auto const& symbol : symbols) {
+            // DEFENSIVE CHECK: Validate symbol before fetching
+            if (!utils::isValidStockSymbol(symbol)) {
+                utils::Logger::getInstance().error(
+                    "Skipping invalid symbol '{}' - does not look like a stock ticker", symbol);
+                continue;
+            }
+
             auto quote_result = schwab_client_->marketData().getQuote(symbol);
             if (quote_result) {
+                // DEFENSIVE CHECK: Verify the returned quote has the correct symbol
+                if (quote_result->symbol != symbol) {
+                    utils::Logger::getInstance().warn(
+                        "Quote symbol mismatch: requested '{}', got '{}'", symbol,
+                        quote_result->symbol);
+                }
                 context.current_quotes[symbol] = *quote_result;
             } else {
                 utils::Logger::getInstance().warn("Failed to get quote for {}: {}", symbol,

@@ -230,6 +230,13 @@ class StopLossManager {
     // Public constructor for pybind11 shared_ptr holder
     StopLossManager() = default;
 
+    // Destructor - complete Rule of Five (public for std::make_shared compatibility)
+    ~StopLossManager() = default;
+
+    // Explicitly delete copy operations
+    StopLossManager(StopLossManager const&) = delete;
+    auto operator=(StopLossManager const&) -> StopLossManager& = delete;
+
   private:
     // Move constructor - mutex cannot be moved, so we default-construct a new one
     StopLossManager(StopLossManager&& other) noexcept : stops_(std::move(other.stops_)) {
@@ -244,13 +251,6 @@ class StopLossManager {
         }
         return *this;
     }
-
-    // Destructor - complete Rule of Five
-    ~StopLossManager() = default;
-
-    // Explicitly delete copy operations
-    StopLossManager(StopLossManager const&) = delete;
-    auto operator=(StopLossManager const&) -> StopLossManager& = delete;
 
     mutable std::mutex mutex_;
     std::vector<Stop> stops_;

@@ -524,11 +524,16 @@ std::vector<std::string> sector_etfs = {
     "XLV", "XLF", "XLK", "XLC", "XLU", "XLRE"
 };
 
-auto quotes = schwab.getQuotes(sector_etfs);
+auto quotes_result = schwab.getQuotes(sector_etfs);
 
 // 2. Update StrategyContext with current prices
-for (auto const& [symbol, quote] : quotes) {
-    context.current_quotes[symbol] = quote;
+if (quotes_result) {
+    for (auto const& quote : *quotes_result) {
+        // IMPORTANT: Validate symbols before using them
+        if (utils::isValidStockSymbol(quote.symbol)) {
+            context.current_quotes[quote.symbol] = quote;
+        }
+    }
 }
 
 // 3. Generate trading signals

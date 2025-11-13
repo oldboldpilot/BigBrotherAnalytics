@@ -361,6 +361,9 @@
           - rustup                     # Rust toolchain manager
           - rust                       # Rust compiler (installed via rustup)
           - maven                      # Maven (includes OpenJDK)
+          - nlohmann-json              # JSON for Modern C++
+          - onnxruntime                # ONNX Runtime ML inference
+          - yaml-cpp                   # YAML parser for C++
         state: latest
       become_user: "{{ user }}"
       environment:

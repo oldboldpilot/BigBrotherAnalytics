@@ -36,6 +36,7 @@ export module bigbrother.strategies;
 // Import dependencies
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
+import bigbrother.utils.validation;
 import bigbrother.options.pricing;
 import bigbrother.strategy;
 import bigbrother.employment.signals;
@@ -281,8 +282,7 @@ inline auto StrangleStrategyBuilder::build() -> std::unique_ptr<IStrategy> {
 
 class VolatilityArbStrategyBuilder {
   public:
-    [[nodiscard]] auto withMinIVHVSpread(double spread) noexcept
-        -> VolatilityArbStrategyBuilder& {
+    [[nodiscard]] auto withMinIVHVSpread(double spread) noexcept -> VolatilityArbStrategyBuilder& {
         min_iv_hv_spread_ = spread;
         return *this;
     }
@@ -976,8 +976,7 @@ class SectorRotationStrategyBuilder {
         return *this;
     }
 
-    [[nodiscard]] auto minCompositeScore(double score) noexcept
-        -> SectorRotationStrategyBuilder& {
+    [[nodiscard]] auto minCompositeScore(double score) noexcept -> SectorRotationStrategyBuilder& {
         config_.min_composite_score = score;
         return *this;
     }
@@ -1180,7 +1179,7 @@ class MLPredictorStrategy : public IStrategy {
 
         if (!predictor.isInitialized()) {
             bigbrother::market_intelligence::PredictorConfig config;
-            config.use_cuda = true;  // Enable CUDA if available
+            config.use_cuda = true; // Enable CUDA if available
             config.model_weights_path = "models/price_predictor.onnx";
 
             if (!predictor.initialize(config)) {
@@ -1240,21 +1239,18 @@ class MLPredictorStrategy : public IStrategy {
 
             // CRITICAL: Sanity check predictions to catch model errors
             // Reject predictions outside reasonable range (-50% to +50%)
-            constexpr double MAX_REASONABLE_CHANGE = 0.50;  // 50%
-            bool prediction_invalid =
-                std::abs(prediction->day_1_change) > MAX_REASONABLE_CHANGE ||
-                std::abs(prediction->day_5_change) > MAX_REASONABLE_CHANGE ||
-                std::abs(prediction->day_20_change) > MAX_REASONABLE_CHANGE;
+            constexpr double MAX_REASONABLE_CHANGE = 0.50; // 50%
+            bool prediction_invalid = std::abs(prediction->day_1_change) > MAX_REASONABLE_CHANGE ||
+                                      std::abs(prediction->day_5_change) > MAX_REASONABLE_CHANGE ||
+                                      std::abs(prediction->day_20_change) > MAX_REASONABLE_CHANGE;
 
             if (prediction_invalid) {
-                Logger::getInstance().error(
-                    "REJECTED: Nonsensical prediction for {} (1d={:.2f}%, 5d={:.2f}%, 20d={:.2f}%) - exceeds +/-50% threshold",
-                    symbol,
-                    prediction->day_1_change * 100,
-                    prediction->day_5_change * 100,
-                    prediction->day_20_change * 100
-                );
-                continue;  // Skip this nonsensical prediction
+                Logger::getInstance().error("REJECTED: Nonsensical prediction for {} (1d={:.2f}%, "
+                                            "5d={:.2f}%, 20d={:.2f}%) - exceeds +/-50% threshold",
+                                            symbol, prediction->day_1_change * 100,
+                                            prediction->day_5_change * 100,
+                                            prediction->day_20_change * 100);
+                continue; // Skip this nonsensical prediction
             }
 
             // Get overall signal
@@ -1272,24 +1268,26 @@ class MLPredictorStrategy : public IStrategy {
             signal.type = convertSignalType(signal_type);
 
             // Use confidence from prediction
-            signal.confidence = (prediction->confidence_1d + prediction->confidence_5d + prediction->confidence_20d) / 3.0;
+            signal.confidence = (prediction->confidence_1d + prediction->confidence_5d +
+                                 prediction->confidence_20d) /
+                                3.0;
 
             // Estimate expected return based on predicted changes
-            double expected_change = (prediction->day_1_change + prediction->day_5_change + prediction->day_20_change) / 3.0;
-            signal.expected_return = std::abs(expected_change) * 1000.0;  // Assume $1000 position
-            signal.max_risk = 200.0;  // Max risk $200 (2% stop loss)
+            double expected_change =
+                (prediction->day_1_change + prediction->day_5_change + prediction->day_20_change) /
+                3.0;
+            signal.expected_return = std::abs(expected_change) * 1000.0; // Assume $1000 position
+            signal.max_risk = 200.0; // Max risk $200 (2% stop loss)
             signal.win_probability = signal.confidence;
-            signal.timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            signal.timestamp =
+                std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
             signal.rationale = formatRationale(*prediction);
 
             Logger::getInstance().info(
-                "ML Signal: {} {} (confidence: {:.1f}%, predicted change: {:.2f}%)",
-                symbol,
+                "ML Signal: {} {} (confidence: {:.1f}%, predicted change: {:.2f}%)", symbol,
                 bigbrother::market_intelligence::PricePrediction::signalToString(signal_type),
-                signal.confidence * 100,
-                expected_change * 100
-            );
+                signal.confidence * 100, expected_change * 100);
 
             signals.push_back(std::move(signal));
         }
@@ -1297,21 +1295,15 @@ class MLPredictorStrategy : public IStrategy {
         return signals;
     }
 
-    auto setActive(bool active) noexcept -> void override {
-        active_ = active;
-    }
+    auto setActive(bool active) noexcept -> void override { active_ = active; }
 
-    [[nodiscard]] auto isActive() const noexcept -> bool override {
-        return active_;
-    }
+    [[nodiscard]] auto isActive() const noexcept -> bool override { return active_; }
 
     [[nodiscard]] auto getParameters() const
         -> std::unordered_map<std::string, std::string> override {
-        return {
-            {"model", "price_predictor.onnx"},
-            {"confidence_threshold", "0.6"},
-            {"use_cuda", "true"}
-        };
+        return {{"model", "price_predictor.onnx"},
+                {"confidence_threshold", "0.6"},
+                {"use_cuda", "true"}};
     }
 
   private:
@@ -1325,6 +1317,29 @@ class MLPredictorStrategy : public IStrategy {
      */
     [[nodiscard]] auto extractFeatures(StrategyContext const& context, std::string const& symbol)
         -> std::optional<bigbrother::market_intelligence::PriceFeatures> {
+
+        // DEFENSIVE CHECK: Validate symbol is not empty and looks like a stock ticker
+        if (symbol.empty() || symbol.length() > 10) {
+            Logger::getInstance().error(
+                "MLPredictor: Invalid symbol for feature extraction: '{}' (empty or too long)",
+                symbol);
+            return std::nullopt;
+        }
+
+        // DEFENSIVE CHECK: Reject JSON field names that might have leaked into current_quotes
+        if (bigbrother::utils::looksLikeJsonField(symbol)) {
+            Logger::getInstance().error(
+                "MLPredictor: Symbol '{}' looks like a JSON field name, not a stock ticker",
+                symbol);
+            return std::nullopt;
+        }
+
+        // DEFENSIVE CHECK: Validate symbol looks like a valid stock ticker
+        if (!bigbrother::utils::isValidStockSymbol(symbol)) {
+            Logger::getInstance().error(
+                "MLPredictor: Symbol '{}' does not look like a valid ticker", symbol);
+            return std::nullopt;
+        }
 
         // Get current quote for symbol
         auto quote_it = context.current_quotes.find(symbol);
@@ -1344,10 +1359,8 @@ class MLPredictorStrategy : public IStrategy {
         auto volume_hist_it = volume_history_.find(symbol);
 
         bool const has_full_history =
-            price_hist_it != price_history_.end() &&
-            volume_hist_it != volume_history_.end() &&
-            price_hist_it->second.size() >= 26 &&
-            volume_hist_it->second.size() >= 20;
+            price_hist_it != price_history_.end() && volume_hist_it != volume_history_.end() &&
+            price_hist_it->second.size() >= 26 && volume_hist_it->second.size() >= 20;
 
         bigbrother::market_intelligence::PriceFeatures features;
 
@@ -1366,8 +1379,8 @@ class MLPredictorStrategy : public IStrategy {
 
             // OHLCV data (use current quote + historical high/low if available)
             features.close = last_price;
-            features.open = price_vec[0];  // Today's open (same as current in our model)
-            features.high = ask_price;     // Approximate from bid/ask
+            features.open = price_vec[0]; // Today's open (same as current in our model)
+            features.high = ask_price;    // Approximate from bid/ask
             features.low = bid_price;
             features.volume = current_volume;
 
@@ -1376,19 +1389,20 @@ class MLPredictorStrategy : public IStrategy {
             if (price_vec.size() >= 6) {
                 features.return_5d = (price_vec[0] - price_vec[5]) / price_vec[5];
             } else {
-                features.return_5d = features.return_1d * 5.0f;  // Approximation
+                features.return_5d = features.return_1d * 5.0f; // Approximation
             }
             if (price_vec.size() >= 21) {
                 features.return_20d = (price_vec[0] - price_vec[20]) / price_vec[20];
             } else {
-                features.return_20d = features.return_1d * 20.0f;  // Approximation
+                features.return_20d = features.return_1d * 20.0f; // Approximation
             }
 
             // Technical indicators using FeatureExtractor static methods
             features.rsi_14 = bigbrother::market_intelligence::FeatureExtractor::calculateRSI(
                 price_span.subspan(0, std::min(size_t(14), price_vec.size())));
 
-            auto [macd, signal, hist] = bigbrother::market_intelligence::FeatureExtractor::calculateMACD(price_span);
+            auto [macd, signal, hist] =
+                bigbrother::market_intelligence::FeatureExtractor::calculateMACD(price_span);
             features.macd = macd;
             features.macd_signal = signal;
             // Note: macd_histogram no longer in PriceFeatures (not used in 60-feature model)
@@ -1415,9 +1429,10 @@ class MLPredictorStrategy : public IStrategy {
 
             // Note: momentum_5d no longer in PriceFeatures (redundant with return_5d)
 
-            Logger::getInstance().debug(
-                "Extracted features (accurate) for {}: price={:.2f}, rsi={:.2f}, macd={:.4f}, history_size={}",
-                symbol, last_price, features.rsi_14, features.macd, price_vec.size());
+            Logger::getInstance().debug("Extracted features (accurate) for {}: price={:.2f}, "
+                                        "rsi={:.2f}, macd={:.4f}, history_size={}",
+                                        symbol, last_price, features.rsi_14, features.macd,
+                                        price_vec.size());
 
         } else {
             // Fall back to approximations (first few days)
@@ -1438,18 +1453,19 @@ class MLPredictorStrategy : public IStrategy {
             features.return_20d = volatility_estimate * 5.0f;
 
             // Technical indicators (simplified)
-            features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f;  // Centered around 50
+            features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f; // Centered around 50
             features.macd = volatility_estimate * last_price * 0.01f;
             features.macd_signal = features.macd * 0.7f;
-            // Note: macd_histogram, bb_middle, volume_sma20, momentum_5d removed from 60-feature model
+            // Note: macd_histogram, bb_middle, volume_sma20, momentum_5d removed from 60-feature
+            // model
             features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
             features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
             features.bb_position = price_position;
             features.atr_14 = spread;
             features.volume_ratio = 1.0f;
 
-            size_t hist_size = price_hist_it != price_history_.end() ?
-                price_hist_it->second.size() : 0;
+            size_t hist_size =
+                price_hist_it != price_history_.end() ? price_hist_it->second.size() : 0;
             Logger::getInstance().warn(
                 "Using approximate features for {} (insufficient history: {} days, need 26)",
                 symbol, hist_size);
@@ -1461,7 +1477,8 @@ class MLPredictorStrategy : public IStrategy {
     /**
      * Convert ML signal to strategy signal type
      */
-    [[nodiscard]] auto convertSignalType(bigbrother::market_intelligence::PricePrediction::Signal ml_signal)
+    [[nodiscard]] auto
+    convertSignalType(bigbrother::market_intelligence::PricePrediction::Signal ml_signal)
         -> SignalType {
 
         using MLSignal = bigbrother::market_intelligence::PricePrediction::Signal;
@@ -1518,10 +1535,9 @@ class MLPredictorStrategy : public IStrategy {
 
             for (auto const& symbol : symbols) {
                 // Query last 30 days of price data (most recent first)
-                auto sql_query = std::format(
-                    "SELECT date, close, volume FROM stock_prices "
-                    "WHERE symbol = '{}' ORDER BY date DESC LIMIT 30",
-                    symbol);
+                auto sql_query = std::format("SELECT date, close, volume FROM stock_prices "
+                                             "WHERE symbol = '{}' ORDER BY date DESC LIMIT 30",
+                                             symbol);
 
                 auto result = executeQueryWithResults(*conn, sql_query);
                 if (!result || hasError(*result)) {
@@ -1547,13 +1563,13 @@ class MLPredictorStrategy : public IStrategy {
                             volume_history_[symbol].push_back(volume);
                         }
                     } catch (std::exception const& e) {
-                        Logger::getInstance().warn("Failed to parse row {} for {}: {}", row, symbol, e.what());
+                        Logger::getInstance().warn("Failed to parse row {} for {}: {}", row, symbol,
+                                                   e.what());
                     }
                 }
 
-                Logger::getInstance().info(
-                    "Loaded {} days of historical data for {}",
-                    price_history_[symbol].size(), symbol);
+                Logger::getInstance().info("Loaded {} days of historical data for {}",
+                                           price_history_[symbol].size(), symbol);
             }
 
         } catch (std::exception const& e) {
@@ -1570,16 +1586,14 @@ class MLPredictorStrategy : public IStrategy {
      * @param high Today's high (optional, defaults to price)
      * @param low Today's low (optional, defaults to price)
      */
-    auto updateHistory(
-        std::string const& symbol,
-        double price,
-        double volume,
-        double high = 0.0,
-        double low = 0.0) -> void {
+    auto updateHistory(std::string const& symbol, double price, double volume, double high = 0.0,
+                       double low = 0.0) -> void {
 
         // Initialize high/low if not provided
-        if (high == 0.0) high = price;
-        if (low == 0.0) low = price;
+        if (high == 0.0)
+            high = price;
+        if (low == 0.0)
+            low = price;
 
         // Add to price history (keep last 30 days)
         auto& price_hist = price_history_[symbol];
@@ -1610,8 +1624,8 @@ class MLPredictorStrategy : public IStrategy {
         }
 
         Logger::getInstance().debug(
-            "Updated history for {}: price={:.2f}, volume={:.0f}, buffer_size={}",
-            symbol, price, volume, price_hist.size());
+            "Updated history for {}: price={:.2f}, volume={:.0f}, buffer_size={}", symbol, price,
+            volume, price_hist.size());
     }
 
   private:
@@ -1642,8 +1656,7 @@ class MLPredictorStrategy : public IStrategy {
     return std::make_unique<VolatilityArbStrategy>();
 }
 
-[[nodiscard]] inline auto createSectorRotationStrategy(
-    SectorRotationStrategy::Config config)
+[[nodiscard]] inline auto createSectorRotationStrategy(SectorRotationStrategy::Config config)
     -> std::unique_ptr<IStrategy> {
     return std::make_unique<SectorRotationStrategy>(std::move(config));
 }

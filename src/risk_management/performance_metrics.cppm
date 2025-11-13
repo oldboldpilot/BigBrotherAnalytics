@@ -230,13 +230,15 @@ class PerformanceMetricsCalculator {
         return *this;
     }
 
-    // Destructor - complete Rule of Five
+  public:
+    // Destructor - complete Rule of Five (public for std::make_shared compatibility)
     ~PerformanceMetricsCalculator() = default;
 
     // Explicitly delete copy operations
     PerformanceMetricsCalculator(PerformanceMetricsCalculator const&) = delete;
     auto operator=(PerformanceMetricsCalculator const&) -> PerformanceMetricsCalculator& = delete;
 
+  private:
     mutable std::mutex mutex_;
     std::vector<double> returns_;
     double risk_free_rate_{0.0};
