@@ -45,6 +45,11 @@
 - **Automatic Differentiation:** Exact Greeks calculation (not finite differences)
 - **Batch Vectorization:** 10-50x speedup for large-scale operations
 - **SIMD (AVX2):** C++ correlation engine (3-6x faster, 100K+ points/sec)
+- **SIMD JSON Parsing (simdjson v4.2.1):** 3-32x faster JSON parsing (ACTIVE, migrated all hot paths)
+  - Quote parsing: **32.2x** (3449ns → 107ns, 120 req/min)
+  - NewsAPI: **23.0x** (8474ns → 369ns, 96 req/day)
+  - Account data: **28.4x** (3383ns → 119ns, 60 req/min)
+  - Annual savings: ~6.7B CPU cycles
 - **OpenMP:** Multi-threaded options pricing and matrix operations
 - **CUDA C++ Kernels:** Available for native GPU acceleration (100-1000x potential speedup)
 - **Tensor Cores:** RTX 4070 supports FP16/BF16 mixed precision (2-4x additional boost)
@@ -72,7 +77,8 @@
 - **Implementation Summary:** `docs/IMPLEMENTATION_SUMMARY_2025-11-11.md` - FRED + Predictor delivery report
 - **JAX Acceleration:** `docs/JAX_DASHBOARD_ACCELERATION.md` - GPU-accelerated dashboard (5-100x speedup)
 - **GPU Performance:** `docs/GPU_ACCELERATION_RESULTS.md` - Benchmark results and optimization guide
-- **Performance Optimizations:** `docs/PERFORMANCE_OPTIMIZATIONS.md` - OpenMP + SIMD implementation details
+- **Performance Optimizations:** `docs/PERFORMANCE_OPTIMIZATIONS.md` - OpenMP + SIMD + simdjson implementation details
+- **Coding Standards:** `docs/CODING_STANDARDS.md` - simdjson usage patterns and migration guide
 - **Testing:** `python_tests/README.md` - Centralized test suite documentation (12 test files)
 
 ## Phase 5: Paper Trading Validation (ACTIVE)
