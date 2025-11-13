@@ -516,6 +516,87 @@
       environment:
         PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
 
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4.8: Valgrind (Memory Leak & Race Detection)
+    # ═══════════════════════════════════════════════════════════
+    # Build Valgrind v3.24.0 from source for modern C++23 and SIMD support
+    # System packages often lack support for AVX2/AVX-512 instructions
+
+    - name: Remove system Valgrind package (if installed)
+      package:
+        name: valgrind
+        state: absent
+      become_user: root
+      ignore_errors: yes
+
+    - name: Install Valgrind build dependencies
+      package:
+        name:
+          - automake
+          - autoconf
+          - libtool
+        state: present
+      become_user: root
+
+    - name: Install glibc debug symbols for Valgrind (Ubuntu)
+      apt:
+        name:
+          - libc6-dbg
+        state: present
+      become_user: root
+      when: ansible_os_family == "Debian"
+
+    - name: Install glibc debug symbols for Valgrind (RHEL)
+      dnf:
+        name:
+          - glibc-debuginfo
+        state: present
+      become_user: root
+      when: ansible_os_family == "RedHat"
+
+    - name: Download Valgrind v3.24.0 source
+      get_url:
+        url: "https://sourceware.org/pub/valgrind/valgrind-3.24.0.tar.bz2"
+        dest: "/tmp/valgrind-3.24.0.tar.bz2"
+        checksum: "sha256:35246f0566c0f6a08d2c8daf62cef649b6c94ce30a0ca6bd1c5745ea6aa00612"
+      become_user: "{{ user }}"
+
+    - name: Extract Valgrind source
+      unarchive:
+        src: "/tmp/valgrind-3.24.0.tar.bz2"
+        dest: "/tmp/"
+        remote_src: yes
+      become_user: "{{ user }}"
+
+    - name: Build and install Valgrind from source
+      shell: |
+        cd /tmp/valgrind-3.24.0
+        ./autogen.sh
+        ./configure \
+          --prefix=/usr/local \
+          --enable-only64bit \
+          CC=/usr/local/bin/clang \
+          CXX=/usr/local/bin/clang++
+        make -j {{ num_build_jobs }}
+        make install
+        ldconfig
+      args:
+        creates: /usr/local/bin/valgrind
+      become_user: root
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+
+    - name: Verify Valgrind installation
+      shell: |
+        /usr/local/bin/valgrind --version
+        /usr/local/bin/valgrind --help | grep -i "AVX"
+      register: valgrind_check
+      changed_when: false
+
+    - name: Display Valgrind version
+      debug:
+        msg: "{{ valgrind_check.stdout_lines }}"
+
     - name: Create Berkeley components directory
       file:
         path: "{{ install_prefix }}"
