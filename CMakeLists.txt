@@ -609,16 +609,25 @@ endif()
 # ============================================================================
 
 add_library(risk_management SHARED
-    # Module implementation units removed - implementations in risk_management.cppm
-    # TODO: Merge these .cpp files into risk_management.cppm module :private; section
-    # See TIER1_EXTENSION_CHECKLIST.md Section J for consolidation tasks
+    # Modular risk management system with fluent APIs
+    # Each component is a separate module for better composability
 )
 
 # C++23 modules with fluent API and trailing return syntax
 target_sources(risk_management
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            # src/risk_management/risk.cppm  # Removed - superseded by risk_management.cppm
+            # Core risk management modules (NEW - fluent API design)
+            src/risk_management/position_sizer.cppm         # Position sizing with Kelly Criterion
+            src/risk_management/stop_loss.cppm              # Stop loss management
+            src/risk_management/monte_carlo.cppm            # Monte Carlo simulation
+            src/risk_management/var_calculator.cppm         # Value at Risk with MKL
+            src/risk_management/stress_testing.cppm         # Stress testing with SIMD
+            src/risk_management/performance_metrics.cppm    # Performance metrics (Sharpe, Sortino, etc.)
+            src/risk_management/correlation_analyzer.cppm   # Correlation and diversification analysis
+            src/risk_management/risk_manager.cppm           # Main risk management orchestrator
+
+            # Legacy monolithic module (DEPRECATED - will be removed after migration)
             src/risk_management/risk_management.cppm
 )
 target_compile_options(risk_management PRIVATE -fmodule-output)
@@ -628,6 +637,7 @@ target_link_libraries(risk_management
     utils
     options_pricing
     OpenMP::OpenMP_CXX
+    ${MKL_LIBRARIES}
 )
 
 # ============================================================================

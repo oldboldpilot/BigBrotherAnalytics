@@ -1,268 +1,429 @@
 /**
  * BigBrotherAnalytics - Risk Management Python Bindings
  *
- * GIL-FREE risk calculations: Kelly Criterion, Monte Carlo, Position Sizing
- * 20x+ speedup over pure Python implementations
+ * pybind11 bindings for all risk management modules:
+ * - Position Sizer
+ * - Stop Loss Manager
+ * - Monte Carlo Simulator
+ * - Risk Manager
+ * - VaR Calculator
+ * - Stress Testing Engine
+ * - Performance Metrics Calculator
+ * - Correlation Analyzer
  *
  * Author: Olumuyiwa Oluwasanmi
- * Date: 2025-11-09
- *
- * Tagged: PYTHON_BINDINGS
+ * Date: 2025-11-13
  */
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-#include <vector>
-#include <algorithm>
+#include <pybind11/functional.h>
 
 // Import C++23 modules
-import bigbrother.risk_management;
+import bigbrother.risk.position_sizer;
+import bigbrother.risk.stop_loss;
+import bigbrother.risk.monte_carlo;
+import bigbrother.risk.manager;
+import bigbrother.risk.var_calculator;
+import bigbrother.risk.stress_testing;
+import bigbrother.risk.performance_metrics;
+import bigbrother.risk.correlation_analyzer;
 import bigbrother.utils.types;
 
 namespace py = pybind11;
-
-namespace bigbrother::risk {
-
+using namespace bigbrother::risk;
 using namespace bigbrother::types;
 
-// Kelly Criterion calculation (GIL-free)
-// Uses the C++ PositionSizer::calculate with KellyCriterion method
-auto kelly_criterion(double win_probability, double win_loss_ratio) -> double {
-    if (win_loss_ratio <= 0.0) return 0.0;
-
-    // Calculate Kelly using PositionSizer with $1 account for fraction
-    auto result = PositionSizer::calculate(
-        SizingMethod::KellyCriterion,
-        1.0,  // unit account value to get fraction
-        win_probability,
-        win_loss_ratio,  // win_amount (ratio)
-        1.0,  // loss_amount (normalized)
-        0.0   // volatility (not used)
-    );
-
-    if (!result) {
-        return 0.0;  // Return 0 on error
-    }
-
-    // Result is already clamped in C++ implementation
-    return *result;
-}
-
-// Position sizing (GIL-free)
-// Applies Kelly fraction with risk limits
-auto calculate_position_size(double account_value, double kelly_fraction,
-                             double max_position_pct) -> double {
-    // Calculate position size based on Kelly fraction
-    auto kelly_size = account_value * kelly_fraction;
-
-    // Apply maximum position size limit
-    auto max_size = account_value * max_position_pct;
-
-    // Return the smaller of Kelly size and max position size
-    return std::min(kelly_size, max_size);
-}
-
-// Monte Carlo simulation (GIL-free, OpenMP parallel)
-// Using the SimulationResult from risk_management module
-
-auto monte_carlo_simulate(double spot, double vol, double drift,
-                          int num_simulations) -> SimulationResult {
-    // Create pricing params for Monte Carlo (field order matches PricingParams definition)
-    // The drift parameter is passed as risk_free_rate in the PricingParams
-    PricingParams params{
-        .spot_price = spot,
-        .strike_price = spot,  // ATM for simplicity
-        .risk_free_rate = drift,  // Use provided drift parameter
-        .time_to_expiration = 0.25,  // 3 months
-        .volatility = vol,
-        .dividend_yield = 0.0,
-        .option_type = OptionType::Call
-    };
-
-    // Call the C++ MonteCarloSimulator (OpenMP parallel inside)
-    auto result = MonteCarloSimulator::simulateOptionTrade(
-        params,
-        1.0,  // position_size (1 contract)
-        num_simulations,
-        100   // num_steps (for price path simulation)
-    );
-
-    if (!result) {
-        // Return empty result on error with default values
-        return SimulationResult{
-            .expected_value = 0.0,
-            .std_deviation = 0.0,
-            .probability_of_profit = 0.0,
-            .var_95 = 0.0,
-            .var_99 = 0.0,
-            .max_profit = 0.0,
-            .max_loss = 0.0,
-            .pnl_distribution = {}
-        };
-    }
-
-    return *result;
-}
-
-} // namespace bigbrother::risk
-
-// Tagged: PYTHON_BINDINGS
 PYBIND11_MODULE(bigbrother_risk, m) {
     m.doc() = R"pbdoc(
-        BigBrotherAnalytics Risk Management - GIL-Free Performance
-        
-        ALL FUNCTIONS RELEASE GIL: True multi-threading
-        MONTE CARLO: OpenMP parallel (uses all CPU cores)
-        
-        Performance: 20x+ faster than pure Python
+        BigBrotherAnalytics Risk Management - Complete Framework
+
+        Comprehensive risk management with 8 integrated modules:
+        - Position Sizer: Kelly Criterion and position sizing strategies
+        - Stop Loss Manager: Hard and trailing stops with real-time updates
+        - Monte Carlo Simulator: OpenMP-parallel risk simulation
+        - Risk Manager: Central risk assessment and portfolio management
+        - VaR Calculator: Parametric, Historical, Monte Carlo, and Hybrid VaR
+        - Stress Testing Engine: AVX2-accelerated stress scenarios
+        - Performance Metrics: Sharpe, Sortino, Calmar, Omega ratios
+        - Correlation Analyzer: MKL-accelerated correlation and diversification
+
+        All modules use fluent API design with trailing return syntax.
+        Performance: SIMD vectorization, OpenMP parallelization, MKL acceleration
     )pbdoc";
-    
-    using namespace bigbrother::risk;
-    
-    // SimulationResult struct - Complete exposure of all fields
+
+    // ========================================================================
+    // Enums
+    // ========================================================================
+
+    py::enum_<SizingMethod>(m, "SizingMethod")
+        .value("FixedDollar", SizingMethod::FixedDollar)
+        .value("FixedPercent", SizingMethod::FixedPercent)
+        .value("KellyCriterion", SizingMethod::KellyCriterion)
+        .value("KellyHalf", SizingMethod::KellyHalf)
+        .value("KellyQuarter", SizingMethod::KellyQuarter)
+        .value("VolatilityAdjusted", SizingMethod::VolatilityAdjusted)
+        .value("RiskParity", SizingMethod::RiskParity)
+        .value("DeltaAdjusted", SizingMethod::DeltaAdjusted)
+        .value("MaxDrawdown", SizingMethod::MaxDrawdown)
+        .export_values();
+
+    py::enum_<VaRMethod>(m, "VaRMethod")
+        .value("Parametric", VaRMethod::Parametric)
+        .value("Historical", VaRMethod::Historical)
+        .value("MonteCarlo", VaRMethod::MonteCarlo)
+        .value("Hybrid", VaRMethod::Hybrid)
+        .export_values();
+
+    py::enum_<StressScenario>(m, "StressScenario")
+        .value("MarketCrash", StressScenario::MarketCrash)
+        .value("VolatilitySpike", StressScenario::VolatilitySpike)
+        .value("SectorRotation", StressScenario::SectorRotation)
+        .value("InterestRateShock", StressScenario::InterestRateShock)
+        .value("CreditCrunch", StressScenario::CreditCrunch)
+        .value("BlackSwan", StressScenario::BlackSwan)
+        .value("FlashCrash", StressScenario::FlashCrash)
+        .value("Custom", StressScenario::Custom)
+        .export_values();
+
+    py::enum_<PerformancePeriod>(m, "PerformancePeriod")
+        .value("Daily", PerformancePeriod::Daily)
+        .value("Weekly", PerformancePeriod::Weekly)
+        .value("Monthly", PerformancePeriod::Monthly)
+        .value("Quarterly", PerformancePeriod::Quarterly)
+        .value("Annual", PerformancePeriod::Annual)
+        .export_values();
+
+    // ========================================================================
+    // Position Sizer
+    // ========================================================================
+
+    py::class_<PositionSize>(m, "PositionSize")
+        .def_readonly("dollar_amount", &PositionSize::dollar_amount)
+        .def_readonly("num_contracts", &PositionSize::num_contracts)
+        .def_readonly("kelly_fraction", &PositionSize::kelly_fraction)
+        .def_readonly("risk_percent", &PositionSize::risk_percent)
+        .def_readonly("method_used", &PositionSize::method_used);
+
+    py::class_<PositionSizer>(m, "PositionSizer")
+        .def_static("create", &PositionSizer::create)
+        .def("with_method", &PositionSizer::withMethod,
+             py::return_value_policy::reference_internal)
+        .def("with_account_value", &PositionSizer::withAccountValue,
+             py::return_value_policy::reference_internal)
+        .def("with_win_probability", &PositionSizer::withWinProbability,
+             py::return_value_policy::reference_internal)
+        .def("with_expected_gain", &PositionSizer::withExpectedGain,
+             py::return_value_policy::reference_internal)
+        .def("with_expected_loss", &PositionSizer::withExpectedLoss,
+             py::return_value_policy::reference_internal)
+        .def("with_max_position", &PositionSizer::withMaxPosition,
+             py::return_value_policy::reference_internal)
+        .def("calculate", [](PositionSizer const& sizer) {
+            auto result = sizer.calculate();
+            if (!result) {
+                throw std::runtime_error("Position sizing failed");
+            }
+            return *result;
+        })
+        .def_static("kelly_fraction", &PositionSizer::kellyFraction);
+
+    // ========================================================================
+    // Stop Loss Manager
+    // ========================================================================
+
+    py::class_<Stop>(m, "Stop")
+        .def_readonly("position_id", &Stop::position_id)
+        .def_readonly("type", &Stop::type)
+        .def_readonly("trigger_price", &Stop::trigger_price)
+        .def_readonly("initial_price", &Stop::initial_price)
+        .def_readonly("trail_amount", &Stop::trail_amount)
+        .def_readonly("expiration", &Stop::expiration)
+        .def_readonly("triggered", &Stop::triggered);
+
+    py::class_<StopLossManager>(m, "StopLossManager")
+        .def_static("create", &StopLossManager::create)
+        .def("add_hard_stop", &StopLossManager::addHardStop,
+             py::return_value_policy::reference_internal)
+        .def("add_trailing_stop", &StopLossManager::addTrailingStop,
+             py::return_value_policy::reference_internal)
+        .def("update", &StopLossManager::update)
+        .def("remove_stop", &StopLossManager::removeStop,
+             py::return_value_policy::reference_internal)
+        .def("clear_all", &StopLossManager::clearAll,
+             py::return_value_policy::reference_internal)
+        .def("has_stop", &StopLossManager::hasStop)
+        .def("get_stop_count", &StopLossManager::getStopCount);
+
+    // ========================================================================
+    // Monte Carlo Simulator
+    // ========================================================================
+
     py::class_<SimulationResult>(m, "SimulationResult")
-        .def(py::init<>())
-        .def_readwrite("expected_value", &SimulationResult::expected_value,
-                       "Expected value (mean) of the PnL distribution")
-        .def_readwrite("std_deviation", &SimulationResult::std_deviation,
-                       "Standard deviation of the PnL distribution")
-        .def_readwrite("probability_of_profit", &SimulationResult::probability_of_profit,
-                       "Probability that the trade will be profitable (PnL > 0)")
-        .def_readwrite("var_95", &SimulationResult::var_95,
-                       "Value at Risk at 95% confidence level (5th percentile)")
-        .def_readwrite("var_99", &SimulationResult::var_99,
-                       "Value at Risk at 99% confidence level (1st percentile)")
-        .def_readwrite("max_profit", &SimulationResult::max_profit,
-                       "Maximum profit observed in simulations")
-        .def_readwrite("max_loss", &SimulationResult::max_loss,
-                       "Maximum loss observed in simulations")
-        .def_readwrite("pnl_distribution", &SimulationResult::pnl_distribution,
-                       "Full PnL distribution from all simulation paths")
-        .def("__repr__", [](const SimulationResult& r) {
-            return "SimulationResult(EV=" + std::to_string(r.expected_value) +
-                   ", StdDev=" + std::to_string(r.std_deviation) +
-                   ", P(profit)=" + std::to_string(r.probability_of_profit) +
-                   ", VaR95=" + std::to_string(r.var_95) + ")";
+        .def_readonly("num_simulations", &SimulationResult::num_simulations)
+        .def_readonly("mean_pnl", &SimulationResult::mean_pnl)
+        .def_readonly("std_pnl", &SimulationResult::std_pnl)
+        .def_readonly("median_pnl", &SimulationResult::median_pnl)
+        .def_readonly("min_pnl", &SimulationResult::min_pnl)
+        .def_readonly("max_pnl", &SimulationResult::max_pnl)
+        .def_readonly("var_95", &SimulationResult::var_95)
+        .def_readonly("cvar_95", &SimulationResult::cvar_95)
+        .def_readonly("win_probability", &SimulationResult::win_probability)
+        .def_readonly("expected_value", &SimulationResult::expected_value);
+
+    py::class_<MonteCarloSimulator>(m, "MonteCarloSimulator")
+        .def_static("create", &MonteCarloSimulator::create)
+        .def("with_simulations", &MonteCarloSimulator::withSimulations,
+             py::return_value_policy::reference_internal)
+        .def("with_parallel", &MonteCarloSimulator::withParallel,
+             py::return_value_policy::reference_internal)
+        .def("with_seed", &MonteCarloSimulator::withSeed,
+             py::return_value_policy::reference_internal)
+        .def("simulate_stock", [](MonteCarloSimulator const& sim,
+                                  double entry, double target,
+                                  double stop, double volatility) {
+            auto result = sim.simulateStock(entry, target, stop, volatility);
+            if (!result) {
+                throw std::runtime_error("Monte Carlo simulation failed");
+            }
+            return *result;
         });
-    
-    // Kelly Criterion (GIL-FREE)
-    m.def("kelly_criterion",
-          [](double win_prob, double win_loss_ratio) {
-              if (win_prob < 0.0 || win_prob > 1.0) {
-                  throw std::invalid_argument("win_probability must be between 0 and 1");
-              }
-              if (win_loss_ratio <= 0.0) {
-                  throw std::invalid_argument("win_loss_ratio must be positive");
-              }
-              py::gil_scoped_release release;  // GIL-FREE
-              return kelly_criterion(win_prob, win_loss_ratio);
-          },
-          R"pbdoc(
-              Calculate Kelly Criterion position sizing fraction (GIL-free).
 
-              The Kelly Criterion determines the optimal position size to maximize
-              long-term capital growth based on win probability and win/loss ratio.
+    // ========================================================================
+    // Risk Manager
+    // ========================================================================
 
-              Parameters:
-                  win_probability: Probability of winning (0.0 to 1.0)
-                  win_loss_ratio: Ratio of average win to average loss
+    py::class_<RiskLimits>(m, "RiskLimits")
+        .def(py::init<>())
+        .def_readwrite("account_value", &RiskLimits::account_value)
+        .def_readwrite("max_daily_loss", &RiskLimits::max_daily_loss)
+        .def_readwrite("max_position_size", &RiskLimits::max_position_size)
+        .def_readwrite("max_concurrent_positions", &RiskLimits::max_concurrent_positions);
 
-              Returns:
-                  Optimal position size as fraction of account (0.0 to 0.25)
+    py::class_<TradeRisk>(m, "TradeRisk")
+        .def_readonly("symbol", &TradeRisk::symbol)
+        .def_readonly("position_size", &TradeRisk::position_size)
+        .def_readonly("max_loss", &TradeRisk::max_loss)
+        .def_readonly("expected_return", &TradeRisk::expected_return)
+        .def_readonly("win_probability", &TradeRisk::win_probability)
+        .def_readonly("expected_value", &TradeRisk::expected_value)
+        .def_readonly("risk_reward_ratio", &TradeRisk::risk_reward_ratio)
+        .def_readonly("approved", &TradeRisk::approved)
+        .def_readonly("rejection_reason", &TradeRisk::rejection_reason);
 
-              Note: Result is automatically capped at 25% for risk management.
-          )pbdoc",
-          py::arg("win_probability"), py::arg("win_loss_ratio"));
-    
-    // Position sizing (GIL-FREE)
-    m.def("position_size",
-          [](double account_value, double kelly_fraction, double max_pct) {
-              if (account_value <= 0.0) {
-                  throw std::invalid_argument("account_value must be positive");
-              }
-              if (kelly_fraction < 0.0) {
-                  throw std::invalid_argument("kelly_fraction must be non-negative");
-              }
-              if (max_pct <= 0.0 || max_pct > 1.0) {
-                  throw std::invalid_argument("max_position_pct must be between 0 and 1");
-              }
-              py::gil_scoped_release release;  // GIL-FREE
-              return calculate_position_size(account_value, kelly_fraction, max_pct);
-          },
-          R"pbdoc(
-              Calculate position size with Kelly fraction and risk limits (GIL-free).
+    py::class_<PortfolioRisk>(m, "PortfolioRisk")
+        .def_readonly("total_value", &PortfolioRisk::total_value)
+        .def_readonly("daily_pnl", &PortfolioRisk::daily_pnl)
+        .def_readonly("daily_loss_remaining", &PortfolioRisk::daily_loss_remaining)
+        .def_readonly("active_positions", &PortfolioRisk::active_positions)
+        .def_readonly("portfolio_heat", &PortfolioRisk::portfolio_heat)
+        .def_readonly("var_95", &PortfolioRisk::var_95)
+        .def_readonly("sharpe_ratio", &PortfolioRisk::sharpe_ratio)
+        .def("can_open_new_position", &PortfolioRisk::canOpenNewPosition);
 
-              Applies the Kelly fraction to determine position size, then caps it at
-              the maximum position size limit for additional risk management.
+    py::class_<RiskManager>(m, "RiskManager")
+        .def_static("create", [](RiskLimits const& limits) {
+            auto result = RiskManager::create(limits);
+            if (!result) {
+                throw std::runtime_error("Risk manager creation failed");
+            }
+            return std::move(*result);
+        })
+        .def("with_account_value", &RiskManager::withAccountValue,
+             py::return_value_policy::reference_internal)
+        .def("with_daily_loss_limit", &RiskManager::withDailyLossLimit,
+             py::return_value_policy::reference_internal)
+        .def("with_position_size_limit", &RiskManager::withPositionSizeLimit,
+             py::return_value_policy::reference_internal)
+        .def("assess_trade", [](RiskManager& mgr, std::string const& symbol,
+                               double position_size, double entry,
+                               double stop, double target, double win_prob) {
+            auto result = mgr.assessTrade(symbol, position_size, entry,
+                                         stop, target, win_prob);
+            if (!result) {
+                throw std::runtime_error("Trade assessment failed");
+            }
+            return *result;
+        })
+        .def("get_portfolio_risk", &RiskManager::getPortfolioRisk)
+        .def("get_risk_limits", &RiskManager::getRiskLimits);
 
-              Parameters:
-                  account_value: Total account value in dollars
-                  kelly_fraction: Kelly Criterion fraction (from kelly_criterion())
-                  max_position_pct: Maximum position size as fraction of account (default: 0.05)
+    // ========================================================================
+    // VaR Calculator
+    // ========================================================================
 
-              Returns:
-                  Position size in dollars, capped by both Kelly and max limits
+    py::class_<VaRResult>(m, "VaRResult")
+        .def_readonly("var_amount", &VaRResult::var_amount)
+        .def_readonly("var_percentage", &VaRResult::var_percentage)
+        .def_readonly("expected_shortfall", &VaRResult::expected_shortfall)
+        .def_readonly("volatility", &VaRResult::volatility)
+        .def_readonly("method_used", &VaRResult::method_used)
+        .def_readonly("confidence_level", &VaRResult::confidence_level)
+        .def_readonly("holding_period", &VaRResult::holding_period)
+        .def("is_valid", &VaRResult::isValid)
+        .def("get_risk_level", &VaRResult::getRiskLevel);
 
-              Example:
-                  kelly = kelly_criterion(0.65, 2.0)
-                  size = position_size(30000, kelly, 0.05)
-          )pbdoc",
-          py::arg("account_value"), py::arg("kelly_fraction"),
-          py::arg("max_position_pct") = 0.05);
-    
-    // Monte Carlo simulation (GIL-FREE + OpenMP parallel)
-    m.def("monte_carlo",
-          [](double spot, double vol, double drift, int sims) {
-              if (spot <= 0.0) {
-                  throw std::invalid_argument("spot_price must be positive");
-              }
-              if (vol < 0.0) {
-                  throw std::invalid_argument("volatility must be non-negative");
-              }
-              if (sims < 100) {
-                  throw std::invalid_argument("simulations must be at least 100");
-              }
-              if (sims > 1'000'000) {
-                  throw std::invalid_argument("simulations cannot exceed 1,000,000");
-              }
-              py::gil_scoped_release release;  // GIL-FREE + OpenMP parallel
-              return monte_carlo_simulate(spot, vol, drift, sims);
-          },
-          R"pbdoc(
-              Run Monte Carlo simulation for option trade analysis (GIL-free, OpenMP parallel).
+    py::class_<VaRCalculator>(m, "VaRCalculator")
+        .def_static("create", &VaRCalculator::create)
+        .def("with_returns", &VaRCalculator::withReturns,
+             py::return_value_policy::reference_internal)
+        .def("with_confidence_level", &VaRCalculator::withConfidenceLevel,
+             py::return_value_policy::reference_internal)
+        .def("with_method", &VaRCalculator::withMethod,
+             py::return_value_policy::reference_internal)
+        .def("calculate", [](VaRCalculator const& calc, double portfolio_value) {
+            auto result = calc.calculate(portfolio_value);
+            if (!result) {
+                throw std::runtime_error("VaR calculation failed");
+            }
+            return *result;
+        }, py::arg("portfolio_value"));
 
-              Simulates multiple price paths using geometric Brownian motion and calculates
-              comprehensive risk metrics including expected value, VaR, and probability of profit.
-              This function releases the GIL and uses OpenMP for parallel execution across all
-              CPU cores, providing significant performance improvements.
+    // ========================================================================
+    // Stress Testing Engine
+    // ========================================================================
 
-              Parameters:
-                  spot_price: Current spot price of the underlying asset
-                  volatility: Annualized volatility (e.g., 0.25 for 25%)
-                  drift: Expected return/drift rate (default: 0.0, risk-neutral)
-                  simulations: Number of simulation paths (default: 10000, min: 100, max: 1M)
+    py::class_<StressPosition>(m, "StressPosition")
+        .def(py::init<>())
+        .def_readwrite("symbol", &StressPosition::symbol)
+        .def_readwrite("quantity", &StressPosition::quantity)
+        .def_readwrite("current_price", &StressPosition::current_price)
+        .def_readwrite("beta", &StressPosition::beta)
+        .def_readwrite("sector_exposure", &StressPosition::sector_exposure)
+        .def_readwrite("duration", &StressPosition::duration)
+        .def_readwrite("delta", &StressPosition::delta)
+        .def_readwrite("vega", &StressPosition::vega);
 
-              Returns:
-                  SimulationResult object containing:
-                      - expected_value: Mean PnL across all simulations
-                      - std_deviation: Standard deviation of PnL
-                      - probability_of_profit: Fraction of profitable outcomes
-                      - var_95, var_99: Value at Risk at 95% and 99% confidence
-                      - max_profit, max_loss: Extreme outcomes observed
-                      - pnl_distribution: Complete distribution of all PnL values
+    py::class_<StressTestResult>(m, "StressTestResult")
+        .def_readonly("scenario", &StressTestResult::scenario)
+        .def_readonly("initial_value", &StressTestResult::initial_value)
+        .def_readonly("stressed_value", &StressTestResult::stressed_value)
+        .def_readonly("pnl", &StressTestResult::pnl)
+        .def_readonly("pnl_percentage", &StressTestResult::pnl_percentage)
+        .def_readonly("position_impacts", &StressTestResult::position_impacts)
+        .def("get_severity", &StressTestResult::getSeverity)
+        .def("is_portfolio_viable", &StressTestResult::isPortfolioViable);
 
-              Performance:
-                  - GIL-free: True multi-threaded execution
-                  - OpenMP parallel: Utilizes all CPU cores
-                  - Typical: 10,000 sims in <100ms on modern CPU
+    py::class_<StressTestingEngine>(m, "StressTestingEngine")
+        .def_static("create", &StressTestingEngine::create)
+        .def("add_position", &StressTestingEngine::addPosition,
+             py::return_value_policy::reference_internal)
+        .def("clear_positions", &StressTestingEngine::clearPositions,
+             py::return_value_policy::reference_internal)
+        .def("run_stress_test", [](StressTestingEngine const& engine,
+                                   StressScenario scenario) {
+            auto result = engine.runStressTest(scenario);
+            if (!result) {
+                throw std::runtime_error("Stress test failed");
+            }
+            return *result;
+        })
+        .def("run_all_scenarios", &StressTestingEngine::runAllScenarios)
+        .def("get_position_count", &StressTestingEngine::getPositionCount)
+        .def("get_total_value", &StressTestingEngine::getTotalValue);
 
-              Example:
-                  result = monte_carlo(100, 0.25, 0.05, 50000)
-                  print(f"Expected value: ${result.expected_value:.2f}")
-                  print(f"Probability of profit: {result.probability_of_profit:.1%}")
-                  print(f"95% VaR: ${result.var_95:.2f}")
-          )pbdoc",
-          py::arg("spot_price"), py::arg("volatility"),
-          py::arg("drift") = 0.0, py::arg("simulations") = 10000);
+    // ========================================================================
+    // Performance Metrics Calculator
+    // ========================================================================
+
+    py::class_<PerformanceMetrics>(m, "PerformanceMetrics")
+        .def_readonly("total_return", &PerformanceMetrics::total_return)
+        .def_readonly("annualized_return", &PerformanceMetrics::annualized_return)
+        .def_readonly("average_return", &PerformanceMetrics::average_return)
+        .def_readonly("volatility", &PerformanceMetrics::volatility)
+        .def_readonly("downside_deviation", &PerformanceMetrics::downside_deviation)
+        .def_readonly("max_drawdown", &PerformanceMetrics::max_drawdown)
+        .def_readonly("sharpe_ratio", &PerformanceMetrics::sharpe_ratio)
+        .def_readonly("sortino_ratio", &PerformanceMetrics::sortino_ratio)
+        .def_readonly("calmar_ratio", &PerformanceMetrics::calmar_ratio)
+        .def_readonly("omega_ratio", &PerformanceMetrics::omega_ratio)
+        .def_readonly("win_rate", &PerformanceMetrics::win_rate)
+        .def_readonly("profit_factor", &PerformanceMetrics::profit_factor)
+        .def_readonly("expectancy", &PerformanceMetrics::expectancy)
+        .def_readonly("skewness", &PerformanceMetrics::skewness)
+        .def_readonly("kurtosis", &PerformanceMetrics::kurtosis)
+        .def("is_healthy", &PerformanceMetrics::isHealthy)
+        .def("get_rating", &PerformanceMetrics::getRating);
+
+    py::class_<PerformanceMetricsCalculator>(m, "PerformanceMetricsCalculator")
+        .def_static("create", &PerformanceMetricsCalculator::create)
+        .def("with_returns", &PerformanceMetricsCalculator::withReturns,
+             py::return_value_policy::reference_internal)
+        .def("with_risk_free_rate", &PerformanceMetricsCalculator::withRiskFreeRate,
+             py::return_value_policy::reference_internal)
+        .def("with_period", &PerformanceMetricsCalculator::withPeriod,
+             py::return_value_policy::reference_internal)
+        .def("with_target_return", &PerformanceMetricsCalculator::withTargetReturn,
+             py::return_value_policy::reference_internal)
+        .def("calculate", [](PerformanceMetricsCalculator const& calc) {
+            auto result = calc.calculate();
+            if (!result) {
+                throw std::runtime_error("Performance metrics calculation failed");
+            }
+            return *result;
+        })
+        .def_static("from_equity_curve",
+            [](std::vector<double> const& equity, double rfr) {
+                auto result = PerformanceMetricsCalculator::fromEquityCurve(equity, rfr);
+                if (!result) {
+                    throw std::runtime_error("Equity curve analysis failed");
+                }
+                return *result;
+            },
+            py::arg("equity"), py::arg("rfr") = 0.0);
+
+    // ========================================================================
+    // Correlation Analyzer
+    // ========================================================================
+
+    py::class_<CorrelationMatrix>(m, "CorrelationMatrix")
+        .def_readonly("symbols", &CorrelationMatrix::symbols)
+        .def_readonly("matrix", &CorrelationMatrix::matrix)
+        .def_readonly("dimension", &CorrelationMatrix::dimension)
+        .def("get_correlation", &CorrelationMatrix::getCorrelation)
+        .def("is_valid", &CorrelationMatrix::isValid);
+
+    py::class_<DiversificationMetrics>(m, "DiversificationMetrics")
+        .def_readonly("avg_correlation", &DiversificationMetrics::avg_correlation)
+        .def_readonly("max_correlation", &DiversificationMetrics::max_correlation)
+        .def_readonly("min_correlation", &DiversificationMetrics::min_correlation)
+        .def_readonly("diversification_ratio", &DiversificationMetrics::diversification_ratio)
+        .def_readonly("concentration_index", &DiversificationMetrics::concentration_index)
+        .def_readonly("highly_correlated_pairs", &DiversificationMetrics::highly_correlated_pairs)
+        .def("is_diversified", &DiversificationMetrics::isDiversified)
+        .def("get_rating", &DiversificationMetrics::getRating);
+
+    py::class_<CorrelationAnalyzer>(m, "CorrelationAnalyzer")
+        .def_static("create", &CorrelationAnalyzer::create)
+        .def("add_series", &CorrelationAnalyzer::addSeries,
+             py::return_value_policy::reference_internal)
+        .def("clear_series", &CorrelationAnalyzer::clearSeries,
+             py::return_value_policy::reference_internal)
+        .def("compute_correlation_matrix", [](CorrelationAnalyzer const& analyzer) {
+            auto result = analyzer.computeCorrelationMatrix();
+            if (!result) {
+                throw std::runtime_error("Correlation matrix computation failed");
+            }
+            return *result;
+        })
+        .def("analyze_diversification", [](CorrelationAnalyzer const& analyzer,
+                                          std::vector<double> const& weights) {
+            auto result = analyzer.analyzeDiversification(weights);
+            if (!result) {
+                throw std::runtime_error("Diversification analysis failed");
+            }
+            return *result;
+        })
+        .def("find_highly_correlated_pairs", &CorrelationAnalyzer::findHighlyCorrelatedPairs,
+             py::arg("threshold") = 0.7)
+        .def("compute_rolling_correlation", [](CorrelationAnalyzer const& analyzer,
+                                              std::string const& sym1,
+                                              std::string const& sym2,
+                                              size_t window_size) {
+            auto result = analyzer.computeRollingCorrelation(sym1, sym2, window_size);
+            if (!result) {
+                throw std::runtime_error("Rolling correlation computation failed");
+            }
+            return *result;
+        });
 }

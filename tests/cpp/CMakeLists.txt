@@ -34,6 +34,22 @@ if(GTest_FOUND)
 
     add_test(NAME CorrelationTests COMMAND test_correlation)
 
+    # Risk Management Modules Tests
+    add_executable(test_risk_modules
+        test_risk_modules.cpp
+    )
+
+    target_link_libraries(test_risk_modules
+        PRIVATE
+        risk_management
+        options_pricing
+        utils
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    add_test(NAME RiskModulesTests COMMAND test_risk_modules)
+
     # Schwab API Integration Tests
     add_executable(test_order_manager_integration
         test_order_manager_integration.cpp
