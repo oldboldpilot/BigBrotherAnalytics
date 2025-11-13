@@ -1177,6 +1177,216 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
+## 14. Memory Safety Validation with Valgrind
+
+**Rule:** All C++ code must pass Valgrind memory leak detection with zero leaks.
+
+### Valgrind Requirements
+
+**Mandatory for:**
+- New C++ modules and libraries
+- Performance-critical hot paths
+- Multi-threaded code
+- SIMD-accelerated code
+- External library integrations
+
+**Testing Frequency:**
+- Weekly automated runs in CI/CD
+- Before major releases
+- After adding new dependencies
+- When debugging memory issues
+
+### Valgrind Configuration
+
+**Tool Version:** Valgrind v3.24.0 (built from source with Clang 21)
+
+**Installation:**
+```bash
+# Automated via Ansible playbook (Section 4.8)
+ansible-playbook playbooks/complete-tier1-setup.yml
+
+# Manual build (if needed)
+cd /tmp
+wget https://sourceware.org/pub/valgrind/valgrind-3.24.0.tar.bz2
+tar -xjf valgrind-3.24.0.tar.bz2
+cd valgrind-3.24.0
+./autogen.sh
+./configure --prefix=/usr/local --enable-only64bit \
+    CC=/usr/local/bin/clang \
+    CXX=/usr/local/bin/clang++
+make -j$(nproc)
+sudo make install
+
+# Install debug symbols (CRITICAL for function redirection)
+sudo apt-get install libc6-dbg          # Ubuntu
+sudo dnf install glibc-debuginfo        # RHEL
+```
+
+### Running Memory Leak Tests
+
+**Automated Test Script:**
+```bash
+# Run comprehensive memory safety validation
+./benchmarks/run_valgrind_tests.sh
+```
+
+**Manual Tests:**
+```bash
+# Test 1: Unit tests memory leak detection
+valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --error-exitcode=1 \
+         ./build/bin/your_unit_tests
+
+# Test 2: Benchmark memory leak detection
+valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --error-exitcode=1 \
+         ./build/bin/your_benchmark \
+             --benchmark_min_time=0.01
+
+# Test 3: Thread safety validation
+valgrind --tool=helgrind \
+         --error-exitcode=1 \
+         ./build/bin/your_unit_tests \
+             --gtest_filter="*Thread*"
+```
+
+### Acceptance Criteria
+
+**Memory Leak Tests (memcheck):**
+```
+LEAK SUMMARY:
+   definitely lost: 0 bytes in 0 blocks     ✅ REQUIRED
+   indirectly lost: 0 bytes in 0 blocks     ✅ REQUIRED
+     possibly lost: 0 bytes in 0 blocks     ✅ REQUIRED
+   still reachable: < 1KB in < 10 blocks    ⚠️  Acceptable (library internals)
+        suppressed: 0 bytes in 0 blocks     ✅ REQUIRED
+```
+
+**Thread Safety Tests (helgrind):**
+- **0 real data races** (application code)
+- Helgrind warnings from libc++ thread_local are **false positives** (acceptable)
+- Pattern to ignore: `std::__1::__thread_local_data()`
+
+### Known False Positives
+
+**1. libc++ Thread-Local Storage**
+```
+Possible data race during read of size [1,4,8] at ... std::__1::__thread_local_data()
+```
+**Status:** Expected behavior, NOT a real race condition
+
+**2. Google Benchmark "Still Reachable"**
+```
+still reachable: 272 bytes in 4 blocks
+```
+**Status:** Internal benchmark state, NOT a memory leak
+
+### Integration with CI/CD
+
+**GitHub Actions Workflow:**
+```yaml
+- name: Valgrind Memory Leak Tests
+  run: |
+    ./benchmarks/run_valgrind_tests.sh
+  timeout-minutes: 15
+  # Note: Valgrind is slow (5-10x overhead)
+```
+
+**Pre-Commit Hook (Optional):**
+```bash
+# .git/hooks/pre-commit
+if [[ $(git diff --cached --name-only | grep -E '\.(cpp|cppm|hpp)$') ]]; then
+    echo "Running Valgrind quick check..."
+    valgrind --leak-check=full --error-exitcode=1 ./build/bin/quick_test
+fi
+```
+
+### Documentation Requirements
+
+**When adding new modules:**
+1. Run Valgrind validation tests
+2. Document results in module README
+3. Add test to `run_valgrind_tests.sh` if needed
+4. Update memory safety report
+
+**Memory Safety Report Location:**
+- `docs/VALGRIND_MEMORY_SAFETY_REPORT.md`
+
+### Thread Safety Best Practices
+
+**Use thread_local for non-thread-safe libraries:**
+```cpp
+// ✅ Correct: thread_local for simdjson parser
+thread_local simdjson::ondemand::parser parser;
+
+// ❌ Wrong: Shared parser across threads
+static simdjson::ondemand::parser parser;  // Race condition!
+```
+
+**Avoid shared mutable state:**
+```cpp
+// ✅ Correct: Each thread has isolated state
+auto processData(std::string_view json) -> Result<Data> {
+    thread_local Parser parser;  // Thread-isolated
+    return parser.parse(json);
+}
+
+// ❌ Wrong: Shared mutable state
+static Parser shared_parser;  // Data race!
+auto processData(std::string_view json) -> Result<Data> {
+    std::lock_guard lock(mutex);  // Performance bottleneck
+    return shared_parser.parse(json);
+}
+```
+
+### Performance Impact
+
+**Valgrind Overhead:**
+- **10-20x slowdown** during memory checking
+- **Not suitable for production** (development/testing only)
+- **CI/CD recommendation:** Weekly runs, not every commit
+
+**Native Linux vs WSL:**
+- **Native Linux:** 5-10 minutes for full test suite
+- **WSL2:** 30-60 minutes (use native Linux for CI/CD)
+
+### Troubleshooting
+
+**Error: "valgrind: Fatal error at startup: a function redirection..."**
+```bash
+# Solution: Install glibc debug symbols
+sudo apt-get install libc6-dbg          # Ubuntu
+sudo dnf install glibc-debuginfo        # RHEL
+```
+
+**Error: "Cannot find suitable architecture"**
+```bash
+# Solution: Rebuild Valgrind with matching compiler
+./configure --enable-only64bit CC=/usr/local/bin/clang CXX=/usr/local/bin/clang++
+```
+
+**Too Many False Positives:**
+```bash
+# Create suppression file
+valgrind --leak-check=full --gen-suppressions=all ./your_binary 2>&1 | tee valgrind.supp
+
+# Use suppressions
+valgrind --suppressions=valgrind.supp ./your_binary
+```
+
+### References
+
+- **Valgrind Manual:** https://valgrind.org/docs/manual/manual.html
+- **Helgrind Thread Safety:** https://valgrind.org/docs/manual/hg-manual.html
+- **Memory Safety Report:** [VALGRIND_MEMORY_SAFETY_REPORT.md](VALGRIND_MEMORY_SAFETY_REPORT.md)
+- **Test Script:** [benchmarks/run_valgrind_tests.sh](../benchmarks/run_valgrind_tests.sh)
+
+---
+
 **Author:** Olumuyiwa Oluwasanmi
-**Last Updated:** 2025-11-10
-**Version:** 1.2.0
+**Last Updated:** 2025-11-12
+**Version:** 1.3.0

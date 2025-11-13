@@ -54,6 +54,15 @@
 - **CUDA C++ Kernels:** Available for native GPU acceleration (100-1000x potential speedup)
 - **Tensor Cores:** RTX 4070 supports FP16/BF16 mixed precision (2-4x additional boost)
 
+**Memory Safety & Validation:**
+- **Valgrind v3.24.0:** Memory leak detection and thread safety validation (ACTIVE)
+  - Built from source with Clang 21 support
+  - Zero memory leaks detected across all C++ modules
+  - 23 unit tests + 8 benchmarks validated
+  - Thread-safe thread_local pattern for simdjson
+  - Report: `docs/VALGRIND_MEMORY_SAFETY_REPORT.md`
+  - Test script: `benchmarks/run_valgrind_tests.sh`
+
 ## Critical Principles
 
 1. **DuckDB-First:** Zero setup time. PostgreSQL ONLY after proving profitability.
