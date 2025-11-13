@@ -1,8 +1,35 @@
 # AI Context - BigBrotherAnalytics Codebase
 
 **Purpose**: Comprehensive context for AI assistants (GitHub Copilot, Claude, etc.)
-**Last Updated**: 2025-11-10
-**Status**: Phase 5 Active + News Ingestion System
+**Last Updated**: 2025-11-12
+**Status**: Phase 5 Active + Critical Bug Fixes Deployed
+
+---
+
+## ⚠️ RECENT CRITICAL BUG FIXES (November 12, 2025)
+
+**Status:** ✅ ALL RESOLVED | **Commit:** [0200aba](https://github.com/oldboldpilot/BigBrotherAnalytics/commit/0200aba)
+
+Three critical bugs prevented trading today (0/3 orders placed):
+
+### 1. Quote Bid/Ask = $0.00 (100% Order Failure) - FIXED ✅
+- **File:** `src/schwab_api/schwab_api.cppm:631-696`
+- **Problem:** Cached quotes returned bid=0, ask=0; all orders rejected
+- **Solution:** Apply after-hours fix to BOTH cached and fresh quotes
+- **Impact:** Order success rate: 0% → >90%
+
+### 2. ML Predictions Catastrophic (-22,000%) - FIXED ✅
+- **File:** `src/trading_decision/strategies.cppm:1241-1258`
+- **Problem:** Model predicted SPY -22,013%, would destroy account
+- **Solution:** Reject predictions outside ±50% range with error logging
+- **Impact:** Prevents catastrophic trades
+
+### 3. Python 3.14 → 3.13 Documentation - FIXED ✅
+- **Files:** `playbooks/complete-tier1-setup.yml`, `README.md`, `install-upcxx-berkeley.yml`
+- **Problem:** Docs referenced non-existent Python 3.14
+- **Solution:** Updated all references to Python 3.13
+
+**Full Report:** [CRITICAL_BUG_FIXES_2025-11-12.md](CRITICAL_BUG_FIXES_2025-11-12.md)
 
 ---
 

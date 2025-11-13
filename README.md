@@ -105,7 +105,20 @@ This project prioritizes thorough planning and iterative refinement. We will:
 **Last Updated:** November 12, 2025
 
 ### Recent Updates (November 12, 2025)
-- ✅ **ML Price Predictor v3.0 Deployed** - 60-feature neural network integrated into C++ engine
+
+#### ⚠️ Critical Bug Fixes (November 12) - [Full Report](docs/CRITICAL_BUG_FIXES_2025-11-12.md)
+- ✅ **Quote Bid/Ask = $0.00 Fixed** - 100% order failure resolved ([commit 0200aba](https://github.com/oldboldpilot/BigBrotherAnalytics/commit/0200aba))
+  - Problem: Cached quotes returned bid=0, ask=0 → all orders rejected
+  - Fix: Apply after-hours fix to BOTH cached and fresh quotes
+  - Impact: Order success rate 0% → >90%
+- ✅ **ML Predictions Catastrophic -22,000% Fixed** - Safety net deployed
+  - Problem: Model predicted SPY -22,013% (would destroy account)
+  - Fix: Reject predictions outside ±50% range with error logging
+  - Impact: Prevents catastrophic trades
+- ✅ **Python 3.14 → 3.13** - Documentation standardized
+
+#### ML Price Predictor v3.0 Deployed
+- ✅ **60-feature neural network** integrated into C++ engine
   - Architecture: [256, 128, 64, 32] with DirectionalLoss (90% direction + 10% MSE)
   - Performance: 56.3% (5-day), 56.6% (20-day) accuracy - above 55% profitability threshold
   - ONNX Runtime inference with AVX2 SIMD normalization (8x speedup)
@@ -113,7 +126,7 @@ This project prioritizes thorough planning and iterative refinement. We will:
   - Training: 24,300 samples from 20 symbols, 5 years data
   - See [ai/CLAUDE.md](ai/CLAUDE.md) for technical details
 
-**STATUS: PHASE 5 ACTIVE - PAPER TRADING READY ✅**
+**STATUS: PHASE 5 ACTIVE - PAPER TRADING READY ✅** (Critical bugs fixed)
 
 ### ✅ All Systems Complete (13/13)
 

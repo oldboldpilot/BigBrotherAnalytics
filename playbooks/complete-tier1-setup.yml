@@ -10,7 +10,7 @@
 #   - OpenMP, OpenMPI 5.x
 #   - UPC++ 2024.3.0 and GASNet-EX (PGAS)
 #   - Intel MKL (Math Kernel Library)
-#   - NVIDIA CUDA 12.3+ (if GPU present)
+#   - NVIDIA CUDA 13.0 (if GPU present)
 #   - DuckDB (via Python) - PRIMARY DATABASE FOR TIER 1
 #   - simdjson v4.2.1 (3-32x faster JSON parsing)
 #   - Google Benchmark v1.9.1 (performance validation)

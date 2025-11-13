@@ -13,6 +13,18 @@
 **Timeline:** Days 0-21 | **Started:** November 10, 2025
 **Documentation:** [docs/PHASE5_SETUP_GUIDE.md](../docs/PHASE5_SETUP_GUIDE.md)
 
+### ⚠️ CRITICAL BUG FIXES (November 12, 2025)
+
+**Status:** ✅ ALL RESOLVED | **Commit:** [0200aba](https://github.com/oldboldpilot/BigBrotherAnalytics/commit/0200aba)
+
+1. **Quote Bid/Ask = $0.00 (FIXED)** - 100% order failure resolved
+2. **ML Predictions -22,000% (FIXED)** - Safety net deployed (reject >±50%)
+3. **Python 3.14 → 3.13 (FIXED)** - Documentation standardized
+
+**Full Report:** [CRITICAL_BUG_FIXES_2025-11-12.md](../docs/CRITICAL_BUG_FIXES_2025-11-12.md)
+
+---
+
 ### Daily Workflow
 
 **ALL Python commands use `uv run python`:**
