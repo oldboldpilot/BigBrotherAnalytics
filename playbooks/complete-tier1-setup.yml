@@ -806,10 +806,10 @@
         - nvidia_check.rc == 0
 
     # ═══════════════════════════════════════════════════════════
-    # SECTION 7: Python 3.14+ and uv Package Manager
+    # SECTION 7: Python 3.13+ and uv Package Manager
     # ═══════════════════════════════════════════════════════════
 
-    - name: Install Python 3.14 and uv via Homebrew
+    - name: Install Python 3.13 and uv via Homebrew
       homebrew:
         name:
           - python@{{ python_version }}

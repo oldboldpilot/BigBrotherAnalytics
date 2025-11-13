@@ -39,7 +39,7 @@
           - gcc@15
           - binutils
           - open-mpi
-          - python@3.14
+          - python@3.13
         state: latest
       become_user: "{{ ansible_user_id }}"
 

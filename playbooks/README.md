@@ -41,8 +41,8 @@ This directory contains Ansible playbooks for automated deployment and configura
 - Redis (cache)
 - DuckDB (via Python)
 
-**Python 3.14+ Environment:**
-- Python 3.14 via Homebrew
+**Python 3.13+ Environment:**
+- Python 3.13 via Homebrew
 - uv (ultra-fast package manager)
 - Virtual environment created
 - All dependencies installed
@@ -108,7 +108,7 @@ source .venv/bin/activate
 
 **Technology Versions:**
 - CUDA: **13.0** (latest)
-- Python: **3.14** (via Homebrew)
+- Python: **3.13** (via Homebrew)
 - Package Manager: **uv** (NOT pip - 10-100x faster)
 - GCC: **15** (C++23)
 - PostgreSQL: **16**
@@ -166,7 +166,7 @@ ansible-playbook playbooks/uninstall-tier1.yml -e "keep_homebrew=true keep_data=
 Complete Tier 1 development environment setup including:
 - Homebrew installation and configuration
 - GCC 15+ with C++23 support
-- Python 3.14+ with uv package manager
+- Python 3.13+ with uv package manager
 - OpenMPI 5.x
 - **UPC++ and Berkeley Distributed Components (PGAS)**
 - PostgreSQL 16+ with extensions

@@ -629,46 +629,70 @@ class MarketDataClient {
      * GET /marketdata/v1/quotes
      */
     [[nodiscard]] auto getQuote(std::string const& symbol) -> Result<Quote> {
+        Quote quote;
+        bool from_cache = false;
+
         // Check cache first
         auto cache_key = "quote:" + symbol;
         auto cached = cache_->get<Quote>(cache_key);
         if (cached) {
             Logger::getInstance().debug("Cache hit for quote: {}", symbol);
-            return *cached;
+            quote = *cached;
+            from_cache = true;
+        } else {
+            // Acquire rate limit permit
+            auto permit = rate_limiter_->acquirePermit();
+            if (!permit)
+                return std::unexpected(permit.error());
+
+            // Get access token
+            auto token = token_mgr_->getAccessToken();
+            if (!token)
+                return std::unexpected(token.error());
+
+            // Build URL
+            std::string url =
+                std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/quotes?symbols=" + symbol;
+
+            // Make request
+            std::vector<std::string> headers = {"Authorization: Bearer " + *token,
+                                                "Accept: application/json"};
+
+            auto response = http_client_->get(url, headers);
+            if (!response)
+                return std::unexpected(response.error());
+
+            // Parse response with simdjson (2.5x faster)
+            auto quote_result = parseQuoteFromSimdJson(*response, symbol);
+            if (!quote_result)
+                return std::unexpected(quote_result.error());
+
+            quote = *quote_result;
+
+            // Cache result
+            cache_->set(cache_key, quote, CACHE_TTL_QUOTE);
+
+            Logger::getInstance().info("Fetched quote for {}: ${:.2f}", symbol, quote.last);
         }
 
-        // Acquire rate limit permit
-        auto permit = rate_limiter_->acquirePermit();
-        if (!permit)
-            return std::unexpected(permit.error());
+        // CRITICAL FIX: Apply after-hours bid/ask fix for BOTH cached and fresh quotes
+        // This ensures we never return quotes with 0.0 bid/ask
+        if ((quote.bid <= 0.0 || quote.ask <= 0.0) && quote.last > 0.0) {
+            if (!from_cache) {
+                Logger::getInstance().info(
+                    "Market closed for {} - using last price ${:.2f} for bid/ask", symbol, quote.last);
+            }
+            quote.bid = quote.last;
+            quote.ask = quote.last;
+        }
 
-        // Get access token
-        auto token = token_mgr_->getAccessToken();
-        if (!token)
-            return std::unexpected(token.error());
+        // Final validation: ensure we have valid price data
+        if (quote.last <= 0.0 && quote.bid <= 0.0 && quote.ask <= 0.0) {
+            return makeError<Quote>(ErrorCode::InvalidParameter,
+                "Quote contains no valid price data for symbol: " + symbol);
+        }
 
-        // Build URL
-        std::string url =
-            std::string(SCHWAB_API_BASE_URL) + "/marketdata/v1/quotes?symbols=" + symbol;
-
-        // Make request
-        std::vector<std::string> headers = {"Authorization: Bearer " + *token,
-                                            "Accept: application/json"};
-
-        auto response = http_client_->get(url, headers);
-        if (!response)
-            return std::unexpected(response.error());
-
-        // Parse response with simdjson (2.5x faster)
-        auto quote = parseQuoteFromSimdJson(*response, symbol);
-        if (!quote)
-            return std::unexpected(quote.error());
-
-        // Cache result
-        cache_->set(cache_key, *quote, CACHE_TTL_QUOTE);
-
-        Logger::getInstance().info("Fetched quote for {}: ${:.2f}", symbol, quote->last);
-        return *quote;
+        return quote;
     }
 
     /**

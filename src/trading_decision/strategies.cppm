@@ -1238,6 +1238,25 @@ class MLPredictorStrategy : public IStrategy {
                 continue;
             }
 
+            // CRITICAL: Sanity check predictions to catch model errors
+            // Reject predictions outside reasonable range (-50% to +50%)
+            constexpr double MAX_REASONABLE_CHANGE = 0.50;  // 50%
+            bool prediction_invalid =
+                std::abs(prediction->day_1_change) > MAX_REASONABLE_CHANGE ||
+                std::abs(prediction->day_5_change) > MAX_REASONABLE_CHANGE ||
+                std::abs(prediction->day_20_change) > MAX_REASONABLE_CHANGE;
+
+            if (prediction_invalid) {
+                Logger::getInstance().error(
+                    "REJECTED: Nonsensical prediction for {} (1d={:.2f}%, 5d={:.2f}%, 20d={:.2f}%) - exceeds +/-50% threshold",
+                    symbol,
+                    prediction->day_1_change * 100,
+                    prediction->day_5_change * 100,
+                    prediction->day_20_change * 100
+                );
+                continue;  // Skip this nonsensical prediction
+            }
+
             // Get overall signal
             auto signal_type = prediction->getOverallSignal();
 
