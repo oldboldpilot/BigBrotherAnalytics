@@ -12,6 +12,8 @@
 #   - Intel MKL (Math Kernel Library)
 #   - NVIDIA CUDA 12.3+ (if GPU present)
 #   - DuckDB (via Python) - PRIMARY DATABASE FOR TIER 1
+#   - simdjson v4.2.1 (3-32x faster JSON parsing)
+#   - Google Benchmark v1.9.1 (performance validation)
 #   - Redis cache (optional, for caching)
 #   - PyTorch with CUDA support
 #   - Hugging Face Transformers
@@ -463,6 +465,56 @@
         state: latest
       when: ansible_os_family == "RedHat"
       ignore_errors: yes  # May not be available in all repos
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4.7: simdjson + Google Benchmark (SIMD JSON Parsing)
+    # ═══════════════════════════════════════════════════════════
+    # Build simdjson v4.2.1 and Google Benchmark v1.9.1 from source with libc++
+    # Required for 3-32x faster JSON parsing in hot paths (quote/news/account data)
+    # Google Benchmark needed for performance validation
+
+    - name: Build and install simdjson v4.2.1 from source
+      shell: |
+        cd /tmp
+        rm -rf simdjson
+        git clone https://github.com/simdjson/simdjson.git
+        cd simdjson
+        git checkout v4.2.1
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++ \
+          -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DSIMDJSON_DEVELOPER_MODE=OFF
+        cmake --build build -j {{ num_build_jobs }}
+        cmake --install build
+        ldconfig
+      args:
+        creates: /usr/local/lib/libsimdjson.so
+      become_user: root
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+
+    - name: Build and install Google Benchmark v1.9.1 from source
+      shell: |
+        cd /tmp
+        rm -rf benchmark
+        git clone https://github.com/google/benchmark.git
+        cd benchmark
+        git checkout v1.9.1
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++ \
+          -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+          -DBENCHMARK_ENABLE_TESTING=OFF \
+          -DBENCHMARK_ENABLE_GTEST_TESTS=OFF
+        cmake --build build -j {{ num_build_jobs }}
+        cmake --install build
+      args:
+        creates: /usr/local/lib/libbenchmark.a
+      become_user: root
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
 
     - name: Create Berkeley components directory
       file:
