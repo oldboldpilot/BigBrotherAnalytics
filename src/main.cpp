@@ -30,17 +30,20 @@
  */
 
 // Standard library includes MUST come before module imports to avoid libc++ header conflicts
+// NOTE: Minimal header set to avoid transitive chrono includes that conflict with C++23 modules
 #include <atomic>
-#include <chrono>
 #include <csignal>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <thread>
+#include <ctime>  // For time_t, needed for token parsing
+
+// Core string types - MUST be included before modules for ABI compatibility
 #include <string>
 #include <string_view>
-#include <thread>
 
 // Module imports
 import bigbrother.utils.logger;
@@ -284,8 +287,9 @@ class TradingEngine {
         strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
         // Add default strategies
-        strategy_manager_->addStrategy(
-            strategies::createMLPredictorStrategy()); // AI-powered predictions
+        // TEMPORARY: ML strategy disabled due to quote lookup crash (corrupted symbols from JSON parsing)
+        // strategy_manager_->addStrategy(
+        //     strategies::createMLPredictorStrategy()); // AI-powered predictions
         strategy_manager_->addStrategy(strategies::createStraddleStrategy());
         strategy_manager_->addStrategy(strategies::createStrangleStrategy());
         strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());
