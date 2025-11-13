@@ -24,20 +24,12 @@
  *   ./bigbrother --config configs/config.yaml
  *   ./bigbrother --config configs/config.yaml --paper-trading
  *   ./bigbrother --backtest --start 2020-01-01 --end 2024-01-01
+ *
+ * Author: Olumuyiwa Oluwasanmi
+ * Date: 2025-11-13
  */
 
-import bigbrother.utils.logger;
-import bigbrother.utils.config;
-import bigbrother.utils.database;
-import bigbrother.utils.timer;
-import bigbrother.options.pricing;
-import bigbrother.correlation;
-import bigbrother.risk_management;
-import bigbrother.schwab_api;
-import bigbrother.strategy;
-import bigbrother.strategies;
-import bigbrother.employment.signals;
-
+// Standard library includes MUST come before module imports to avoid libc++ header conflicts
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -49,6 +41,19 @@ import bigbrother.employment.signals;
 #include <string>
 #include <string_view>
 #include <thread>
+
+// Module imports
+import bigbrother.utils.logger;
+import bigbrother.utils.config;
+import bigbrother.utils.database;
+import bigbrother.utils.timer;
+import bigbrother.options.pricing;
+import bigbrother.correlation;
+import bigbrother.risk_management;
+import bigbrother.schwab_api;
+import bigbrother.strategy;
+import bigbrother.strategies;
+import bigbrother.employment.signals;
 
 using namespace bigbrother;
 
@@ -92,6 +97,35 @@ class TradingEngine {
         // Note: Config::load() is a stub - config values are hardcoded in config.cppm
         // This avoids C++23 module/YAML-cpp linker issues
         // TODO: Implement proper YAML loading after module system stabilizes
+
+        // Load risk limits from config
+        risk_limits_.account_value = config_.get<double>("risk.account_value", 30000.0);
+        risk_limits_.max_daily_loss = config_.get<double>("risk.max_daily_loss", 900.0);
+        risk_limits_.max_position_size = config_.get<double>("risk.max_position_size", 1500.0);
+        risk_limits_.max_concurrent_positions =
+            config_.get<int>("risk.max_concurrent_positions", 10);
+        risk_limits_.max_portfolio_heat = config_.get<double>("risk.max_portfolio_heat", 0.15);
+        risk_limits_.max_correlation_exposure =
+            config_.get<double>("risk.max_correlation_exposure", 0.30);
+        risk_limits_.require_stop_loss = config_.get<bool>("risk.require_stop_loss", true);
+
+        // Update risk manager with configured limits using fluent API
+        risk_manager_.withLimits(risk_limits_);
+
+        utils::Logger::getInstance().info("Risk Limits configured:");
+        utils::Logger::getInstance().info("  Account Value: ${:.2f}", risk_limits_.account_value);
+        utils::Logger::getInstance().info(
+            "  Max Daily Loss: ${:.2f} ({:.1f}%)", risk_limits_.max_daily_loss,
+            (risk_limits_.max_daily_loss / risk_limits_.account_value) * 100.0);
+        utils::Logger::getInstance().info(
+            "  Max Position Size: ${:.2f} ({:.1f}%)", risk_limits_.max_position_size,
+            (risk_limits_.max_position_size / risk_limits_.account_value) * 100.0);
+        utils::Logger::getInstance().info("  Max Concurrent Positions: {}",
+                                          risk_limits_.max_concurrent_positions);
+        utils::Logger::getInstance().info("  Max Portfolio Heat: {:.1f}%",
+                                          risk_limits_.max_portfolio_heat * 100.0);
+        utils::Logger::getInstance().info("  Require Stop Loss: {}",
+                                          risk_limits_.require_stop_loss ? "Yes" : "No");
 
         // Initialize logger
         auto const log_file = config_.get<std::string>("logging.file", "logs/bigbrother.log");
@@ -166,22 +200,28 @@ class TradingEngine {
         oauth_config.redirect_uri = redirect_uri;
 
         // Load OAuth token from file
-        auto const token_file = config_.get<std::string>("schwab.token_file", "configs/schwab_tokens.json");
+        auto const token_file =
+            config_.get<std::string>("schwab.token_file", "configs/schwab_tokens.json");
         utils::Logger::getInstance().info("Loading OAuth token from: {}", token_file);
 
         // Simple JSON parsing without nlohmann (to avoid module conflicts)
-        auto extract_json_string_value = [](std::string const& json, std::string const& key) -> std::string {
+        auto extract_json_string_value = [](std::string const& json,
+                                            std::string const& key) -> std::string {
             auto key_pos = json.find("\"" + key + "\"");
-            if (key_pos == std::string::npos) return "";
+            if (key_pos == std::string::npos)
+                return "";
 
             auto colon_pos = json.find(":", key_pos);
-            if (colon_pos == std::string::npos) return "";
+            if (colon_pos == std::string::npos)
+                return "";
 
             auto quote1_pos = json.find("\"", colon_pos);
-            if (quote1_pos == std::string::npos) return "";
+            if (quote1_pos == std::string::npos)
+                return "";
 
             auto quote2_pos = json.find("\"", quote1_pos + 1);
-            if (quote2_pos == std::string::npos) return "";
+            if (quote2_pos == std::string::npos)
+                return "";
 
             return json.substr(quote1_pos + 1, quote2_pos - quote1_pos - 1);
         };
@@ -190,7 +230,8 @@ class TradingEngine {
             std::ifstream token_stream(token_file);
             if (!token_stream) {
                 utils::Logger::getInstance().error("Failed to open token file: {}", token_file);
-                utils::Logger::getInstance().warn("Continuing without OAuth token - API calls will fail with 401");
+                utils::Logger::getInstance().warn(
+                    "Continuing without OAuth token - API calls will fail with 401");
             } else {
                 std::string token_json((std::istreambuf_iterator<char>(token_stream)),
                                        std::istreambuf_iterator<char>());
@@ -209,19 +250,30 @@ class TradingEngine {
 
                 auto expires_at_str = extract_json_string_value(token_json, "expires_at");
                 if (!expires_at_str.empty()) {
-                    // Parse ISO 8601 timestamp (format: "2025-11-11T01:06:48+00:00")
-                    std::tm tm = {};
-                    std::istringstream ss(expires_at_str);
-                    ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
-                    if (!ss.fail()) {
-                        oauth_config.token_expiry = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                        utils::Logger::getInstance().info("Token expires at: {}", expires_at_str);
+                    try {
+                        // Parse as Unix timestamp (integer)
+                        auto expires_timestamp = std::stoll(expires_at_str);
+                        oauth_config.token_expiry =
+                            std::chrono::system_clock::from_time_t(expires_timestamp);
+
+                        // Calculate time remaining
+                        auto now = std::chrono::system_clock::now();
+                        auto time_remaining = std::chrono::duration_cast<std::chrono::minutes>(
+                            oauth_config.token_expiry - now);
+
+                        utils::Logger::getInstance().info(
+                            "Token expires in {} minutes (timestamp: {})", time_remaining.count(),
+                            expires_timestamp);
+                    } catch (std::exception const& e) {
+                        utils::Logger::getInstance().warn("Failed to parse expires_at: {}",
+                                                          e.what());
                     }
                 }
             }
         } catch (std::exception const& e) {
             utils::Logger::getInstance().error("Failed to parse token file: {}", e.what());
-            utils::Logger::getInstance().warn("Continuing without OAuth token - API calls will fail with 401");
+            utils::Logger::getInstance().warn(
+                "Continuing without OAuth token - API calls will fail with 401");
         }
 
         schwab_client_ = std::make_unique<schwab::SchwabClient>(oauth_config);
@@ -232,7 +284,8 @@ class TradingEngine {
         strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
         // Add default strategies
-        strategy_manager_->addStrategy(strategies::createMLPredictorStrategy());  // AI-powered predictions
+        strategy_manager_->addStrategy(
+            strategies::createMLPredictorStrategy()); // AI-powered predictions
         strategy_manager_->addStrategy(strategies::createStraddleStrategy());
         strategy_manager_->addStrategy(strategies::createStrangleStrategy());
         strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());
@@ -362,13 +415,11 @@ class TradingEngine {
         if (portfolio_risk) {
             utils::Logger::getInstance().info(
                 "Risk Metrics - VaR(95%): {:.2f}%, Sharpe: {:.2f}, Daily P&L: ${:.2f}",
-                portfolio_risk->var_95 * 100.0,
-                portfolio_risk->sharpe_ratio,
-                portfolio_risk->daily_pnl
-            );
+                portfolio_risk->var_95 * 100.0, portfolio_risk->sharpe_ratio,
+                portfolio_risk->daily_pnl);
 
             // Check VaR breach (halt trading if risk too high)
-            if (risk_manager_.isVaRBreached(-0.03)) {  // -3% daily VaR threshold
+            if (risk_manager_.isVaRBreached(-0.03)) { // -3% daily VaR threshold
                 utils::Logger::getInstance().critical(
                     "═══════════════════════════════════════════════════════");
                 utils::Logger::getInstance().critical(
@@ -389,8 +440,7 @@ class TradingEngine {
             if (!risk_manager_.isSharpeAcceptable(1.0)) {
                 utils::Logger::getInstance().warn(
                     "⚠️  Sharpe ratio below target: {:.2f} < 1.0 (poor risk-adjusted returns)",
-                    portfolio_risk->sharpe_ratio
-                );
+                    portfolio_risk->sharpe_ratio);
             }
 
             // Check daily loss limit
@@ -654,7 +704,7 @@ class TradingEngine {
         // Get account value from Schwab API
         auto balance_result = schwab_client_->account().getBalance();
         if (!balance_result) {
-            return 0.0;  // Return neutral if can't get balance
+            return 0.0; // Return neutral if can't get balance
         }
 
         auto const current_value = balance_result->total_value;
@@ -663,7 +713,7 @@ class TradingEngine {
         auto const previous_value = config_.get<double>("account.previous_value", current_value);
 
         if (previous_value < 1e-6) {
-            return 0.0;  // Avoid division by zero
+            return 0.0; // Avoid division by zero
         }
 
         // Daily return = (current - previous) / previous

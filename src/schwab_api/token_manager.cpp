@@ -10,8 +10,10 @@
 module;
 
 #include <atomic>
+#include <cstring>
 #include <curl/curl.h>
 #include <duckdb.hpp>
+#include <errno.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -20,7 +22,10 @@ module;
 #include <openssl/sha.h>
 #include <random>
 #include <sstream>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <thread>
+#include <unistd.h>
 
 // Module implementation unit declaration
 module bigbrother.schwab_api;
@@ -207,7 +212,7 @@ auto generateCodeChallenge(std::string const& verifier) -> std::string {
 class TokenManager::Impl {
   public:
     explicit Impl(OAuth2Config config)
-        : config_{std::move(config)}, refresh_thread_running_{false},
+        : config_{std::move(config)}, refresh_thread_running_{false}, socket_thread_running_{false},
           db_path_{"data/bigbrother.duckdb"} {
 
         // Initialize CURL
@@ -216,15 +221,19 @@ class TokenManager::Impl {
         // Initialize DuckDB connection and schema
         initializeDatabase();
 
+        // Start socket server to receive token updates from Python
+        startSocketServer();
+
         // Auto-start refresh thread if tokens are already present
         // This ensures 25-minute automatic refresh even when loading from file
         if (!config_.access_token.empty() && !config_.refresh_token.empty()) {
-            LOG_INFO("Tokens detected in config - starting automatic 25-minute refresh thread");
+            LOG_INFO("Tokens detected in config - starting file reload thread");
             startRefreshThread();
         }
     }
 
     ~Impl() {
+        stopSocketServer();
         stopRefreshThread();
         curl_global_cleanup();
     }
@@ -482,30 +491,84 @@ class TokenManager::Impl {
 #endif
     }
 
+    [[nodiscard]] auto reloadTokenFromFile() -> Result<void> {
+        std::lock_guard lock{mutex_};
+
+        // Reload token from the JSON file (Python script refreshes it)
+        std::string const token_file = "configs/schwab_tokens.json";
+
+#ifdef HAS_NLOHMANN_JSON
+        try {
+            std::ifstream file{token_file};
+            if (!file.is_open()) {
+                return makeError<void>(ErrorCode::DatabaseError,
+                                       "Failed to open token file: " + token_file);
+            }
+
+            json j;
+            file >> j;
+
+            // Extract tokens from nested structure: token.access_token, token.refresh_token
+            if (j.contains("token") && j["token"].is_object()) {
+                auto const& token_obj = j["token"];
+
+                if (token_obj.contains("access_token")) {
+                    config_.access_token = token_obj["access_token"].get<std::string>();
+                }
+
+                if (token_obj.contains("refresh_token")) {
+                    config_.refresh_token = token_obj["refresh_token"].get<std::string>();
+                }
+
+                if (token_obj.contains("expires_at")) {
+                    auto expires_timestamp = token_obj["expires_at"].get<std::time_t>();
+                    config_.token_expiry =
+                        std::chrono::system_clock::from_time_t(expires_timestamp);
+
+                    auto now = std::chrono::system_clock::now();
+                    auto time_remaining = std::chrono::duration_cast<std::chrono::minutes>(
+                        config_.token_expiry - now);
+
+                    LOG_INFO("Reloaded token from file - expires in {} minutes",
+                             time_remaining.count());
+                }
+            }
+
+            return {};
+
+        } catch (json::exception const& e) {
+            return makeError<void>(ErrorCode::UnknownError,
+                                   std::string("JSON parse error: ") + e.what());
+        }
+#else
+        return makeError<void>(ErrorCode::UnknownError, "JSON library not available");
+#endif
+    }
+
     auto startRefreshThread() -> void {
         if (refresh_thread_running_.exchange(true)) {
             return; // Already running
         }
 
         refresh_thread_ = std::thread([this]() {
-            LOG_INFO("Token refresh thread started");
+            LOG_INFO("Token reload thread started (reloads from file every 25 minutes)");
 
             while (refresh_thread_running_) {
-                // Sleep for 25 minutes (refresh before 30-min expiry)
+                // Sleep for 25 minutes (Python refreshes the token, we reload it)
                 std::this_thread::sleep_for(std::chrono::minutes(25));
 
                 if (!refresh_thread_running_) {
                     break;
                 }
 
-                LOG_INFO("Proactive token refresh (25-minute interval)");
+                LOG_INFO("Reloading token from file (25-minute interval)");
 
-                if (auto result = refreshAccessToken(); !result) {
-                    LOG_ERROR("Failed to refresh token: {}", result.error().message);
+                if (auto result = reloadTokenFromFile(); !result) {
+                    LOG_ERROR("Failed to reload token from file: {}", result.error().message);
                 }
             }
 
-            LOG_INFO("Token refresh thread stopped");
+            LOG_INFO("Token reload thread stopped");
         });
     }
 
@@ -513,6 +576,161 @@ class TokenManager::Impl {
         if (refresh_thread_running_.exchange(false)) {
             if (refresh_thread_.joinable()) {
                 refresh_thread_.join();
+            }
+        }
+    }
+
+    auto startSocketServer() -> void {
+        if (socket_thread_running_.exchange(true)) {
+            return; // Already running
+        }
+
+        socket_thread_ = std::thread([this]() {
+            LOG_INFO("Token socket server started on /tmp/bigbrother_token.sock");
+
+            // Socket setup
+            char const* socket_path = "/tmp/bigbrother_token.sock";
+
+            // Remove old socket file if it exists
+            unlink(socket_path);
+
+            // Create Unix domain socket
+            socket_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+            if (socket_fd_ < 0) {
+                LOG_ERROR("Failed to create socket: {}", strerror(errno));
+                socket_thread_running_ = false;
+                return;
+            }
+
+            // Bind socket
+            struct sockaddr_un addr{};
+            addr.sun_family = AF_UNIX;
+            strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+
+            if (bind(socket_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+                LOG_ERROR("Failed to bind socket: {}", strerror(errno));
+                close(socket_fd_);
+                socket_fd_ = -1;
+                socket_thread_running_ = false;
+                return;
+            }
+
+            // Listen for connections
+            if (listen(socket_fd_, 5) < 0) {
+                LOG_ERROR("Failed to listen on socket: {}", strerror(errno));
+                close(socket_fd_);
+                socket_fd_ = -1;
+                socket_thread_running_ = false;
+                return;
+            }
+
+            // Accept connections loop
+            while (socket_thread_running_) {
+                // Set socket to non-blocking
+                fd_set readfds;
+                FD_ZERO(&readfds);
+                FD_SET(socket_fd_, &readfds);
+
+                struct timeval timeout{};
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
+
+                int activity = select(socket_fd_ + 1, &readfds, nullptr, nullptr, &timeout);
+
+                if (activity < 0 && errno != EINTR) {
+                    LOG_ERROR("Socket select error: {}", strerror(errno));
+                    break;
+                }
+
+                if (activity > 0 && FD_ISSET(socket_fd_, &readfds)) {
+                    // Accept connection
+                    int client_fd = accept(socket_fd_, nullptr, nullptr);
+                    if (client_fd < 0) {
+                        continue;
+                    }
+
+                    // Receive token data
+                    char buffer[4096];
+                    ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+                    if (bytes_read > 0) {
+                        buffer[bytes_read] = '\0';
+
+                        // Parse JSON token data
+#ifdef HAS_NLOHMANN_JSON
+                        try {
+                            json token_json = json::parse(buffer);
+
+                            // Update tokens
+                            {
+                                std::lock_guard lock{mutex_};
+
+                                if (token_json.contains("access_token")) {
+                                    config_.access_token =
+                                        token_json["access_token"].get<std::string>();
+                                }
+
+                                if (token_json.contains("refresh_token")) {
+                                    config_.refresh_token =
+                                        token_json["refresh_token"].get<std::string>();
+                                }
+
+                                if (token_json.contains("expires_at")) {
+                                    auto expires_timestamp =
+                                        token_json["expires_at"].get<std::time_t>();
+                                    config_.token_expiry =
+                                        std::chrono::system_clock::from_time_t(expires_timestamp);
+
+                                    auto now = std::chrono::system_clock::now();
+                                    auto time_remaining =
+                                        std::chrono::duration_cast<std::chrono::minutes>(
+                                            config_.token_expiry - now);
+
+                                    LOG_INFO("Token updated via socket - expires in {} minutes",
+                                             time_remaining.count());
+                                }
+                            }
+
+                            // Send acknowledgment
+                            char const* ack = "OK";
+                            send(client_fd, ack, strlen(ack), 0);
+
+                        } catch (json::exception const& e) {
+                            LOG_ERROR("Failed to parse token JSON: {}", e.what());
+                            char const* ack = "ERROR";
+                            send(client_fd, ack, strlen(ack), 0);
+                        }
+#else
+                        LOG_ERROR("JSON library not available for token update");
+                        char const* ack = "ERROR";
+                        send(client_fd, ack, strlen(ack), 0);
+#endif
+                    }
+
+                    close(client_fd);
+                }
+            }
+
+            // Cleanup
+            if (socket_fd_ >= 0) {
+                close(socket_fd_);
+                socket_fd_ = -1;
+            }
+            unlink(socket_path);
+
+            LOG_INFO("Token socket server stopped");
+        });
+    }
+
+    auto stopSocketServer() -> void {
+        if (socket_thread_running_.exchange(false)) {
+            // Close socket to unblock accept()
+            if (socket_fd_ >= 0) {
+                shutdown(socket_fd_, SHUT_RDWR);
+            }
+
+            if (socket_thread_.joinable()) {
+                socket_thread_.join();
             }
         }
     }
@@ -664,6 +882,11 @@ class TokenManager::Impl {
     mutable std::mutex mutex_;
     std::thread refresh_thread_;
     std::atomic<bool> refresh_thread_running_;
+
+    // Socket server for receiving token updates from Python
+    std::thread socket_thread_;
+    std::atomic<bool> socket_thread_running_;
+    int socket_fd_{-1};
 
     // DuckDB connection
     std::string db_path_;

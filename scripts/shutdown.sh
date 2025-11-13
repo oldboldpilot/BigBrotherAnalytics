@@ -66,8 +66,42 @@ stop_service() {
 # Stop services
 stop_service "Dashboard" "logs/dashboard.pid" "streamlit.*dashboard/app.py"
 stop_service "Trading Engine" "logs/bigbrother.pid" "build/bin/bigbrother"
+stop_service "Token Refresh Service" "logs/token_refresh.pid" "token_refresh_service.py"
+
+# Additional cleanup: kill any remaining instances
+echo -e "${BLUE}Performing additional cleanup...${NC}"
+
+# Kill all bigbrother instances
+ALL_BIGBROTHER=$(pgrep -f "build/bin/bigbrother" 2>/dev/null || true)
+if [ -n "$ALL_BIGBROTHER" ]; then
+    echo -e "${YELLOW}  Found additional bigbrother instances: $ALL_BIGBROTHER${NC}"
+    echo "$ALL_BIGBROTHER" | xargs kill -9 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Killed all bigbrother instances"
+fi
+
+# Kill all streamlit dashboard instances
+ALL_STREAMLIT=$(pgrep -f "streamlit.*dashboard/app.py" 2>/dev/null || true)
+if [ -n "$ALL_STREAMLIT" ]; then
+    echo -e "${YELLOW}  Found additional streamlit instances: $ALL_STREAMLIT${NC}"
+    echo "$ALL_STREAMLIT" | xargs kill -9 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Killed all streamlit instances"
+fi
+
+# Kill all token refresh service instances
+ALL_TOKEN_REFRESH=$(pgrep -f "token_refresh_service.py" 2>/dev/null || true)
+if [ -n "$ALL_TOKEN_REFRESH" ]; then
+    echo -e "${YELLOW}  Found additional token refresh instances: $ALL_TOKEN_REFRESH${NC}"
+    echo "$ALL_TOKEN_REFRESH" | xargs kill -9 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Killed all token refresh instances"
+fi
+
+# Clean up socket files
+if [ -S "/tmp/bigbrother_token.sock" ]; then
+    rm -f /tmp/bigbrother_token.sock
+    echo -e "  ${GREEN}✓${NC} Removed socket file"
+fi
 
 echo ""
-echo -e "${GREEN}✅ All services stopped${NC}"
+echo -e "${GREEN}✅ All services stopped and cleaned up${NC}"
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
