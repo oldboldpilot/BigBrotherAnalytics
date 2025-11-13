@@ -493,6 +493,7 @@ target_sources(market_intelligence
             src/market_intelligence/schwab_api.cppm
             src/market_intelligence/feature_extractor.cppm
             src/market_intelligence/price_predictor.cppm
+            src/market_intelligence/price_predictor_v4.cppm
 )
 
 # Optimization flags applied globally - no per-target flags needed
@@ -502,6 +503,7 @@ target_include_directories(market_intelligence PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(market_intelligence
     PUBLIC
     utils
+    ml_lib
     CURL::libcurl
     OpenMP::OpenMP_CXX
 )
@@ -904,6 +906,24 @@ add_executable(test_neural_net_mkl
 
 target_link_libraries(test_neural_net_mkl
     PRIVATE
+    ml_lib
+    utils
+    MKL::MKL
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Price Predictor v4.0 Integration Test (INT32 SIMD with 85-feature model)
+# ============================================================================
+
+add_executable(test_price_predictor_v4
+    examples/test_price_predictor_v4.cpp
+)
+
+target_link_libraries(test_price_predictor_v4
+    PRIVATE
+    market_intelligence
     ml_lib
     utils
     MKL::MKL

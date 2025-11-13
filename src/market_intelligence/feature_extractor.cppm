@@ -47,10 +47,13 @@ using namespace bigbrother::utils;
 /**
  * StandardScaler normalization parameters (from trained model)
  * These must match the Python sklearn StandardScaler exactly
+ *
+ * PRODUCTION MODEL: 85 features (clean dataset v4.0)
+ * Legacy 60-feature model deprecated due to 17 constant features
  */
 struct StandardScalerParams {
-    // Mean and std for 60 features
-    static constexpr std::array<float, 60> MEAN = {
+    // Mean and std for 85 features
+    static constexpr std::array<float, 85> MEAN = {
         9.50023516f, -1.00000000f, 0.00000000f, 21.00000000f, 0.00000000f,
         2.30746620f, 15.82010582f, 6.21634333f, 2.40799530f, 173.75955320f,
         0.00000000f, 0.03870000f, 0.03920000f, 0.03550000f, 0.03670000f,
