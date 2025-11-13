@@ -131,6 +131,20 @@ if(GTest_FOUND)
 
     add_test(NAME OptionsStrategiesTests COMMAND test_options_strategies)
 
+    # simdjson Wrapper Unit Tests
+    add_executable(test_simdjson_wrapper
+        test_simdjson_wrapper.cpp
+    )
+
+    target_link_libraries(test_simdjson_wrapper
+        PRIVATE
+        utils
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    add_test(NAME SimdJsonWrapperTests COMMAND test_simdjson_wrapper)
+
 else()
     message(STATUS "Google Test not found - C++ tests disabled")
     message(STATUS "Install with: sudo apt-get install libgtest-dev")
