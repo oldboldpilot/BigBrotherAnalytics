@@ -544,6 +544,114 @@ auto getTradesForSymbol(Symbol const& symbol) -> std::vector<Trade> {
 auto processSymbol(std::string_view symbol) -> void;
 ```
 
+### JSON Parsing (SIMD-Accelerated)
+
+**Rule:** Use simdjson wrapper for all JSON parsing. Achieves 3-32x speedups over nlohmann/json.
+
+**Performance:** Benchmarked speedups on production data:
+- Quote parsing: **32.2x faster** (3449ns → 107ns)
+- NewsAPI parsing: **23.0x faster** (8474ns → 369ns)
+- Account data: **28.4x faster** (3383ns → 119ns)
+- Simple fields: **3.2x faster** (441ns → 136ns)
+
+#### Three API Tiers:
+
+**1. Simple API - Single Field Extraction:**
+```cpp
+import bigbrother.utils.simdjson_wrapper;
+
+// ✅ Extract single fields from JSON
+auto symbol_result = bigbrother::simdjson::parseAndGet<std::string>(json_response, "symbol");
+auto price_result = bigbrother::simdjson::parseAndGet<double>(json_response, "price");
+auto quantity_result = bigbrother::simdjson::parseAndGet<int64_t>(json_response, "quantity");
+
+// Check result before using
+if (symbol_result) {
+    std::string symbol = *symbol_result;
+}
+```
+
+**2. Callback API - Complex Parsing (RECOMMENDED):**
+```cpp
+// ✅ Parse multiple fields with full control
+auto result = bigbrother::simdjson::parseAndProcess(json_response, [&](auto& doc) {
+    ::simdjson::ondemand::value root_value;
+    if (doc.get_value().get(root_value) != ::simdjson::SUCCESS) return;
+
+    ::simdjson::ondemand::value aapl_value;
+    if (root_value["AAPL"].get(aapl_value) != ::simdjson::SUCCESS) return;
+
+    double bid = 0.0, ask = 0.0;
+    aapl_value["bidPrice"].get_double().get(bid);
+    aapl_value["askPrice"].get_double().get(ask);
+
+    // Use extracted values...
+});
+```
+
+**3. Fluent API - Builder Pattern:**
+```cpp
+// ✅ Chain multiple field extractions
+std::string name;
+double price = 0.0;
+int64_t quantity = 0;
+
+auto result = bigbrother::simdjson::from(json_response)
+    .field<std::string>("name", name)
+    .field<double>("price", price)
+    .field<int64_t>("quantity", quantity)
+    .parse();
+```
+
+#### Thread Safety:
+```cpp
+// ✅ Automatic thread safety via thread_local storage
+// Multiple threads can parse concurrently without locks
+std::vector<std::thread> threads;
+for (int i = 0; i < 10; ++i) {
+    threads.emplace_back([&]() {
+        auto result = bigbrother::simdjson::parseAndGet<std::string>(json, "field");
+        // No race conditions - each thread has its own parser
+    });
+}
+```
+
+#### Migration from nlohmann/json:
+
+**Before (nlohmann/json):**
+```cpp
+auto j = json::parse(response);
+std::string symbol = j["symbol"];
+double price = j["price"];
+```
+
+**After (simdjson wrapper):**
+```cpp
+auto result = bigbrother::simdjson::parseAndProcess(response, [&](auto& doc) {
+    ::simdjson::ondemand::value root;
+    if (doc.get_value().get(root) != ::simdjson::SUCCESS) return;
+
+    std::string_view symbol_sv;
+    root["symbol"].get_string().get(symbol_sv);
+    std::string symbol{symbol_sv};
+
+    double price;
+    root["price"].get_double().get(price);
+});
+```
+
+**Rationale:**
+- **3-32x faster** parsing with SIMD instructions
+- **Thread-safe** via thread_local storage
+- **Zero-copy** on-demand parsing
+- **Production-proven** in hot paths (120 req/min)
+- **Automatic padding** for SIMD operations
+
+**When NOT to use simdjson:**
+- One-time startup configuration (use nlohmann for convenience)
+- Small infrequent JSON (<1 req/min)
+- When you need to modify and re-serialize JSON
+
 ---
 
 ## 7. Documentation Standards
