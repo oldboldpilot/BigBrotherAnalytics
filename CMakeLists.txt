@@ -347,7 +347,8 @@ include_directories(
 # - DuckDB C++ library
 # - ONNX Runtime C++ library
 # - spdlog (logging)
-# - nlohmann/json (JSON parsing)
+# - nlohmann/json (JSON parsing - legacy)
+# - simdjson (High-performance JSON parsing)
 # - yaml-cpp (config files)
 # - websocketpp (WebSocket client)
 
@@ -360,6 +361,7 @@ find_path(ONNXRUNTIME_INCLUDE onnxruntime_cxx_api.h)
 
 find_package(spdlog)
 find_package(nlohmann_json)
+find_package(simdjson)
 find_package(yaml-cpp)
 
 # ============================================================================
@@ -385,6 +387,7 @@ target_sources(utils
             src/utils/math.cppm
             src/utils/tax.cppm
             src/utils/risk_free_rate.cppm
+            src/utils/simdjson_wrapper.cppm
             src/utils/utils.cppm
 )
 
@@ -397,6 +400,10 @@ target_link_libraries(utils
 
 if(spdlog_FOUND)
     target_link_libraries(utils PUBLIC spdlog::spdlog)
+endif()
+
+if(simdjson_FOUND)
+    target_link_libraries(utils PUBLIC simdjson::simdjson)
 endif()
 
 if(yaml-cpp_FOUND)
@@ -447,6 +454,10 @@ target_link_libraries(market_intelligence
 
 if(nlohmann_json_FOUND)
     target_link_libraries(market_intelligence PUBLIC nlohmann_json::nlohmann_json)
+endif()
+
+if(simdjson_FOUND)
+    target_link_libraries(market_intelligence PUBLIC simdjson::simdjson)
 endif()
 
 if(ONNXRUNTIME_LIB AND ONNXRUNTIME_INCLUDE)
@@ -651,6 +662,10 @@ if(nlohmann_json_FOUND)
     target_link_libraries(trading_core PUBLIC nlohmann_json::nlohmann_json)
 endif()
 
+if(simdjson_FOUND)
+    target_link_libraries(trading_core PUBLIC simdjson::simdjson)
+endif()
+
 # ============================================================================
 # Schwab API Client (C++23 Modules ENABLED)
 # ============================================================================
@@ -722,6 +737,10 @@ target_link_libraries(schwab_api
 
 if(nlohmann_json_FOUND)
     target_link_libraries(schwab_api PUBLIC nlohmann_json::nlohmann_json)
+endif()
+
+if(simdjson_FOUND)
+    target_link_libraries(schwab_api PUBLIC simdjson::simdjson)
 endif()
 
 # ============================================================================
@@ -965,6 +984,11 @@ if(nlohmann_json_FOUND)
     message(STATUS "  nlohmann/json       : Found ✓")
 else()
     message(STATUS "  nlohmann/json       : Not found (install nlohmann-json3-dev)")
+endif()
+if(simdjson_FOUND)
+    message(STATUS "  simdjson            : Found ✓")
+else()
+    message(STATUS "  simdjson            : Not found (build from source)")
 endif()
 if(yaml-cpp_FOUND)
     message(STATUS "  yaml-cpp            : Found ✓")

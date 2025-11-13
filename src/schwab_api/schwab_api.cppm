@@ -40,6 +40,7 @@ export module bigbrother.schwab_api;
 // Import dependencies
 import bigbrother.utils.types;
 import bigbrother.utils.logger;
+import bigbrother.utils.simdjson_wrapper;
 import bigbrother.options.pricing;
 
 export namespace bigbrother::schwab {
@@ -1039,6 +1040,15 @@ class MarketDataClient {
                     quote.last = q.value("lastPrice", 0.0);
                     quote.volume = q.value("totalVolume", 0);
                     quote.timestamp = q.value("quoteTime", 0);
+                }
+
+                // After-hours fix: If bid/ask are 0.0 but last price exists, use last price
+                // Market is closed and bid/ask quotes are not available
+                if ((quote.bid <= 0.0 || quote.ask <= 0.0) && quote.last > 0.0) {
+                    utils::Logger::getInstance().info(
+                        "Market closed for {} - using last price ${:.2f} for bid/ask", symbol, quote.last);
+                    quote.bid = quote.last;
+                    quote.ask = quote.last;
                 }
 
                 // Validate quote has valid data
