@@ -112,7 +112,7 @@ namespace detail {
 // ============================================================================
 
 // Parse JSON and process with callback
-// The callback receives the document and can extract fields
+// The callback receives the document BY REFERENCE (document is not copyable)
 // This respects simdjson's ondemand semantics (document is forward-only)
 template<typename Func>
 [[nodiscard]] inline auto parseAndProcess(std::string_view json, Func&& callback)
@@ -128,7 +128,7 @@ template<typename Func>
     }
 
     try {
-        callback(doc);
+        callback(doc);  // Document is passed by reference to lambda
         return {};
     } catch (::simdjson::simdjson_error const& e) {
         return std::unexpected(Error::fromSimdJson(e.error()));
