@@ -1,0 +1,49 @@
+{
+  "script_version": "1.0",
+  "created_at": "2025-11-13T12:19:06.430912",
+  "total_samples": 34020,
+  "total_features": 60,
+  "total_targets": 3,
+  "symbols": [
+    "DIA",
+    "GLD",
+    "IEF",
+    "IWM",
+    "QQQ",
+    "SLV",
+    "SPY",
+    "TLT",
+    "USO",
+    "UVXY",
+    "VXX",
+    "XLB",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLU",
+    "XLV",
+    "XLY"
+  ],
+  "date_range": {
+    "start": "2020-12-10 09:42:00-08:00",
+    "end": "2025-10-13 21:00:00-07:00"
+  },
+  "feature_categories": {
+    "identification": 3,
+    "time": 8,
+    "treasury_rates": 7,
+    "greeks": 6,
+    "sentiment": 2,
+    "price": 5,
+    "momentum": 7,
+    "volatility": 4,
+    "interaction": 10,
+    "directionality": 8
+  },
+  "validation": {
+    "constant_features": 0,
+    "all_features_varied": true
+  }
+}

@@ -1,0 +1,736 @@
+==702176== Memcheck, a memory error detector
+==702176== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==702176== Using Valgrind-3.24.0 and LibVEX; rerun with -h for copyright info
+==702176== Command: ./build/bin/benchmark_int32_simd_85feat
+==702176== Parent PID: 702124
+==702176== 
+vex amd64->IR: unhandled instruction bytes: 0x62 0xF2 0xFD 0x28 0x7E 0xDC 0xC4 0xE3 0x65 0x2
+vex amd64->IR:   REX=0 REX.W=0 REX.R=0 REX.X=0 REX.B=0
+vex amd64->IR:   VEX=0 VEX.L=0 VEX.nVVVV=0x0 ESC=NONE
+vex amd64->IR:   PFX.66=0 PFX.F2=0 PFX.F3=0
+==702176== valgrind: Unrecognised instruction at address 0x48b702b.
+==702176==    at 0x48B702B: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== Your program just tried to execute an instruction that Valgrind
+==702176== did not recognise.  There are two possible reasons for this.
+==702176== 1. Your program has a bug and erroneously jumped to a non-code
+==702176==    location.  If you are running Memcheck and you just saw a
+==702176==    warning about a bad jump, it's probably your program's fault.
+==702176== 2. The instruction is legitimate but Valgrind doesn't handle it,
+==702176==    i.e. it's Valgrind's fault.  If you think this is the case or
+==702176==    you are not sure, please let us know and we'll try to fix it.
+==702176== Either way, Valgrind will now raise a SIGILL signal which will
+==702176== probably kill your program.
+==702176== 
+==702176== Process terminating with default action of signal 4 (SIGILL): dumping core
+==702176==  Illegal opcode at address 0x48B702B
+==702176==    at 0x48B702B: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== HEAP SUMMARY:
+==702176==     in use at exit: 344,830 bytes in 93 blocks
+==702176==   total heap usage: 149 allocs, 56 frees, 432,846 bytes allocated
+==702176== 
+==702176== 16 bytes in 1 blocks are still reachable in loss record 1 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48BA1C3: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::WeightLoader(bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B88F9: bigbrother::ml::PricePredictorConfig85@bigbrother.ml.weight_loader::createLoader(std::__1::__fs::filesystem::path const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A519: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 2 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4AA7B1F: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8A906: _GLOBAL__sub_I_parser.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 3 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4AA9BEF: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8ABF6: _GLOBAL__sub_I_scanner.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 4 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4AB067F: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8AF16: _GLOBAL__sub_I_scantoken.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 5 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4A8B137: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8B286: _GLOBAL__sub_I_simplekey.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 6 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4AB6BCF: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8B546: _GLOBAL__sub_I_singledocparser.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 17 bytes in 1 blocks are still reachable in loss record 7 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x4ABA27C: std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) [clone .constprop.0] (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x4A8B836: _GLOBAL__sub_I_tag.cpp (in /home/linuxbrew/.linuxbrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.so.0.8.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 20 bytes in 1 blocks are still reachable in loss record 8 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48BA286: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::WeightLoader(bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B88F9: bigbrother::ml::PricePredictorConfig85@bigbrother.ml.weight_loader::createLoader(std::__1::__fs::filesystem::path const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A519: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 32 bytes in 1 blocks are still reachable in loss record 9 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B96F6: std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >::__init_copy_ctor_external(char const*, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B8D3E: std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::push_back(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B7751: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::buildLayerConfigs() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B6869: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 40 bytes in 1 blocks are still reachable in loss record 10 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B96F6: std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >::__init_copy_ctor_external(char const*, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B8D0E: std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::push_back(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B7751: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::buildLayerConfigs() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B6869: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 11 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A90C8: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 12 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A90E7: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 13 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9106: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 14 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9125: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 15 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9144: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 16 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9163: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 17 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9182: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 18 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A91A1: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 19 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A920B: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 20 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A922A: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 21 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9249: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 22 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9268: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 23 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9287: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 24 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A92A6: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 25 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A92C5: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 26 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A92E4: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 27 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9303: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 28 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9322: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 29 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9341: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 30 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9360: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 31 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A937F: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 32 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A939E: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 33 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A93BD: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 34 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A93DC: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 35 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A93FE: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 36 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9420: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 37 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9442: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 38 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9464: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 39 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9486: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 40 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A94A8: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 41 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9512: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 42 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9531: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 43 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9550: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 44 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A95BA: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 45 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A95D9: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 46 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A95F8: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 47 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9617: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 48 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9636: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 49 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9655: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 50 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9674: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 51 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9693: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 52 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A96B2: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 53 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A971C: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 54 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A973B: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 55 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A975A: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 56 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9779: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 57 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9798: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 58 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A97B7: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 59 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A97D6: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 60 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A97F5: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 61 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A985F: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 62 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A987E: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 63 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A989D: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 64 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A98BC: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 65 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9926: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 66 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9945: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 48 bytes in 1 blocks are still reachable in loss record 67 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x6DE970A: std::pair<std::_Rb_tree_iterator<std::pair<int const, char const*> >, bool> std::_Rb_tree<int, std::pair<int const, char const*>, std::_Select1st<std::pair<int const, char const*> >, std::less<int>, std::allocator<std::pair<int const, char const*> > >::_M_emplace_unique<std::pair<int, char const*> >(std::pair<int, char const*>&&) (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x54A9964: _GLOBAL__sub_I_parquet_types.cpp (in /usr/local/lib64/libduckdb.so)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 128 bytes in 4 blocks are still reachable in loss record 68 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B96F6: std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >::__init_copy_ctor_external(char const*, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B99F0: bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader* std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::__emplace_back_slow_path<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&>(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B8CF3: std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::push_back(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B7751: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::buildLayerConfigs() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B6869: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 160 bytes in 4 blocks are still reachable in loss record 69 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B96F6: std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >::__init_copy_ctor_external(char const*, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B99C1: bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader* std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::__emplace_back_slow_path<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&>(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B8CF3: std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::push_back(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B7751: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::buildLayerConfigs() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B6869: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 192 bytes in 1 blocks are still reachable in loss record 70 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B6AFF: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 192 bytes in 1 blocks are still reachable in loss record 71 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B6C09: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 256 bytes in 1 blocks are still reachable in loss record 72 of 79
+==702176==    at 0x4842504: malloc (m_replacemalloc/vg_replace_malloc.c:446)
+==702176==    by 0xEEFD691: btree_allocate_node (unwind-dw2-btree.h:404)
+==702176==    by 0xEEFDBB5: btree_insert.isra.0 (unwind-dw2-btree.h:734)
+==702176==    by 0xEEFF4B9: register_pc_range_for_object (unwind-dw2-fde.c:114)
+==702176==    by 0xEEFF4B9: __register_frame_info_bases (unwind-dw2-fde.c:144)
+==702176==    by 0xEEFF4B9: __register_frame_info_bases (unwind-dw2-fde.c:126)
+==702176==    by 0x4A60375: __do_init (in /home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/libunwind.so.1.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 256 bytes in 1 blocks are still reachable in loss record 73 of 79
+==702176==    at 0x4842504: malloc (m_replacemalloc/vg_replace_malloc.c:446)
+==702176==    by 0xEEFD691: btree_allocate_node (unwind-dw2-btree.h:404)
+==702176==    by 0xEEFDBB5: btree_insert.isra.0 (unwind-dw2-btree.h:734)
+==702176==    by 0x4A60375: __do_init (in /home/linuxbrew/.linuxbrew/Cellar/llvm/21.1.5/lib/libunwind.so.1.0)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 448 bytes in 1 blocks are still reachable in loss record 74 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B9963: bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader* std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::__emplace_back_slow_path<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&>(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B8CF3: std::__1::vector<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader, std::__1::allocator<bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader> >::push_back(bigbrother::ml::LayerConfig@bigbrother.ml.weight_loader const&) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B7751: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::buildLayerConfigs() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B6869: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 1,040 bytes in 1 blocks are still reachable in loss record 75 of 79
+==702176==    at 0x48494B8: calloc (m_replacemalloc/vg_replace_malloc.c:1675)
+==702176==    by 0xF606DD4: __new_exitfn (in /usr/lib64/libc.so.6)
+==702176==    by 0xF606E5B: __internal_atexit (in /usr/lib64/libc.so.6)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 1,932 bytes in 5 blocks are still reachable in loss record 76 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B7B1B: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::loadBinary(std::__1::__fs::filesystem::path const&, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B69D2: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 4,096 bytes in 1 blocks are still reachable in loss record 77 of 79
+==702176==    at 0x4842504: malloc (m_replacemalloc/vg_replace_malloc.c:446)
+==702176==    by 0xF643BFA: _IO_file_doallocate (in /usr/lib64/libc.so.6)
+==702176==    by 0xF652E18: _IO_doallocbuf (in /usr/lib64/libc.so.6)
+==702176==    by 0xF650F67: _IO_file_overflow@@GLIBC_2.2.5 (in /usr/lib64/libc.so.6)
+==702176==    by 0xF651A66: _IO_file_xsputn@@GLIBC_2.2.5 (in /usr/lib64/libc.so.6)
+==702176==    by 0xF64531F: fwrite (in /usr/lib64/libc.so.6)
+==702176==    by 0x10C483: std::__1::ostreambuf_iterator<char, std::__1::char_traits<char> > std::__1::__pad_and_output<char, std::__1::char_traits<char> >(std::__1::ostreambuf_iterator<char, std::__1::char_traits<char> >, char const*, char const*, char const*, std::__1::ios_base&, char) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176==    by 0x10C313: std::__1::basic_ostream<char, std::__1::char_traits<char> >& std::__1::__put_character_sequence<char, std::__1::char_traits<char> >(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, char const*, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176==    by 0x10A3D6: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== 73,728 bytes in 1 blocks are still reachable in loss record 78 of 79
+==702176==    at 0x4842504: malloc (m_replacemalloc/vg_replace_malloc.c:446)
+==702176==    by 0xF85D5AB: ??? (in /home/linuxbrew/.linuxbrew/Cellar/gcc/15.2.0/lib/gcc/current/libstdc++.so.6.0.34)
+==702176==    by 0x40054CD: call_init (dl-init.c:74)
+==702176==    by 0x40054CD: call_init (dl-init.c:26)
+==702176==    by 0x40055BB: _dl_init (dl-init.c:121)
+==702176==    by 0x401D49F: ??? (in /usr/lib64/ld-linux-x86-64.so.2)
+==702176== 
+==702176== 259,456 bytes in 5 blocks are still reachable in loss record 79 of 79
+==702176==    at 0x4842EC4: operator new(unsigned long) (m_replacemalloc/vg_replace_malloc.c:487)
+==702176==    by 0x48B7B1B: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::loadBinary(std::__1::__fs::filesystem::path const&, unsigned long) (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x48B69BD: bigbrother::ml::WeightLoader@bigbrother.ml.weight_loader::load() const (in /home/muyiwa/Development/BigBrotherAnalytics/build/lib/libml_lib.so)
+==702176==    by 0x10A538: main (in /home/muyiwa/Development/BigBrotherAnalytics/build/bin/benchmark_int32_simd_85feat)
+==702176== 
+==702176== LEAK SUMMARY:
+==702176==    definitely lost: 0 bytes in 0 blocks
+==702176==    indirectly lost: 0 bytes in 0 blocks
+==702176==      possibly lost: 0 bytes in 0 blocks
+==702176==    still reachable: 344,830 bytes in 93 blocks
+==702176==         suppressed: 0 bytes in 0 blocks
+==702176== 
+==702176== For lists of detected and suppressed errors, rerun with: -s
+==702176== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

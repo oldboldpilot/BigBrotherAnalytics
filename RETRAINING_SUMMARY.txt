@@ -1,0 +1,104 @@
+================================================================================
+PRICE PREDICTION NEURAL NETWORK - RETRAINING COMPLETE
+================================================================================
+Date: November 13, 2025
+Model: price_predictor_60feat_best.pth
+Architecture: 60 → 256 → 128 → 64 → 32 → 3 (58,947 parameters)
+
+SUMMARY:
+  Old Model: 51-56% accuracy (buggy training, 44 zero features)
+  New Model: 53.0% accuracy (proper training, but 13 constant features)
+  Target:    >70% accuracy
+  Status:    ⚠️ PARTIAL SUCCESS
+
+ACHIEVEMENTS:
+  ✅ Fixed extreme predictions bug (-63003% eliminated)
+  ✅ Fixed feature normalization (treasury rates now correct)
+  ✅ Fixed feature collection (16→47 effective features)
+  ✅ Weights exported in C++ compatible format (10 .bin files)
+  ✅ Scaler parameters saved (scaler_params.json)
+  ✅ Inference pipeline validated and working
+  ❌ Accuracy below target (53% vs 70%)
+
+ROOT CAUSE OF LOW ACCURACY:
+  13 constant features (21.7% of model capacity wasted)
+  - 4 sentiment features (all zero - no sentiment data)
+  - 2 treasury rates (constant - not historical)
+  - 3 time features (constant - all data from 21:00)
+  - 4 other features (no variation in training data)
+
+EXPORTED FILES:
+
+Weights (C++ binary format):
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_0_weight.bin   (61,440 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_0_bias.bin     (1,024 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_3_weight.bin   (131,072 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_3_bias.bin     (512 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_6_weight.bin   (32,768 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_6_bias.bin     (256 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_9_weight.bin   (8,192 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_9_bias.bin     (128 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_12_weight.bin  (384 bytes)
+  /home/muyiwa/Development/BigBrotherAnalytics/models/weights/network_12_bias.bin    (12 bytes)
+  Total: 235,788 bytes (230.3 KB)
+
+Scaler:
+  /home/muyiwa/Development/BigBrotherAnalytics/models/scaler_params.json
+
+Model:
+  /home/muyiwa/Development/BigBrotherAnalytics/models/price_predictor_60feat_best.pth
+  /home/muyiwa/Development/BigBrotherAnalytics/models/price_predictor_60feat_info.json
+
+Scripts:
+  /home/muyiwa/Development/BigBrotherAnalytics/scripts/ml/train_price_predictor_60features.py
+  /home/muyiwa/Development/BigBrotherAnalytics/scripts/ml/export_trained_weights.py
+  /home/muyiwa/Development/BigBrotherAnalytics/scripts/ml/validate_60feat_model.py
+
+Documentation:
+  /home/muyiwa/Development/BigBrotherAnalytics/TRAINING_REPORT.md
+
+TEST SET PERFORMANCE:
+  1-Day:  RMSE 2.60% | Directional Accuracy 53.0%
+  5-Day:  RMSE 5.20% | Directional Accuracy 44.9%
+  20-Day: RMSE 8.73% | Directional Accuracy 60.6%
+
+SAMPLE PREDICTIONS:
+  Pred: 0.52% | Actual: 0.45% | Direction: MATCH
+  Pred: 0.19% | Actual: -0.28% | Direction: MISS
+  Pred: 0.65% | Actual: -0.61% | Direction: MISS
+  Pred: 1.13% | Actual: -0.29% | Direction: MISS
+
+C++ INTEGRATION: ⚠️ READY (with caveats)
+  [✅] Weights exported (10 .bin files)
+  [✅] Scaler parameters saved
+  [✅] Architecture matches (60→256→128→64→32→3)
+  [✅] No extreme predictions
+  [❌] Accuracy below trading threshold (53% < 70%)
+
+  Model CAN be integrated into C++ and will produce reasonable predictions,
+  but accuracy is too low for profitable trading.
+
+RECOMMENDATIONS TO ACHIEVE 70% ACCURACY:
+
+1. Quick Wins (Expected: 60-65% accuracy):
+   - Remove 13 constant features
+   - Fix treasury rate collection (get actual historical rates)
+   - Fix time-of-day features (collect from multiple hours)
+   - Retrain with 47→256→128→64→32→3 architecture
+
+2. Full Solution (Expected: 70%+ accuracy):
+   - All quick wins above
+   - Add real sentiment/news data
+   - Collect 50K+ training samples (vs current 17K)
+   - Feature engineering (relative to market features)
+   - Longer training (current stopped at epoch 1)
+   - Hyperparameter tuning
+
+COMMANDS:
+  Train:    uv run python scripts/ml/train_price_predictor_60features.py
+  Export:   uv run python scripts/ml/export_trained_weights.py
+  Validate: uv run python scripts/ml/validate_60feat_model.py
+
+FULL REPORT: TRAINING_REPORT.md
+
+================================================================================

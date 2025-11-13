@@ -1,0 +1,85 @@
+{
+  "source_model": "models/price_predictor_best.pth",
+  "export_date": "2025-11-13T18:59:01",
+  "architecture": {},
+  "layer_info": {
+    "network.0.weight": {
+      "shape": [
+        256,
+        60
+      ],
+      "dtype": "torch.float32",
+      "size": 15360
+    },
+    "network.0.bias": {
+      "shape": [
+        256
+      ],
+      "dtype": "torch.float32",
+      "size": 256
+    },
+    "network.3.weight": {
+      "shape": [
+        128,
+        256
+      ],
+      "dtype": "torch.float32",
+      "size": 32768
+    },
+    "network.3.bias": {
+      "shape": [
+        128
+      ],
+      "dtype": "torch.float32",
+      "size": 128
+    },
+    "network.6.weight": {
+      "shape": [
+        64,
+        128
+      ],
+      "dtype": "torch.float32",
+      "size": 8192
+    },
+    "network.6.bias": {
+      "shape": [
+        64
+      ],
+      "dtype": "torch.float32",
+      "size": 64
+    },
+    "network.9.weight": {
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "torch.float32",
+      "size": 2048
+    },
+    "network.9.bias": {
+      "shape": [
+        32
+      ],
+      "dtype": "torch.float32",
+      "size": 32
+    },
+    "network.12.weight": {
+      "shape": [
+        3,
+        32
+      ],
+      "dtype": "torch.float32",
+      "size": 96
+    },
+    "network.12.bias": {
+      "shape": [
+        3
+      ],
+      "dtype": "torch.float32",
+      "size": 3
+    }
+  },
+  "total_parameters": 58947,
+  "scaler_available": false,
+  "num_features": null
+}

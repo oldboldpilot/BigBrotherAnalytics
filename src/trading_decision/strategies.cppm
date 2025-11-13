@@ -15,7 +15,9 @@
 module;
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <ctime>
 #include <deque>
 #include <format>
 #include <memory>
@@ -1310,6 +1312,190 @@ class MLPredictorStrategy : public IStrategy {
     bool active_{true};
 
     /**
+     * Symbol encoding map for identification features (top 20 symbols)
+     * Maps symbol to integer ID (0-19)
+     */
+    static auto getSymbolId(std::string const& symbol) -> float {
+        static std::unordered_map<std::string, float> const symbol_map = {
+            {"SPY", 0.0f},  {"QQQ", 1.0f},  {"IWM", 2.0f},  {"DIA", 3.0f},
+            {"AAPL", 4.0f}, {"MSFT", 5.0f}, {"AMZN", 6.0f}, {"GOOGL", 7.0f},
+            {"META", 8.0f}, {"TSLA", 9.0f}, {"NVDA", 10.0f}, {"JPM", 11.0f},
+            {"BAC", 12.0f}, {"WMT", 13.0f}, {"V", 14.0f},   {"JNJ", 15.0f},
+            {"PG", 16.0f},  {"XOM", 17.0f}, {"CVX", 18.0f}, {"UNH", 19.0f}};
+
+        auto it = symbol_map.find(symbol);
+        return it != symbol_map.end() ? it->second : -1.0f;
+    }
+
+    /**
+     * Sector encoding based on symbol prefix/heuristics
+     * Returns sector ID or -1 for unknown
+     */
+    static auto getSectorId(std::string const& symbol) -> float {
+        // ETFs and indices
+        if (symbol == "SPY" || symbol == "DIA" || symbol == "IWM") return 0.0f; // Broad Market
+        if (symbol == "QQQ") return 1.0f; // Technology
+
+        // Tech sector
+        if (symbol == "AAPL" || symbol == "MSFT" || symbol == "GOOGL" ||
+            symbol == "META" || symbol == "NVDA") return 1.0f;
+
+        // Consumer Discretionary
+        if (symbol == "AMZN" || symbol == "TSLA" || symbol == "WMT") return 2.0f;
+
+        // Financials
+        if (symbol == "JPM" || symbol == "BAC" || symbol == "V") return 3.0f;
+
+        // Healthcare
+        if (symbol == "JNJ" || symbol == "UNH") return 4.0f;
+
+        // Consumer Staples
+        if (symbol == "PG") return 5.0f;
+
+        // Energy
+        if (symbol == "XOM" || symbol == "CVX") return 6.0f;
+
+        return -1.0f; // Unknown
+    }
+
+    /**
+     * Check if symbol is an option (contains digits in specific pattern)
+     */
+    static auto isOption(std::string const& symbol) -> float {
+        // Options typically have format: AAPL230120C00150000
+        // Check for digits indicating strike/expiry
+        size_t digit_count = 0;
+        for (char c : symbol) {
+            if (std::isdigit(c)) digit_count++;
+        }
+        // If more than 4 digits, likely an option contract
+        return digit_count > 4 ? 1.0f : 0.0f;
+    }
+
+    /**
+     * Extract time features from current timestamp
+     * Returns struct with hour, minute, day_of_week, etc.
+     */
+    struct TimeFeatures {
+        float hour_of_day{0.0f};
+        float minute_of_hour{0.0f};
+        float day_of_week{0.0f};
+        float day_of_month{0.0f};
+        float month_of_year{0.0f};
+        float quarter{0.0f};
+        float day_of_year{0.0f};
+        float is_market_open{0.0f};
+    };
+
+    static auto extractTimeFeatures() -> TimeFeatures {
+        TimeFeatures tf;
+
+        auto now = std::chrono::system_clock::now();
+        auto time_t_now = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_local;
+
+        // Use localtime_r for thread safety on Linux
+        #if defined(__linux__) || defined(__APPLE__)
+        localtime_r(&time_t_now, &tm_local);
+        #else
+        localtime_s(&tm_local, &time_t_now);
+        #endif
+
+        tf.hour_of_day = static_cast<float>(tm_local.tm_hour);
+        tf.minute_of_hour = static_cast<float>(tm_local.tm_min);
+        tf.day_of_week = static_cast<float>(tm_local.tm_wday == 0 ? 6 : tm_local.tm_wday - 1); // 0=Mon, 6=Sun
+        tf.day_of_month = static_cast<float>(tm_local.tm_mday);
+        tf.month_of_year = static_cast<float>(tm_local.tm_mon + 1); // 1-12
+        tf.quarter = static_cast<float>((tm_local.tm_mon / 3) + 1); // 1-4
+        tf.day_of_year = static_cast<float>(tm_local.tm_yday + 1); // 1-365
+
+        // Market open: 9:30-16:00 ET weekdays
+        // Simplified: weekday (Mon-Fri) and hour 9-15 (roughly 9:30-16:00)
+        bool is_weekday = tm_local.tm_wday >= 1 && tm_local.tm_wday <= 5;
+        bool is_market_hours = tm_local.tm_hour >= 9 && tm_local.tm_hour < 16;
+        tf.is_market_open = (is_weekday && is_market_hours) ? 1.0f : 0.0f;
+
+        return tf;
+    }
+
+    /**
+     * Treasury rates structure (realistic defaults as of 2024)
+     * IMPORTANT: Rates stored as DECIMALS (0.0525 = 5.25%)
+     * TODO: Fetch from FRED API or cached data
+     */
+    struct TreasuryRates {
+        float fed_funds_rate{0.0525f};      // 5.25% as decimal
+        float treasury_3mo{0.0530f};        // 5.30% as decimal
+        float treasury_2yr{0.0450f};        // 4.50% as decimal
+        float treasury_5yr{0.0420f};        // 4.20% as decimal
+        float treasury_10yr{0.0430f};       // 4.30% as decimal
+        float yield_curve_slope{-0.0020f};  // 10yr - 2yr (decimal)
+        float yield_curve_inversion{1.0f};  // 1.0 if inverted
+    };
+
+    static auto getTreasuryRates() -> TreasuryRates {
+        TreasuryRates rates;
+        // Calculate derived features
+        rates.yield_curve_slope = rates.treasury_10yr - rates.treasury_2yr;
+        rates.yield_curve_inversion = rates.yield_curve_slope < 0.0f ? 1.0f : 0.0f;
+        return rates;
+    }
+
+    /**
+     * Options Greeks structure (simplified approximation for stocks)
+     * Greeks are normalized/scaled appropriately for ML model
+     * TODO: Implement proper Black-Scholes when option data available
+     */
+    struct Greeks {
+        float delta{0.5f};              // ATM delta for stocks (dimensionless, -1 to 1)
+        float gamma{0.01f};             // Small gamma (dimensionless, ~0.01 for ATM)
+        float theta{-0.05f};            // Time decay per day (normalized)
+        float vega{0.20f};              // Volatility sensitivity (normalized)
+        float rho{0.01f};               // Rate sensitivity (normalized)
+        float implied_volatility{0.25f}; // Default 25% IV (as decimal)
+    };
+
+    static auto estimateGreeks(float price, float atr) -> Greeks {
+        Greeks greeks;
+        // Estimate IV from ATR (volatility proxy)
+        // IV should be decimal (0.25 = 25% volatility)
+        greeks.implied_volatility = (atr / price) * 15.87f; // Annualized (sqrt(252))
+
+        // Normalize theta, vega, rho to reasonable ranges for ML
+        // These are scaled estimates, not exact dollar Greeks
+        greeks.theta = -0.05f;  // Time decay (negative for long positions)
+        greeks.vega = 0.20f;    // Volatility sensitivity
+        greeks.rho = 0.01f;     // Rate sensitivity
+
+        return greeks;
+    }
+
+    /**
+     * Calculate moving average from price history
+     */
+    static auto calculateMA(std::span<float const> prices, size_t period) -> float {
+        if (prices.empty() || period == 0) return 0.0f;
+        size_t count = std::min(period, prices.size());
+        float sum = 0.0f;
+        for (size_t i = 0; i < count; ++i) {
+            sum += prices[i];
+        }
+        return sum / static_cast<float>(count);
+    }
+
+    /**
+     * Calculate win rate (proportion of positive returns) over period
+     */
+    static auto calculateWinRate(std::span<float const> prices, size_t period) -> float {
+        if (prices.size() < period + 1) return 0.0f;
+        size_t wins = 0;
+        for (size_t i = 0; i < period && i + 1 < prices.size(); ++i) {
+            if (prices[i] > prices[i + 1]) wins++;
+        }
+        return static_cast<float>(wins) / static_cast<float>(period);
+    }
+
+    /**
      * Extract features from market data
      *
      * Uses historical price/volume buffers for accurate technical indicators.
@@ -1364,6 +1550,48 @@ class MLPredictorStrategy : public IStrategy {
 
         bigbrother::market_intelligence::PriceFeatures features;
 
+        // ========================================================================
+        // PART 1: IDENTIFICATION FEATURES (3 features)
+        // ========================================================================
+        features.symbol_encoded = getSymbolId(symbol);
+        features.sector_encoded = getSectorId(symbol);
+        features.is_option = isOption(symbol);
+
+        // ========================================================================
+        // PART 2: TIME FEATURES (8 features)
+        // ========================================================================
+        auto time_features = extractTimeFeatures();
+        features.hour_of_day = time_features.hour_of_day;
+        features.minute_of_hour = time_features.minute_of_hour;
+        features.day_of_week = time_features.day_of_week;
+        features.day_of_month = time_features.day_of_month;
+        features.month_of_year = time_features.month_of_year;
+        features.quarter = time_features.quarter;
+        features.day_of_year = time_features.day_of_year;
+        features.is_market_open = time_features.is_market_open;
+
+        // ========================================================================
+        // PART 3: TREASURY RATES (7 features)
+        // ========================================================================
+        auto treasury_rates = getTreasuryRates();
+        features.fed_funds_rate = treasury_rates.fed_funds_rate;
+        features.treasury_3mo = treasury_rates.treasury_3mo;
+        features.treasury_2yr = treasury_rates.treasury_2yr;
+        features.treasury_5yr = treasury_rates.treasury_5yr;
+        features.treasury_10yr = treasury_rates.treasury_10yr;
+        features.yield_curve_slope = treasury_rates.yield_curve_slope;
+        features.yield_curve_inversion = treasury_rates.yield_curve_inversion;
+
+        // ========================================================================
+        // PART 4: SENTIMENT FEATURES (2 features)
+        // ========================================================================
+        // TODO: Integrate with news sentiment data from database
+        features.avg_sentiment = 0.0f;  // Neutral sentiment (no news data yet)
+        features.news_count = 0.0f;     // No news articles
+
+        // ========================================================================
+        // PART 5: PRICE, MOMENTUM, VOLATILITY FEATURES (16 features)
+        // ========================================================================
         if (has_full_history) {
             // Use accurate feature extraction with historical data
             auto const& price_hist = price_hist_it->second;
@@ -1377,14 +1605,14 @@ class MLPredictorStrategy : public IStrategy {
             std::span<float const> price_span(price_vec);
             std::span<float const> volume_span(volume_vec);
 
-            // OHLCV data (use current quote + historical high/low if available)
+            // [26-30] OHLCV data (use current quote + historical high/low if available)
             features.close = last_price;
             features.open = price_vec[0]; // Today's open (same as current in our model)
             features.high = ask_price;    // Approximate from bid/ask
             features.low = bid_price;
             features.volume = current_volume;
 
-            // Returns from historical prices
+            // [31-37] Returns from historical prices
             features.return_1d = (price_vec[0] - price_vec[1]) / price_vec[1];
             if (price_vec.size() >= 6) {
                 features.return_5d = (price_vec[0] - price_vec[5]) / price_vec[5];
@@ -1405,13 +1633,11 @@ class MLPredictorStrategy : public IStrategy {
                 bigbrother::market_intelligence::FeatureExtractor::calculateMACD(price_span);
             features.macd = macd;
             features.macd_signal = signal;
-            // Note: macd_histogram no longer in PriceFeatures (not used in 60-feature model)
 
             auto [bb_upper, bb_middle, bb_lower] =
                 bigbrother::market_intelligence::FeatureExtractor::calculateBollingerBands(
                     price_span.subspan(0, std::min(size_t(20), price_vec.size())));
             features.bb_upper = bb_upper;
-            // Note: bb_middle no longer in PriceFeatures (not used in 60-feature model)
             features.bb_lower = bb_lower;
             features.bb_position = (last_price - bb_lower) / (bb_upper - bb_lower + 0.0001f);
 
@@ -1427,9 +1653,60 @@ class MLPredictorStrategy : public IStrategy {
             float volume_sma20 = volume_sum / static_cast<float>(volume_count);
             features.volume_ratio = current_volume / (volume_sma20 + 0.0001f);
 
-            // Note: momentum_5d no longer in PriceFeatures (redundant with return_5d)
+            // ====================================================================
+            // PART 6: OPTIONS GREEKS (6 features) - estimated from ATR
+            // ====================================================================
+            auto greeks = estimateGreeks(last_price, features.atr_14);
+            features.delta = greeks.delta;
+            features.gamma = greeks.gamma;
+            features.theta = greeks.theta;
+            features.vega = greeks.vega;
+            features.rho = greeks.rho;
+            features.implied_volatility = greeks.implied_volatility;
 
-            Logger::getInstance().debug("Extracted features (accurate) for {}: price={:.2f}, "
+            // ====================================================================
+            // PART 7: INTERACTION FEATURES (10 features)
+            // ====================================================================
+            features.sentiment_momentum = features.avg_sentiment * features.return_5d;
+            features.volume_rsi_signal = features.volume_ratio * (features.rsi_14 - 50.0f) / 50.0f;
+            features.yield_volatility = features.yield_curve_slope * features.atr_14;
+            features.delta_iv = features.delta * features.implied_volatility;
+            features.macd_volume = features.macd * features.volume_ratio;
+            features.bb_momentum = features.bb_position * features.return_1d;
+            features.sentiment_strength = features.avg_sentiment * std::log(features.news_count + 1.0f);
+            features.rate_return = features.fed_funds_rate * features.return_20d;
+            features.gamma_volatility = features.gamma * features.atr_14;
+            features.rsi_bb_signal = (features.rsi_14 / 100.0f) * features.bb_position;
+
+            // ====================================================================
+            // PART 8: DIRECTIONALITY FEATURES (8 features)
+            // ====================================================================
+            features.price_direction = features.return_1d > 0.0f ? 1.0f : 0.0f;
+
+            // Calculate MA5 and MA20 for comparison
+            float ma5 = calculateMA(price_span, 5);
+            float ma20 = calculateMA(price_span, 20);
+            features.price_above_ma5 = last_price > ma5 ? 1.0f : 0.0f;
+            features.price_above_ma20 = last_price > ma20 ? 1.0f : 0.0f;
+
+            // Calculate 3-day return if history allows
+            if (price_vec.size() >= 4) {
+                features.momentum_3d = (price_vec[0] - price_vec[3]) / price_vec[3];
+            } else {
+                features.momentum_3d = features.return_1d * 3.0f;
+            }
+
+            // Calculate trend strength (5-day win rate - 0.5)
+            features.trend_strength = calculateWinRate(price_span, 5) - 0.5f;
+
+            // Calculate recent win rate (10-day)
+            features.recent_win_rate = calculateWinRate(price_span, 10);
+
+            // Signal directions
+            features.macd_signal_direction = features.macd > features.macd_signal ? 1.0f : 0.0f;
+            features.volume_trend = features.volume_ratio > 1.0f ? 1.0f : 0.0f;
+
+            Logger::getInstance().debug("Extracted ALL 60 features (accurate) for {}: price={:.2f}, "
                                         "rsi={:.2f}, macd={:.4f}, history_size={}",
                                         symbol, last_price, features.rsi_14, features.macd,
                                         price_vec.size());
@@ -1440,14 +1717,14 @@ class MLPredictorStrategy : public IStrategy {
             float const volatility_estimate = spread / last_price;
             float const price_position = (last_price - bid_price) / (spread + 0.0001f);
 
-            // OHLCV approximations
+            // [26-30] OHLCV approximations
             features.close = last_price;
             features.open = last_price;
             features.high = ask_price;
             features.low = bid_price;
             features.volume = current_volume;
 
-            // Returns - use bid/ask spread as volatility proxy
+            // [31-37] Returns - use bid/ask spread as volatility proxy
             features.return_1d = volatility_estimate * 0.5f;
             features.return_5d = volatility_estimate * 2.0f;
             features.return_20d = volatility_estimate * 5.0f;
@@ -1456,13 +1733,42 @@ class MLPredictorStrategy : public IStrategy {
             features.rsi_14 = 50.0f + (price_position - 0.5f) * 40.0f; // Centered around 50
             features.macd = volatility_estimate * last_price * 0.01f;
             features.macd_signal = features.macd * 0.7f;
-            // Note: macd_histogram, bb_middle, volume_sma20, momentum_5d removed from 60-feature
-            // model
             features.bb_upper = last_price * (1.0f + volatility_estimate * 2.0f);
             features.bb_lower = last_price * (1.0f - volatility_estimate * 2.0f);
             features.bb_position = price_position;
             features.atr_14 = spread;
             features.volume_ratio = 1.0f;
+
+            // [18-23] OPTIONS GREEKS - simplified estimates
+            auto greeks = estimateGreeks(last_price, features.atr_14);
+            features.delta = greeks.delta;
+            features.gamma = greeks.gamma;
+            features.theta = greeks.theta;
+            features.vega = greeks.vega;
+            features.rho = greeks.rho;
+            features.implied_volatility = greeks.implied_volatility;
+
+            // [42-51] INTERACTION FEATURES (all zeros due to no sentiment/limited data)
+            features.sentiment_momentum = 0.0f;
+            features.volume_rsi_signal = features.volume_ratio * (features.rsi_14 - 50.0f) / 50.0f;
+            features.yield_volatility = features.yield_curve_slope * features.atr_14;
+            features.delta_iv = features.delta * features.implied_volatility;
+            features.macd_volume = features.macd * features.volume_ratio;
+            features.bb_momentum = features.bb_position * features.return_1d;
+            features.sentiment_strength = 0.0f;
+            features.rate_return = features.fed_funds_rate * features.return_20d;
+            features.gamma_volatility = features.gamma * features.atr_14;
+            features.rsi_bb_signal = (features.rsi_14 / 100.0f) * features.bb_position;
+
+            // [52-59] DIRECTIONALITY FEATURES (simplified)
+            features.price_direction = features.return_1d > 0.0f ? 1.0f : 0.0f;
+            features.trend_strength = 0.0f; // Unknown without history
+            features.price_above_ma5 = 0.5f; // Neutral assumption
+            features.price_above_ma20 = 0.5f; // Neutral assumption
+            features.momentum_3d = features.return_1d * 3.0f;
+            features.macd_signal_direction = features.macd > features.macd_signal ? 1.0f : 0.0f;
+            features.volume_trend = features.volume_ratio > 1.0f ? 1.0f : 0.0f;
+            features.recent_win_rate = 0.5f; // Neutral assumption
 
             size_t hist_size =
                 price_hist_it != price_history_.end() ? price_hist_it->second.size() : 0;

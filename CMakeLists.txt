@@ -304,6 +304,18 @@ find_package(Python3 COMPONENTS Interpreter Development)
 set(MKL_ROOT "/opt/intel/oneapi/mkl/latest")
 set(CMAKE_PREFIX_PATH "${MKL_ROOT}/lib/cmake/mkl;${CMAKE_PREFIX_PATH}")
 
+# ============================================================================
+# Homebrew Package Paths (Linux)
+# ============================================================================
+# Add Homebrew installation directories to CMAKE_PREFIX_PATH for:
+# - ONNX Runtime (ML inference)
+# - nlohmann-json (JSON parsing - legacy)
+set(HOMEBREW_PREFIX "/home/linuxbrew/.linuxbrew")
+list(APPEND CMAKE_PREFIX_PATH
+    "${HOMEBREW_PREFIX}/opt/onnxruntime"
+    "${HOMEBREW_PREFIX}/opt/nlohmann-json"
+)
+
 find_package(MKL CONFIG PATHS ${MKL_ROOT}/lib/cmake/mkl)
 
 if(MKL_FOUND)
@@ -356,8 +368,13 @@ include_directories(
 find_library(DUCKDB_LIB duckdb)
 find_path(DUCKDB_INCLUDE duckdb.hpp)
 
-find_library(ONNXRUNTIME_LIB onnxruntime)
-find_path(ONNXRUNTIME_INCLUDE onnxruntime_cxx_api.h)
+find_library(ONNXRUNTIME_LIB onnxruntime
+    HINTS "${HOMEBREW_PREFIX}/opt/onnxruntime/lib"
+)
+find_path(ONNXRUNTIME_INCLUDE onnxruntime_cxx_api.h
+    HINTS "${HOMEBREW_PREFIX}/opt/onnxruntime/include/onnxruntime"
+    PATH_SUFFIXES onnxruntime
+)
 
 find_package(spdlog)
 find_package(nlohmann_json)
@@ -417,6 +434,41 @@ if(DUCKDB_LIB AND DUCKDB_INCLUDE)
     target_include_directories(utils PUBLIC ${DUCKDB_INCLUDE})
     target_compile_definitions(utils PUBLIC HAS_DUCKDB)
 endif()
+
+# ============================================================================
+# Machine Learning Library (C++23 Module with Intel MKL)
+# ============================================================================
+
+add_library(ml_lib SHARED)
+
+# C++23 modules with Intel MKL BLAS acceleration, SIMD optimizations, and fluent API
+target_sources(ml_lib
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            src/ml/activations.cppm
+            src/ml/quantization.cppm
+            src/ml/weight_loader.cppm
+            src/ml/quantized_weight_loader.cppm
+            src/ml/neural_net_mkl.cppm
+            src/ml/neural_net_simd.cppm
+            src/ml/neural_net_int8.cppm
+            src/ml/neural_net_int16.cppm
+            src/ml/neural_net_int8_prequant.cppm
+            src/ml/neural_net_int16_prequant.cppm
+            src/ml/neural_net_int32_simd.cppm
+)
+
+target_include_directories(ml_lib PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${MKL_ROOT}/include
+)
+
+target_link_libraries(ml_lib
+    PUBLIC
+    utils
+    MKL::MKL
+    OpenMP::OpenMP_CXX
+)
 
 # ============================================================================
 # Market Intelligence Engine (C++23 Module)
@@ -843,6 +895,115 @@ target_link_libraries(test_schwab_live
 )
 
 # ============================================================================
+# Neural Network MKL Test
+# ============================================================================
+
+add_executable(test_neural_net_mkl
+    examples/test_neural_net_mkl.cpp
+)
+
+target_link_libraries(test_neural_net_mkl
+    PRIVATE
+    ml_lib
+    utils
+    MKL::MKL
+    c++
+    c++abi
+)
+
+# ============================================================================
+# SIMD Neural Network Test (Pure C++ with AVX-512/AVX-2/SSE fallback)
+# ============================================================================
+
+add_executable(test_neural_net_simd
+    tests/test_neural_net_simd.cpp
+)
+
+target_link_libraries(test_neural_net_simd
+    PRIVATE
+    ml_lib
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Weight Loader Module Tests
+# ============================================================================
+
+add_executable(test_weight_loader
+    tests/test_weight_loader.cpp
+)
+
+target_link_libraries(test_weight_loader
+    PRIVATE
+    ml_lib
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Comprehensive ML Engine Benchmark (All implementations + weight loading)
+# ============================================================================
+
+add_executable(benchmark_all_ml_engines
+    benchmarks/benchmark_all_ml_engines.cpp
+)
+
+target_link_libraries(benchmark_all_ml_engines
+    PRIVATE
+    ml_lib
+    utils
+    MKL::MKL
+    c++
+    c++abi
+)
+
+# Benchmark: INT8 vs FP32 quantization
+add_executable(benchmark_int8_quantization
+    benchmarks/benchmark_int8_quantization.cpp
+)
+
+target_link_libraries(benchmark_int8_quantization
+    PRIVATE
+    ml_lib
+    utils
+    MKL::MKL
+    c++
+    c++abi
+)
+
+# INT32 SIMD Benchmark (85-feature clean model)
+add_executable(benchmark_int32_simd_85feat
+    benchmarks/benchmark_int32_simd_85feat.cpp
+)
+
+target_link_libraries(benchmark_int32_simd_85feat
+    PRIVATE
+    ml_lib
+    utils
+    MKL::MKL
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Activation Functions Demo
+# ============================================================================
+
+add_executable(activation_functions_demo
+    examples/activation_functions_demo.cpp
+)
+
+target_link_libraries(activation_functions_demo
+    PRIVATE
+    ml_lib
+    c++
+    c++abi
+)
+
+# ============================================================================
 # Options Strategy Integration Example
 # ============================================================================
 
@@ -954,6 +1115,7 @@ install(TARGETS bigbrother backtest
 
 install(TARGETS
     utils
+    ml_lib
     market_intelligence
     correlation_engine
     options_pricing

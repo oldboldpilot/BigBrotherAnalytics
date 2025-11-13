@@ -1,0 +1,151 @@
+================================================================================
+PRICE PREDICTOR TRAINING - 60 FEATURES (PROPERLY COLLECTED)
+================================================================================
+
+Device: cpu
+
+Loading data from DuckDB (custom_training_data.duckdb)...
+Training: 17,010 samples
+Validation: 3,645 samples
+Test: 3,645 samples
+
+Features: 73 (Target: 60)
+First 10: rsi_14, macd, macd_signal, bb_upper, bb_lower, bb_position, atr_14, volume_sma20, volume_ratio, symbol_encoded
+Last 10: price_lag_11d, price_lag_12d, price_lag_13d, price_lag_14d, price_lag_15d, price_lag_16d, price_lag_17d, price_lag_18d, price_lag_19d, price_lag_20d
+
+WARNING: Expected 60 features, found 73
+INFO: Truncating to first 60 features
+
+================================================================================
+FEATURE QUALITY ANALYSIS
+================================================================================
+
+Checking for data quality issues...
+
+WARNING: 13 constant features (no variation):
+  - sector_encoded: -1.0
+  - is_option: 0.0
+  - hour_of_day: 21.0
+  - minute_of_hour: 0.0
+  - is_market_open: 0.0
+  ... and 8 more
+
+WARNING: 8 all-zero features:
+  - is_option
+  - minute_of_hour
+  - is_market_open
+  - yield_curve_inversion
+  - avg_sentiment
+  ... and 3 more
+
+Feature Statistics:
+  Mean: 324153.3296
+  Std: 3752868.5318
+  Min: -708.2312
+  Max: 138393580.0000
+  NaN count: 0
+
+Input shapes:
+  X_train: (17010, 60)
+  y_train: (17010, 3)
+  X_val: (3645, 60)
+  X_test: (3645, 60)
+
+Normalizing features with StandardScaler...
+Saved scaler parameters to models/scaler_params.json
+  Mean range: [-2.6504, 19448511.3948]
+  Scale range: [0.0000, 21750891.0156]
+
+WARNING: Some features have very large scale factors (>1000)
+
+================================================================================
+MODEL ARCHITECTURE
+================================================================================
+Input: 60 features
+Hidden layers: [256, 128, 64, 32]
+Output: 3 predictions (1d, 5d, 20d returns)
+Total parameters: 58,947 (Expected: 58,947)
+
+Expected: 58,947
+Actual: 58,947
+Parameter count verified!
+
+================================================================================
+TRAINING CONFIGURATION
+================================================================================
+Optimizer: Adam (lr=0.001)
+Loss: MSELoss
+Batch size: 64
+Epochs: 100 (with early stopping)
+Early stopping patience: 10
+Learning rate scheduler: ReduceLROnPlateau
+
+================================================================================
+TRAINING
+================================================================================
+
+Epoch [1/100] - 0.7s
+  Train Loss: 0.002880
+  Val Loss: 0.003308
+  RMSE: 1d=0.0269 (2.69%), 5d=0.0584, 20d=0.0761
+  Directional Accuracy: 1d=53.8%, 5d=47.3%, 20d=60.2%
+
+Epoch [5/100] - 3.6s
+  Train Loss: 0.002623
+  Val Loss: 0.004188
+  RMSE: 1d=0.0318 (3.18%), 5d=0.0574, 20d=0.0909
+  Directional Accuracy: 1d=54.4%, 5d=56.1%, 20d=62.9%
+
+Epoch [10/100] - 7.2s
+  Train Loss: 0.002435
+  Val Loss: 0.003757
+  RMSE: 1d=0.0260 (2.60%), 5d=0.0600, 20d=0.0836
+  Directional Accuracy: 1d=52.9%, 5d=55.1%, 20d=63.6%
+
+Early stopping at epoch 11
+
+Training complete in 0.1 minutes
+
+================================================================================
+FINAL EVALUATION (TEST SET)
+================================================================================
+RMSE:
+  1-day: 0.0260 (2.60%)
+  5-day: 0.0520 (5.20%)
+  20-day: 0.0873 (8.73%)
+
+Directional Accuracy (Trading Signal):
+  1-day: 53.0% [NEEDS IMPROVEMENT]
+  5-day: 44.9% [NEEDS IMPROVEMENT]
+  20-day: 60.6% [NEEDS IMPROVEMENT]
+
+================================================================================
+SAMPLE PREDICTIONS (First 10 test samples)
+================================================================================
+Predicted                           Actual                              Match     
+1d         5d         20d        1d         5d         20d       
+--------------------------------------------------------------------------------
+     0.52%      0.69%      1.83% |      0.45%      1.74%      3.57% | YES YES YES
+     0.19%     -0.51%      1.43% |     -0.28%     -0.35%     -5.03% | NO YES NO
+     0.65%     -0.92%      1.13% |     -0.61%      0.77%     -5.63% | NO NO NO
+     1.13%     -1.17%      0.92% |     -0.29%     -0.77%     -1.61% | NO YES NO
+     1.08%     -1.16%      0.68% |     -0.28%      0.77%     -2.38% | NO NO NO
+     0.36%     -0.03%      1.83% |      0.57%      0.94%     -5.41% | YES NO NO
+     0.36%     -0.58%      1.55% |      2.25%      1.77%      2.29% | YES NO YES
+     0.87%     -1.01%      0.83% |     -2.91%     -1.39%     -1.84% | NO YES NO
+     0.18%     -0.45%      1.67% |     -2.31%     -2.03%      0.48% | NO YES YES
+     0.43%     -0.50%      0.29% |      6.59%      5.70%      7.09% | YES NO YES
+
+No extreme predictions detected (all predictions < 100%)
+
+================================================================================
+EXPORTING WEIGHTS TO BINARY FORMAT
+================================================================================
+network_0:
+  Weight: (256, 60) -> models/weights/network_0_weight.bin
+  Bias: (256,) -> models/weights/network_0_bias.bin
+Traceback (most recent call last):
+  File "/home/muyiwa/Development/BigBrotherAnalytics/scripts/ml/train_price_predictor_60features.py", line 437, in <module>
+    weight_data = state_dict[weight_key].cpu().numpy().astype(np.float32)
+                  ~~~~~~~~~~^^^^^^^^^^^^
+KeyError: 'network.3.weight'
