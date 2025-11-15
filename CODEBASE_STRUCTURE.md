@@ -5,8 +5,11 @@
 BigBrotherAnalytics is a sophisticated trading and economic data analysis system built with:
 - **Database**: DuckDB (embedded SQL database at `data/bigbrother.duckdb`)
 - **Frontend**: Streamlit dashboard (`dashboard/app.py`)
-- **Data Collection**: Multiple API integrations (BLS, FRED, Schwab)
-- **Trading**: Phase 5 implementation with socket-based OAuth token refresh (real-time updates, zero downtime)
+- **Data Collection**: Multiple API integrations (BLS, FRED, Schwab, NewsAPI)
+- **Trading**: Phase 6 - Options Trading Bot ACTIVE (52 strategies, validated with 6 trades)
+- **ML Integration**: Mainline price predictor (85 features, 98.18% accuracy, INT32 SIMD)
+- **Options Pricing**: Trinomial tree + Black-Scholes Greeks (10 strategy modules)
+- **OAuth**: Socket-based token refresh (real-time updates, zero downtime)
 - **Configuration**: YAML-based config system with environment variable support
 
 ---
