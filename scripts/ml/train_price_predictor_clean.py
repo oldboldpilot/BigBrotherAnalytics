@@ -20,8 +20,12 @@ import numpy as np
 import json
 from pathlib import Path
 from datetime import datetime
-from sklearn.preprocessing import StandardScaler
+import sys
 import time
+
+# Add scripts/ml to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+from minmax_normalizer import MinMaxNormalizer
 
 # Model architecture
 class PricePredictorClean(nn.Module):
@@ -84,24 +88,33 @@ def load_clean_data():
     print(f"  Val NaN:   {np.isnan(X_val).sum()}, Inf: {np.isinf(X_val).sum()}")
     print(f"  Test NaN:  {np.isnan(X_test).sum()}, Inf: {np.isinf(X_test).sum()}")
 
-    # Normalize features
-    print("\nNormalizing features...")
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_val = scaler.transform(X_val)
-    X_test = scaler.transform(X_test)
+    # Normalize features with MinMaxNormalizer (matches C++ implementation)
+    print("\nNormalizing features with MinMaxNormalizer...")
+    normalizer = MinMaxNormalizer()
+    X_train = normalizer.fit_transform(X_train)
+    X_val = normalizer.transform(X_val)
+    X_test = normalizer.transform(X_test)
 
-    # Save scaler
-    scaler_path = Path('models/scaler_85feat.pkl')
-    import pickle
-    with open(scaler_path, 'wb') as f:
-        pickle.dump(scaler, f)
-    print(f"✓ Saved scaler to {scaler_path}")
+    # Save normalizer in JSON format (C++ compatible)
+    normalizer_path = Path('models/normalizer_85feat.json')
+    normalizer.save(normalizer_path)
+    print(f"✓ Saved normalizer to {normalizer_path}")
+
+    # Also export as C++ header for easy integration
+    header_path = Path('src/ml/normalizer_params_85feat.hpp')
+    normalizer.export_cpp_header(header_path, template_size=85)
+    print(f"✓ Exported C++ header to {header_path}")
+
+    # Print normalization statistics
+    print(f"\nNormalization statistics:")
+    print(f"  Feature min: [{normalizer.min_[0]:.3f}, ..., {normalizer.min_[-1]:.3f}]")
+    print(f"  Feature max: [{normalizer.max_[0]:.3f}, ..., {normalizer.max_[-1]:.3f}]")
+    print(f"  Output range: [0.0, 1.0]")
 
     return (X_train, y_train), (X_val, y_val), (X_test, y_test), feature_cols
 
 def train_model(model, train_loader, val_loader, optimizer, criterion,
-                num_epochs=100, patience=10, target_accuracy=0.70):
+                num_epochs=100, patience=10, target_accuracy=0.70, device='cpu'):
     """Train the model with early stopping"""
 
     print("\n" + "=" * 80)
@@ -110,6 +123,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
     print(f"Epochs: {num_epochs}")
     print(f"Patience: {patience} (early stopping)")
     print(f"Target accuracy: {target_accuracy:.1%}")
+    print(f"Device: {device}")
 
     best_val_loss = float('inf')
     patience_counter = 0
@@ -122,6 +136,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
         model.train()
         train_loss = 0
         for batch_X, batch_y in train_loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad()
             outputs = model(batch_X)
             loss = criterion(outputs, batch_y)
@@ -136,6 +151,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
         val_loss = 0
         with torch.no_grad():
             for batch_X, batch_y in val_loader:
+                batch_X, batch_y = batch_X.to(device), batch_y.to(device)
                 outputs = model(batch_X)
                 loss = criterion(outputs, batch_y)
                 val_loss += loss.item()
@@ -166,7 +182,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
 
     return best_val_loss, best_epoch, epoch + 1, training_time
 
-def evaluate_model(model, X_test, y_test):
+def evaluate_model(model, X_test, y_test, device='cpu'):
     """Evaluate model on test set"""
 
     print("\n" + "=" * 80)
@@ -175,8 +191,8 @@ def evaluate_model(model, X_test, y_test):
 
     model.eval()
     with torch.no_grad():
-        X_tensor = torch.FloatTensor(X_test)
-        predictions = model(X_tensor).numpy()
+        X_tensor = torch.FloatTensor(X_test).to(device)
+        predictions = model(X_tensor).cpu().numpy()
 
     # Compute RMSE for each target
     rmse_1d = np.sqrt(np.mean((predictions[:, 0] - y_test[:, 0]) ** 2))
@@ -212,6 +228,16 @@ def main():
     torch.manual_seed(42)
     np.random.seed(42)
 
+    # Set device (GPU if available)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"\n" + "=" * 80)
+    print("DEVICE CONFIGURATION")
+    print("=" * 80)
+    print(f"Using device: {device}")
+    if device.type == 'cuda':
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+
     # Load data
     (X_train, y_train), (X_val, y_val), (X_test, y_test), feature_cols = load_clean_data()
 
@@ -230,7 +256,7 @@ def main():
     print("=" * 80)
     print(f"Input size: {input_size}")
 
-    model = PricePredictorClean(input_size=input_size)
+    model = PricePredictorClean(input_size=input_size).to(device)
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -244,11 +270,11 @@ def main():
     # Train
     best_val_loss, best_epoch, total_epochs, training_time = train_model(
         model, train_loader, val_loader, optimizer, criterion,
-        num_epochs=100, patience=10, target_accuracy=0.70
+        num_epochs=2000, patience=2000, target_accuracy=0.70, device=device
     )
 
     # Evaluate
-    test_metrics = evaluate_model(model, X_test, y_test)
+    test_metrics = evaluate_model(model, X_test, y_test, device=device)
 
     # Save metadata (convert NumPy types to Python types for JSON serialization)
     metadata = {
@@ -278,7 +304,7 @@ def main():
         'optimizer': 'Adam',
         'learning_rate': 0.001,
         'batch_size': int(batch_size),
-        'normalization': 'StandardScaler'
+        'normalization': 'MinMaxNormalizer'
     }
 
     metadata_path = Path('models/price_predictor_85feat_info.json')
@@ -303,11 +329,13 @@ def main():
 
     print(f"\nModel saved: models/price_predictor_85feat_best.pth")
     print(f"Metadata saved: {metadata_path}")
-    print(f"Scaler saved: models/scaler_85feat.pkl")
+    print(f"Normalizer saved: models/normalizer_85feat.json")
+    print(f"C++ header saved: src/ml/normalizer_params_85feat.hpp")
 
     print("\nNext steps:")
-    print("  1. Export weights: python scripts/ml/export_weights_to_binary.py --features 85")
+    print("  1. Export weights: python scripts/ml/export_cpp_model_weights.py")
     print("  2. Run benchmark: ./build/bin/benchmark_all_ml_engines")
+    print("  3. Verify parity: ./build/bin/test_cpp_python_parity")
 
 if __name__ == '__main__':
     main()
