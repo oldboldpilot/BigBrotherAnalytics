@@ -441,7 +441,7 @@ struct PriceFeatures {
         // Use calculated Greeks instead of struct values to match Python training
         float gamma_volatility_calc = gamma_calc * atr_14;
 
-        return {
+        std::array<float, 85> features = {
             // [0-4] OHLCV
             close, open, high, low, volume,
             // [5-7] Technical indicators
