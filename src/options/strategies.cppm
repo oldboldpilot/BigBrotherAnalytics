@@ -9,10 +9,25 @@
  * - Iron Condors: Combined credit spreads for range-bound markets
  * - Protective Puts: Portfolio hedging
  *
- * ML Integration:
- * - Uses PricePredictor for directional bias
- * - Implied volatility analysis
- * - Strike price optimization
+ * ============================================================================
+ * CRITICAL: CORRECT OPTIONS PRICING METHODOLOGY
+ * ============================================================================
+ *
+ * ML PricePredictor predicts UNDERLYING STOCK PRICE, NOT option prices directly.
+ *
+ * Correct Flow:
+ * 1. ML PricePredictor → Predict underlying stock price (e.g., SPY: $450 → $462)
+ * 2. Get Implied Volatility (IV) from market data or estimate
+ * 3. Trinomial Tree + Risk-Free Rate + IV + Predicted Stock Price → Calculate Option Fair Value
+ * 4. Calculate Greeks from trinomial model (delta, gamma, theta, vega, rho)
+ * 5. Trading Decision: Compare fair value to market price, use Greeks for risk assessment
+ *
+ * ML Integration (CORRECT):
+ * - Uses PricePredictor for STOCK directional bias (predict future stock price)
+ * - Uses predicted stock price to inform strike selection
+ * - Options are priced using trinomial tree with IV from market
+ * - Greeks calculated from trinomial model, NOT from ML
+ * - Strike price optimization based on predicted stock movement
  * - DTE (Days To Expiration) optimization
  *
  * Risk Management:
@@ -22,7 +37,7 @@
  * - Stop-loss triggers
  *
  * Author: Olumuyiwa Oluwasanmi
- * Date: 2025-11-14
+ * Date: 2025-11-15 (Updated with correct methodology)
  */
 
 module;
@@ -147,6 +162,12 @@ public:
      * Generate covered call strategy
      * Sell call against existing stock position
      *
+     * CORRECT METHODOLOGY:
+     * 1. Use ML to predict future STOCK price (not option price)
+     * 2. Use predicted stock price to select optimal strike
+     * 3. Price option using trinomial tree with market IV
+     * 4. Calculate Greeks from trinomial model
+     *
      * @param symbol Stock symbol
      * @param current_price Current stock price
      * @param shares_owned Number of shares owned
@@ -165,19 +186,29 @@ public:
             return std::nullopt;
         }
 
-        // Use ML predictor for directional bias
-        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
-        auto prediction = predictor.predictPrice(symbol);
+        // TODO: INTEGRATE ML FOR STOCK PRICE PREDICTION
+        // Correct flow:
+        // 1. Extract 85 features from market data for symbol
+        // 2. Call predictor.predictStockPrice(symbol, current_price, features, 20)
+        // 3. Use predicted stock price to determine strike selection
+        //
+        // For now, use simple heuristic for strike selection
+        // This is a TEMPORARY placeholder until feature extraction is integrated
 
-        if (!prediction) {
-            Logger::getInstance().warn("Failed to get price prediction for {}", symbol);
-            return std::nullopt;
-        }
+        double strike_multiplier = 1.03; // Default: 3% OTM
 
-        // Select strike based on prediction
-        // If bullish, sell OTM call (higher strike)
-        // If neutral/bearish, sell ATM call
-        double strike_multiplier = prediction->day_20_change > 0.02 ? 1.05 : 1.02;
+        // PLACEHOLDER: In production, this would be:
+        // auto features = featureExtractor.extract(symbol, current_price);
+        // auto predicted_price = predictor.predictStockPrice(symbol, current_price, features, 20);
+        // if (predicted_price) {
+        //     // If bullish prediction, sell higher OTM call
+        //     if (*predicted_price > current_price * 1.02) {
+        //         strike_multiplier = 1.05;  // 5% OTM if bullish
+        //     } else {
+        //         strike_multiplier = 1.02;  // 2% OTM if neutral
+        //     }
+        // }
+
         double strike = std::round(current_price * strike_multiplier);
 
         // Calculate premium and Greeks
@@ -219,7 +250,8 @@ public:
         position.aggregate_greeks.theta *= -contracts;
         position.aggregate_greeks.vega *= -contracts;
 
-        position.confidence = prediction->confidence_20d;
+        // TODO: Update confidence from ML prediction when integrated
+        position.confidence = 0.70; // Default confidence until ML integration
         position.rationale = "Covered call: Generate income from " + symbol +
                            " shares. Strike: $" + std::to_string(strike) +
                            ", Premium: $" + std::to_string(call_leg.premium);
@@ -230,6 +262,13 @@ public:
     /**
      * Generate cash-secured put strategy
      * Sell put with cash reserve to buy stock at lower price
+     *
+     * CORRECT METHODOLOGY:
+     * 1. Use ML to predict future STOCK price
+     * 2. Only sell puts if predicted stock price > current (bullish/neutral)
+     * 3. Use predicted price to optimize strike selection
+     * 4. Price option using trinomial tree with market IV
+     * 5. Calculate Greeks from trinomial model
      */
     [[nodiscard]] auto generateCashSecuredPut(
         std::string const& symbol,
@@ -238,22 +277,30 @@ public:
         double account_value
     ) -> std::optional<OptionsPosition> {
 
-        // Use ML predictor for directional bias
-        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
-        auto prediction = predictor.predictPrice(symbol);
+        // TODO: INTEGRATE ML FOR STOCK PRICE PREDICTION
+        // Correct flow:
+        // 1. Extract features from market data
+        // 2. Predict future stock price using ML
+        // 3. Only sell puts if bullish/neutral prediction
+        //
+        // PLACEHOLDER: Using default strike selection for now
 
-        if (!prediction) {
-            return std::nullopt;
-        }
-
-        // Only sell puts if bullish or neutral
-        if (prediction->day_20_change < -0.03) {
-            Logger::getInstance().info("Bearish prediction, skipping cash-secured put");
-            return std::nullopt;
-        }
-
-        // Select strike 3-5% below current price
         double strike_multiplier = 0.97; // 3% OTM
+
+        // PLACEHOLDER: In production, this would be:
+        // auto features = featureExtractor.extract(symbol, current_price);
+        // auto predicted_price = predictor.predictStockPrice(symbol, current_price, features, 20);
+        // if (predicted_price) {
+        //     if (*predicted_price < current_price * 0.97) {
+        //         Logger::getInstance().info("Bearish prediction, skipping cash-secured put");
+        //         return std::nullopt;
+        //     }
+        //     // Adjust strike based on how bullish the prediction is
+        //     if (*predicted_price > current_price * 1.03) {
+        //         strike_multiplier = 0.95;  // More aggressive if very bullish
+        //     }
+        // }
+
         double strike = std::round(current_price * strike_multiplier);
 
         // Calculate collateral required
@@ -302,7 +349,8 @@ public:
         position.aggregate_greeks.theta *= -contracts;
         position.aggregate_greeks.vega *= -contracts;
 
-        position.confidence = prediction->confidence_20d;
+        // TODO: Update confidence from ML prediction when integrated
+        position.confidence = 0.70; // Default confidence until ML integration
         position.rationale = "Cash-secured put: Willing to buy " + symbol +
                            " at $" + std::to_string(strike) +
                            ". Premium: $" + std::to_string(put_leg.premium * contracts);
@@ -313,6 +361,13 @@ public:
     /**
      * Generate bull call spread
      * Buy lower strike call, sell higher strike call
+     *
+     * CORRECT METHODOLOGY:
+     * 1. Use ML to predict future STOCK price
+     * 2. Only trade if bullish prediction (predicted price > current)
+     * 3. Use predicted price to optimize strike selection
+     * 4. Price both legs using trinomial tree with market IV
+     * 5. Calculate net Greeks from both legs
      */
     [[nodiscard]] auto generateBullCallSpread(
         std::string const& symbol,
@@ -321,13 +376,21 @@ public:
         double account_value
     ) -> std::optional<OptionsPosition> {
 
-        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
-        auto prediction = predictor.predictPrice(symbol);
+        // TODO: INTEGRATE ML FOR STOCK PRICE PREDICTION
+        // Correct flow:
+        // 1. Extract features and predict future stock price
+        // 2. Only trade if sufficiently bullish (predicted_price > current_price * 1.02)
+        // 3. Optimize strike selection based on predicted price
+        //
+        // PLACEHOLDER: Using default strikes for now
 
-        if (!prediction || prediction->day_20_change < 0.02) {
-            Logger::getInstance().info("Not bullish enough for bull call spread");
-            return std::nullopt;
-        }
+        // PLACEHOLDER: In production, check ML prediction:
+        // auto features = featureExtractor.extract(symbol, current_price);
+        // auto predicted_price = predictor.predictStockPrice(symbol, current_price, features, 20);
+        // if (!predicted_price || *predicted_price < current_price * 1.02) {
+        //     Logger::getInstance().info("Not bullish enough for bull call spread");
+        //     return std::nullopt;
+        // }
 
         // Long call strike: ATM or slightly OTM
         double long_strike = std::round(current_price * 1.00);
@@ -392,7 +455,8 @@ public:
         position.aggregate_greeks.vega = (long_call_pricing.greeks.vega - short_call_pricing.greeks.vega) * contracts;
         position.aggregate_greeks.gamma = (long_call_pricing.greeks.gamma - short_call_pricing.greeks.gamma) * contracts;
 
-        position.confidence = prediction->confidence_20d;
+        // TODO: Update confidence from ML prediction when integrated
+        position.confidence = 0.70; // Default confidence until ML integration
         position.rationale = "Bull call spread: Bullish on " + symbol +
                            ". Max profit: $" + std::to_string(position.max_profit) +
                            ", Max loss: $" + std::to_string(position.max_loss);
@@ -404,6 +468,13 @@ public:
      * Generate iron condor
      * Sell OTM put spread + sell OTM call spread
      * Profits in range-bound market
+     *
+     * CORRECT METHODOLOGY:
+     * 1. Use ML to predict future STOCK price
+     * 2. Only trade if neutral prediction (predicted price near current)
+     * 3. Center strikes around predicted price
+     * 4. Price all 4 legs using trinomial tree with market IV
+     * 5. Calculate net Greeks from all legs
      */
     [[nodiscard]] auto generateIronCondor(
         std::string const& symbol,
@@ -412,18 +483,25 @@ public:
         double account_value
     ) -> std::optional<OptionsPosition> {
 
-        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
-        auto prediction = predictor.predictPrice(symbol);
+        // TODO: INTEGRATE ML FOR STOCK PRICE PREDICTION
+        // Correct flow:
+        // 1. Extract features and predict future stock price
+        // 2. Only trade if neutral prediction (predicted price within ±3% of current)
+        // 3. Center iron condor strikes around predicted price
+        //
+        // PLACEHOLDER: Using default strikes centered around current price
 
-        if (!prediction) {
-            return std::nullopt;
-        }
-
-        // Iron condor works best in low volatility, neutral markets
-        if (std::abs(prediction->day_20_change) > 0.05) {
-            Logger::getInstance().info("High predicted movement, skipping iron condor");
-            return std::nullopt;
-        }
+        // PLACEHOLDER: In production, check ML prediction:
+        // auto features = featureExtractor.extract(symbol, current_price);
+        // auto predicted_price = predictor.predictStockPrice(symbol, current_price, features, 20);
+        // if (!predicted_price) {
+        //     return std::nullopt;
+        // }
+        // double predicted_change_pct = (*predicted_price - current_price) / current_price * 100.0;
+        // if (std::abs(predicted_change_pct) > 5.0) {
+        //     Logger::getInstance().info("High predicted movement ({:.2f}%), skipping iron condor", predicted_change_pct);
+        //     return std::nullopt;
+        // }
 
         // Strike selection for iron condor
         // Lower put spread: 7-10% OTM
@@ -516,7 +594,8 @@ public:
                                           lower_call_pricing.greeks.theta * contracts +
                                           upper_call_pricing.greeks.theta * contracts);
 
-        position.confidence = prediction->confidence_20d;
+        // TODO: Update confidence from ML prediction when integrated
+        position.confidence = 0.70; // Default confidence until ML integration
         position.rationale = "Iron condor: Range-bound profit on " + symbol +
                            ". Max profit: $" + std::to_string(position.max_profit) +
                            ", Max risk: $" + std::to_string(position.max_loss);
@@ -527,6 +606,13 @@ public:
     /**
      * Generate protective put
      * Buy put to hedge existing stock position
+     *
+     * CORRECT METHODOLOGY:
+     * 1. Use ML to predict future STOCK price
+     * 2. Only hedge if bearish/uncertain prediction
+     * 3. Select strike based on predicted downside
+     * 4. Price put using trinomial tree with market IV
+     * 5. Calculate Greeks for hedge ratio optimization
      */
     [[nodiscard]] auto generateProtectivePut(
         std::string const& symbol,
@@ -540,19 +626,26 @@ public:
             return std::nullopt;
         }
 
-        // Use ML predictor to assess downside risk
-        auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
-        auto prediction = predictor.predictPrice(symbol);
+        // TODO: INTEGRATE ML FOR STOCK PRICE PREDICTION
+        // Correct flow:
+        // 1. Extract features and predict future stock price
+        // 2. Only hedge if bearish prediction or high uncertainty
+        // 3. Select strike based on predicted downside risk
+        //
+        // PLACEHOLDER: Using default hedge strategy for now
 
-        if (!prediction) {
-            return std::nullopt;
-        }
-
-        // Only hedge if bearish or uncertain
-        if (prediction->day_20_change > 0.05) {
-            Logger::getInstance().info("Bullish prediction, protective put not needed");
-            return std::nullopt;
-        }
+        // PLACEHOLDER: In production, assess downside risk:
+        // auto features = featureExtractor.extract(symbol, current_price);
+        // auto predicted_price = predictor.predictStockPrice(symbol, current_price, features, 20);
+        // if (predicted_price && *predicted_price > current_price * 1.05) {
+        //     Logger::getInstance().info("Bullish prediction, protective put not needed");
+        //     return std::nullopt;
+        // }
+        // // Adjust strike based on predicted downside
+        // if (predicted_price) {
+        //     double predicted_drop = (current_price - *predicted_price) / current_price;
+        //     strike_multiplier = 1.0 - (predicted_drop * 0.7);  // Protect 70% of predicted drop
+        // }
 
         // Select strike 5% below current price (5% downside protection)
         double strike = std::round(current_price * 0.95);
@@ -599,7 +692,8 @@ public:
         position.aggregate_greeks.theta *= contracts;
         position.aggregate_greeks.vega *= contracts;
 
-        position.confidence = 1.0 - prediction->confidence_20d; // High confidence when bearish
+        // TODO: Update confidence from ML prediction when integrated
+        position.confidence = 0.70; // Default confidence until ML integration
         position.rationale = "Protective put: Hedge " + symbol + " against downside. " +
                            "Protection below $" + std::to_string(strike) +
                            ". Cost: $" + std::to_string(total_cost);
@@ -714,5 +808,68 @@ private:
     StrategyConfig config_;
     TrinomialPricer pricer_;
 };
+
+// ============================================================================
+// IMPLEMENTATION NOTES: ML Integration Requirements
+// ============================================================================
+//
+// The current implementation uses PLACEHOLDER logic for ML-based stock price
+// prediction. To enable full ML integration, the following components are needed:
+//
+// 1. FEATURE EXTRACTION:
+//    - Implement FeatureExtractor to build 85-feature vectors from market data
+//    - Features include: price data, volume, technical indicators, lags, diffs
+//    - Reference: src/market_intelligence/feature_extractor.cppm
+//
+// 2. MARKET DATA INTEGRATION:
+//    - Connect to real-time market data feed (Schwab API, etc.)
+//    - Fetch historical data for feature calculation
+//    - Get implied volatility from options chain data
+//
+// 3. ML PREDICTOR INTEGRATION:
+//    - Call PricePredictor::predictStockPrice() with extracted features
+//    - Use predicted STOCK price (not option price) for strike selection
+//    - Use prediction confidence for position sizing
+//
+// 4. OPTION PRICING:
+//    - Use trinomial pricer with market-derived IV (NOT ML predicted)
+//    - Feed predicted stock price as spot price for future scenarios
+//    - Calculate Greeks from trinomial model
+//
+// 5. RISK-FREE RATE:
+//    - Fetch current risk-free rate from FRED API
+//    - Update pricer calls with actual rate (currently hardcoded to 0.05)
+//
+// Example of correct integration flow:
+//
+//   // 1. Extract features
+//   auto features = featureExtractor.extract(symbol, current_price);
+//
+//   // 2. Predict future stock price using ML
+//   auto predicted_price = predictor.predictStockPrice(
+//       symbol, current_price, features, 20  // 20-day horizon
+//   );
+//
+//   // 3. Get market IV (from options chain or estimate)
+//   double market_iv = getImpliedVolatility(symbol, strike, expiration);
+//
+//   // 4. Get risk-free rate
+//   double risk_free_rate = fredAPI.getTreasuryRate();
+//
+//   // 5. Price option using trinomial tree
+//   auto pricing = pricer_.price(
+//       current_price,           // Current stock price
+//       strike,                  // Strike price (optimized using predicted_price)
+//       30.0/365.0,             // Time to expiration
+//       market_iv,              // Market implied volatility
+//       risk_free_rate,         // FRED risk-free rate
+//       OptionType::CALL,
+//       OptionStyle::AMERICAN
+//   );
+//
+//   // 6. Greeks come from trinomial model, NOT from ML
+//   Greeks greeks = pricing.greeks;
+//
+// ============================================================================
 
 } // namespace options

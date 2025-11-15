@@ -1351,3 +1351,19 @@ set_target_properties(data_loader_py PROPERTIES
 #     OUTPUT_NAME "bigbrother_duckdb"
 #     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
 # )
+
+# Options Integration Test
+add_executable(test_options_bot
+    examples/test_options_bot.cpp
+)
+
+target_link_libraries(test_options_bot
+    PRIVATE
+    trading_decision
+    options_strategies
+    risk_management
+    market_intelligence
+    utils
+    c++
+    c++abi
+)

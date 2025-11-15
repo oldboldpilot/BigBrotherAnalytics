@@ -301,6 +301,64 @@ class PricePredictor {
         }
     }
 
+    /**
+     * Predict future stock price (convenience wrapper for options pricing)
+     *
+     * This method returns predicted STOCK PRICE, not option prices.
+     * Use the predicted stock price as input to trinomial option pricer.
+     *
+     * @param symbol Stock symbol
+     * @param current_price Current stock price
+     * @param features 85-element feature vector
+     * @param horizon Prediction horizon (1, 5, or 20 days)
+     * @return Predicted stock price (current_price * (1 + predicted_change/100))
+     */
+    [[nodiscard]] auto predictStockPrice(
+        std::string const& symbol,
+        double current_price,
+        std::array<float, 85> const& features,
+        int horizon = 20
+    ) -> std::optional<double> {
+
+        auto prediction = predict(symbol, features);
+        if (!prediction) {
+            return std::nullopt;
+        }
+
+        // Get predicted percentage change based on horizon
+        float predicted_change = 0.0f;
+        switch (horizon) {
+            case 1:  predicted_change = prediction->day_1_change; break;
+            case 5:  predicted_change = prediction->day_5_change; break;
+            case 20: predicted_change = prediction->day_20_change; break;
+            default:
+                Logger::getInstance().warn("Invalid horizon {}, using 20-day", horizon);
+                predicted_change = prediction->day_20_change;
+        }
+
+        // Calculate predicted price: P_future = P_current * (1 + change%)
+        double predicted_price = current_price * (1.0 + predicted_change / 100.0);
+
+        Logger::getInstance().debug("Predicted stock price for {} ({}d): ${:.2f} -> ${:.2f} ({:+.2f}%)",
+            symbol, horizon, current_price, predicted_price, predicted_change);
+
+        return predicted_price;
+    }
+
+    /**
+     * Get full price prediction with all horizons
+     * Returns prediction object with percentage changes
+     *
+     * NOTE: This returns PERCENTAGE CHANGES, not absolute prices.
+     * For options pricing, use predictStockPrice() instead.
+     */
+    [[nodiscard]] auto getPricePrediction(
+        std::string const& symbol,
+        std::array<float, 85> const& features
+    ) -> std::optional<PricePrediction> {
+        return predict(symbol, features);
+    }
+
     [[nodiscard]] auto isInitialized() const noexcept -> bool {
         return initialized_;
     }
