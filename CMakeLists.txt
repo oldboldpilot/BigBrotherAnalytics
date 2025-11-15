@@ -445,6 +445,7 @@ add_library(ml_lib SHARED)
 target_sources(ml_lib
     PUBLIC
         FILE_SET CXX_MODULES FILES
+            src/ml/normalizer.cppm
             src/ml/activations.cppm
             src/ml/quantization.cppm
             src/ml/weight_loader.cppm
@@ -492,7 +493,6 @@ target_sources(market_intelligence
             src/market_intelligence/yahoo_finance.cppm
             src/market_intelligence/schwab_api.cppm
             src/market_intelligence/feature_extractor.cppm
-            src/market_intelligence/price_predictor.cppm
             src/market_intelligence/price_predictor_v4.cppm
 )
 
@@ -964,6 +964,38 @@ target_link_libraries(test_weight_loader
 )
 
 # ============================================================================
+# C++ vs Python Parity Validation Test
+# ============================================================================
+
+add_executable(test_cpp_python_parity
+    tests/test_cpp_python_parity.cpp
+)
+
+target_link_libraries(test_cpp_python_parity
+    PRIVATE
+    ml_lib
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
+# Normalizer Module Test
+# ============================================================================
+
+add_executable(test_normalizer
+    tests/test_normalizer.cpp
+)
+
+target_link_libraries(test_normalizer
+    PRIVATE
+    ml_lib
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
 # Comprehensive ML Engine Benchmark (All implementations + weight loading)
 # ============================================================================
 
@@ -1274,6 +1306,22 @@ pybind11_add_module(market_data_py src/python_bindings/market_data_bindings.cpp)
 target_link_libraries(market_data_py PRIVATE market_intelligence utils CURL::libcurl)
 set_target_properties(market_data_py PROPERTIES
     OUTPUT_NAME "market_data_py"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
+
+# Feature Extractor Python Bindings - For parity testing and training (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(feature_extractor_py src/python_bindings/feature_extractor_bindings.cpp)
+target_link_libraries(feature_extractor_py PRIVATE)
+set_target_properties(feature_extractor_py PROPERTIES
+    OUTPUT_NAME "feature_extractor_cpp"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
+)
+
+# Data Loader Python Bindings - For consistent data ingestion (Tagged: PYTHON_BINDINGS)
+pybind11_add_module(data_loader_py src/python_bindings/data_loader_bindings.cpp)
+target_link_libraries(data_loader_py PRIVATE duckdb)
+set_target_properties(data_loader_py PROPERTIES
+    OUTPUT_NAME "data_loader_cpp"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python"
 )
 
