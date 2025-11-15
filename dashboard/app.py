@@ -25,6 +25,9 @@ from price_predictions_view import show_price_predictions
 # Import tax tracking view
 from tax_tracking_view import show_realtime_tax_tracking
 
+# Import options analytics view
+from options_analytics_view import show_options_analytics
+
 # Import new trading activity views
 try:
     from views import live_trading_activity, rejection_analysis, risk_analytics
@@ -528,7 +531,7 @@ def main():
         if RISK_ANALYTICS_AVAILABLE:
             views.append("🎯 Risk Analytics")
 
-        views.extend(["🔮 Price Predictions", "Employment Signals", "FRED Rates", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications", "Tax Tracking"])
+        views.extend(["🔮 Price Predictions", "💎 Options Analytics", "Employment Signals", "FRED Rates", "Trade History", "News Feed", "Alerts", "System Health", "Tax Implications", "Tax Tracking"])
 
         view = st.radio(
             "Select View",
@@ -569,6 +572,8 @@ def main():
             st.error("Risk analytics view not available")
     elif view == "🔮 Price Predictions":
         show_price_predictions(get_db_connection())
+    elif view == "💎 Options Analytics":
+        show_options_analytics()
     elif view == "Employment Signals":
         show_employment_signals()
     elif view == "FRED Rates":
