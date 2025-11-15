@@ -49,6 +49,7 @@ export module bigbrother.ml.neural_net_int32_simd;
 
 import bigbrother.ml.weight_loader;
 import bigbrother.ml.activations;
+import bigbrother.utils.logger;
 
 export namespace bigbrother::ml {
 
@@ -377,8 +378,21 @@ public:
     [[nodiscard]] auto predict(std::span<const float, INPUT_SIZE> input) const
         -> std::array<float, OUTPUT_SIZE>
     {
+        using namespace bigbrother::utils;
+
+        // DEBUG: Log input checksum to verify different inputs
+        float input_checksum = 0.0f;
+        for (size_t i = 0; i < INPUT_SIZE; ++i) {
+            input_checksum += input[i] * (i + 1);
+        }
+        Logger::getInstance().info("INT32_SIMD: input checksum = {:.6f}, input[0]={:.6f}, input[47]={:.6f}, input[27]={:.6f}",
+            input_checksum, input[0], input[47], input[27]);
+
         // Quantize input
         auto [input_quantized, input_scale] = quantizeToInt32(input);
+
+        Logger::getInstance().info("INT32_SIMD: input_scale={:.10f}, quantized[0]={}, quantized[47]={}",
+            input_scale, input_quantized[0], input_quantized[47]);
 
         // Forward pass through all layers
         std::vector<float> current(layers_[0].rows);
@@ -424,12 +438,26 @@ public:
                 for (float& val : current) {
                     val = activations::scalar::relu(val);
                 }
+
+                // DEBUG: Log first 5 activations after each layer
+                std::string layer_out = "Layer" + std::to_string(i) + " output[0:5]: [";
+                for (size_t j = 0; j < std::min(size_t(5), current.size()); ++j) {
+                    if (j > 0) layer_out += ", ";
+                    layer_out += std::to_string(current[j]);
+                }
+                layer_out += "]";
+                // Note: Can't use Logger here, but we can check in debugger
             }
         }
 
         // Return output
         std::array<float, OUTPUT_SIZE> output;
         std::copy_n(current.begin(), OUTPUT_SIZE, output.begin());
+
+        // DEBUG: Log output
+        Logger::getInstance().info("INT32_SIMD: returning output=[{:.6f}, {:.6f}, {:.6f}]",
+            output[0], output[1], output[2]);
+
         return output;
     }
 

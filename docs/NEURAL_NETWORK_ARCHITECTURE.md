@@ -14,7 +14,7 @@
 3. [C++23 Module Structure](#c23-module-structure)
 4. [Weight Loader (Fluent API)](#weight-loader-fluent-api)
 5. [Neural Network Engines](#neural-network-engines)
-6. [INT32 SIMD Quantization (v4.0)](#int32-simd-quantization-v40)
+6. [INT32 SIMD Quantization (Production)](#int32-simd-quantization-production)
 7. [Feature Extraction](#feature-extraction)
 8. [Usage Examples](#usage-examples)
 9. [Performance Benchmarks](#performance-benchmarks)
@@ -475,12 +475,12 @@ __m256 _mm256_max_ps(__m256 a, __m256 b);           // ReLU
 
 ---
 
-## INT32 SIMD Quantization (v4.0)
+## INT32 SIMD Quantization (Production)
 
 ### Overview
 
-**Module:** `bigbrother.market_intelligence.price_predictor_v4`
-**File:** [src/market_intelligence/price_predictor_v4.cppm](../src/market_intelligence/price_predictor_v4.cppm)
+**Module:** `bigbrother.market_intelligence.price_predictor`
+**File:** [src/market_intelligence/price_predictor.cppm](../src/market_intelligence/price_predictor.cppm)
 **Documentation:** [ML_QUANTIZATION.md](ML_QUANTIZATION.md), [SIMD_NEURAL_NETWORK_INDEX.md](SIMD_NEURAL_NETWORK_INDEX.md)
 
 The INT32 SIMD quantization system provides **production-ready inference** with the 85-feature clean model achieving **98.18% accuracy** on 20-day predictions.
@@ -498,7 +498,7 @@ The INT32 SIMD quantization system provides **production-ready inference** with 
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │                   PRICE PREDICTOR V4.0                         │
-│  (market_intelligence/price_predictor_v4.cppm)                 │
+│  (market_intelligence/price_predictor.cppm)                 │
 └────────────────────────────────────────────────────────────────┘
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
@@ -593,7 +593,7 @@ struct StandardScaler85 {
 ### API Usage
 
 ```cpp
-import bigbrother.market_intelligence.price_predictor_v4;
+import bigbrother.market_intelligence.price_predictor;
 using namespace bigbrother::market_intelligence;
 
 // Configure predictor
@@ -602,7 +602,7 @@ config.model_weights_path = "models/weights";
 config.confidence_threshold = 0.70f;
 
 // Initialize singleton
-auto& predictor = PricePredictorV4::getInstance();
+auto& predictor = PricePredictor::getInstance();
 if (!predictor.initialize(config)) {
     // Handle initialization failure
 }
@@ -627,20 +627,20 @@ if (prediction) {
 
 | Engine | Precision | Throughput | Latency | Accuracy | Status |
 |--------|-----------|------------|---------|----------|--------|
-| **INT32 SIMD (v4.0)** | 30-bit | ~98K/sec | ~10μs | 98.18% (20d) | ✅ Production |
+| **INT32 SIMD (Production)** | 30-bit | ~98K/sec | ~10μs | 98.18% (20d) | ✅ Production |
 | **ONNX Runtime (v3.0)** | FP32 | ~1K/sec | ~1ms | 56.6% (20d) | ⚠️ Legacy |
 | **SIMD FP32 (legacy)** | 32-bit | 233M/sec | ~0.004μs | 60.6% (20d) | 📚 Research |
 | **Intel MKL (legacy)** | 32-bit | 227M/sec | ~0.004μs | 60.6% (20d) | 📚 Research |
 
 **Key Insights:**
 - **Accuracy vs Speed Tradeoff:** INT32 SIMD sacrifices raw throughput for **63% better accuracy** (98.18% vs 60.6%)
-- **Production Ready:** v4.0 exceeds profitable trading threshold (>55%) by **43 percentage points**
+- **Production Ready:** Model exceeds profitable trading threshold (>55%) by **43 percentage points**
 - **Clean Features:** 85-feature model removes 17 constant features from v3.0's 60-feature model
 
 ### Weight Loading
 
 ```cpp
-// Price Predictor v4.0 uses 85-feature model configuration
+// Price Predictor uses 85-feature model configuration
 auto weights = PricePredictorConfig85::createLoader(config_.model_weights_path).load();
 
 // Create INT32 SIMD engine with automatic CPU detection
@@ -649,20 +649,20 @@ engine_ = std::make_unique<NeuralNetINT32SIMD85>(weights);
 
 ### Integration Test
 
-**File:** [examples/test_price_predictor_v4.cpp](../examples/test_price_predictor_v4.cpp)
+**File:** [examples/test_price_predictor.cpp](../examples/test_price_predictor.cpp)
 
 ```bash
-./build/bin/test_price_predictor_v4
+./build/bin/test_price_predictor
 ```
 
 **Expected Output:**
 ```
 ╔══════════════════════════════════════════════════════════╗
-║  Price Predictor v4.0 Integration Test                  ║
+║  Price Predictor Integration Test                       ║
 ║  INT32 SIMD Engine with 85-Feature Clean Model          ║
 ╚══════════════════════════════════════════════════════════╝
 
-✅ Price Predictor v4.0 initialized successfully
+✅ Price Predictor initialized successfully
 ✅ INT32 SIMD engine working correctly (AVX-512)
 ✅ 85-feature clean model loaded successfully
 
@@ -678,7 +678,7 @@ Model Details:
 ### Future Work
 
 - **Complete 85-Feature Extraction:** Implement full pipeline for extracting all 85 features from market data
-- **Trading Engine Integration:** Wire v4.0 predictor into MLPredictorStrategy
+- **Trading Engine Integration:** Wire production predictor into MLPredictorStrategy
 - **Backtesting:** Validate 98.18% accuracy holds in live market conditions
 - **INT8 Quantization:** Further optimization with 8-bit precision (targets 200K+ predictions/sec)
 

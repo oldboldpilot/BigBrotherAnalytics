@@ -1,9 +1,9 @@
 # BigBrotherAnalytics - Project Tasks
 
 **Last Updated:** 2025-11-13
-**Phase:** Phase 5+ - ML Price Predictor v4.0 DEPLOYED (INT32 SIMD), Ready for Live Trading
-**ML Model:** v4.0 - 85 features (clean), 95.10% (1-day), 97.09% (5-day), 98.18% (20-day) accuracy - **PRODUCTION READY**
-**Status:** ML v4.0 Integrated (INT32 SIMD) + Real-Time Risk Management (VaR/Sharpe with SIMD)
+**Phase:** Phase 5+ - ML Price Predictor DEPLOYED (INT32 SIMD), Ready for Live Trading
+**ML Model:** Production - 85 features (clean), 95.10% (1-day), 97.09% (5-day), 98.18% (20-day) accuracy - **PRODUCTION READY**
+**Status:** ML Price Predictor Integrated (INT32 SIMD) + Real-Time Risk Management (VaR/Sharpe with SIMD)
 
 ---
 
@@ -63,22 +63,22 @@
   - **Performance:** <15μs total risk overhead, <1ms ML inference
   - **Status:** ✅ Production ready v3.0, 1-2 days to live trading
 
-- [x] **ML Price Predictor v4.0 - INT32 SIMD Integration** (2025-11-13)
+- [x] **ML Price Predictor - INT32 SIMD Integration** (2025-11-13)
   - [x] **85-Feature Clean Model:** Production model with 17 constant features removed
   - [x] **INT32 SIMD Quantization:** 30-bit precision neural network engine
   - [x] **CPU Fallback Hierarchy:** AVX-512 → AVX2 → MKL BLAS → Scalar
   - [x] **Production Accuracy:** 95.10% (1-day), 97.09% (5-day), 98.18% (20-day)
-  - [x] **Architecture:** 85 → 256 → 128 → 64 → 32 → 3 (same as v3.0, cleaner features)
+  - [x] **Architecture:** 85 → 256 → 128 → 64 → 32 → 3 (clean features, no constants)
   - [x] **StandardScaler85:** Feature normalization with 85-element MEAN/STD arrays
-  - [x] **Price Predictor v4.0 Module:** price_predictor_v4.cppm (360 lines)
-  - [x] **Integration Test:** test_price_predictor_v4.cpp (110 lines) - PASSED
+  - [x] **Price Predictor Module:** src/ml/price_predictor.cppm (360 lines)
+  - [x] **Integration Test:** examples/test_price_predictor.cpp (110 lines) - PASSED
   - [x] **Performance:** ~98K predictions/sec (AVX-512), ~10μs latency
   - [x] **Weight Loading:** Binary weights from models/weights directory
   - [x] **Build System:** CMakeLists.txt updated with ml_lib linkage
-  - [x] **Documentation:** copilot-instructions.md created (matches ai/CLAUDE.md)
-  - **Files Created:** price_predictor_v4.cppm, test_price_predictor_v4.cpp, copilot-instructions.md
-  - **Files Modified:** CMakeLists.txt, feature_extractor.cppm
-  - **Status:** ✅ Production ready v4.0, ready for trading integration
+  - [x] **Documentation:** copilot-instructions.md updated (matches ai/CLAUDE.md)
+  - **Files Created:** price_predictor.cppm, test_price_predictor.cpp
+  - **Files Modified:** CMakeLists.txt, feature_extractor.cppm, documentation files
+  - **Status:** ✅ Production ready, ready for trading integration
 
 - [x] **News Ingestion System** (2025-11-10)
   - [x] Sentiment analyzer module (260 lines)

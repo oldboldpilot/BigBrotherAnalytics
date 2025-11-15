@@ -1,0 +1,31 @@
+{
+  "session_start_time": "2025-11-13T07:39:22.768103",
+  "pre_existing_pids": [
+    3504906,
+    3504931,
+    3504934
+  ],
+  "started_processes": [
+    {
+      "pid": 3505265,
+      "name": "streamlit",
+      "cmdline": "uv run streamlit run app.py",
+      "description": "Dashboard",
+      "start_time": "2025-11-13T07:39:28.393524"
+    },
+    {
+      "pid": 3505544,
+      "name": "bigbrother",
+      "cmdline": "/home/muyiwa/Development/BigBrotherAnalytics/build/bin/bigbrother",
+      "description": "Trading Engine",
+      "start_time": "2025-11-13T07:39:31.399878"
+    },
+    {
+      "pid": 3505677,
+      "name": "token_refresh_service",
+      "cmdline": "uv run python token_refresh_service.py",
+      "description": "Token Refresh Service",
+      "start_time": "2025-11-13T07:39:34.406033"
+    }
+  ]
+}

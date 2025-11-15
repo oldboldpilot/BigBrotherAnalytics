@@ -22,6 +22,15 @@ echo -e "${BLUE}═════════════════════�
 # Create logs directory
 mkdir -p logs
 
+# Update historical data before starting services
+echo -e "${BLUE}📊 Updating historical price data...${NC}"
+if uv run python scripts/data_collection/update_historical_daily.py >> logs/data_update.log 2>&1; then
+    echo -e "   ${GREEN}✓${NC} Historical data updated"
+else
+    echo -e "   ${YELLOW}⚠️${NC} Data update failed (check logs/data_update.log)"
+fi
+echo ""
+
 # Function to start process in detached background
 start_detached() {
     local name=$1

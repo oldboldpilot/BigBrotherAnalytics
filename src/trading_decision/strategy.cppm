@@ -117,8 +117,19 @@ struct TradingSignal {
     ~TradingSignal() = default;
 
     [[nodiscard]] auto isActionable() const noexcept -> bool {
-        return type != SignalType::Hold && confidence > 0.6 && expected_return > 50.0 &&
-               win_probability > 0.60;
+        // For option strategies, only require confidence > 0.50
+        // (option strategies may not set expected_return/win_probability)
+        bool is_option_strategy = strategy_name.find("Straddle") != std::string::npos ||
+                                  strategy_name.find("Strangle") != std::string::npos ||
+                                  strategy_name.find("Volatility") != std::string::npos;
+
+        if (is_option_strategy) {
+            return type != SignalType::Hold && confidence > 0.50;
+        }
+
+        // For stock strategies, require all thresholds
+        return type != SignalType::Hold && confidence > 0.50 && expected_return > 5.0 &&
+               win_probability > 0.50;
     }
 
     [[nodiscard]] auto riskRewardRatio() const noexcept -> double {
@@ -1011,7 +1022,15 @@ auto StrategyExecutor::execute() -> Result<std::vector<std::string>> {
         utils::Logger::getInstance().info("After confidence filter: {} signals", signals.size());
     }
 
-    // 3. Filter to only actionable signals
+    // 3. Log signal values before filtering
+    for (size_t i = 0; i < signals.size(); ++i) {
+        auto const& s = signals[i];
+        utils::Logger::getInstance().info("Signal {}: {} {} - confidence:{:.2f}, expected_return:{:.2f}, win_prob:{:.2f}, type:{}",
+            i, s.symbol, s.strategy_name, s.confidence, s.expected_return, s.win_probability,
+            s.type == SignalType::Buy ? "Buy" : (s.type == SignalType::Sell ? "Sell" : "Hold"));
+    }
+
+    // 4. Filter to only actionable signals
     auto it = std::remove_if(signals.begin(), signals.end(),
                              [](auto const& s) -> bool { return !s.isActionable(); });
     signals.erase(it, signals.end());

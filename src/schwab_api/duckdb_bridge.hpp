@@ -37,7 +37,7 @@ class DatabaseHandle {
     [[nodiscard]] auto getImpl() const -> void const*;
 
   private:
-    friend auto openDatabase(std::string const& path) -> std::unique_ptr<DatabaseHandle>;
+    friend auto openDatabase(std::string const& path, bool read_only) -> std::unique_ptr<DatabaseHandle>;
 
     struct Impl;
     std::unique_ptr<Impl> pImpl_;
@@ -105,7 +105,7 @@ class QueryResultHandle {
  */
 
 // Database operations
-auto openDatabase(std::string const& path) -> std::unique_ptr<DatabaseHandle>;
+auto openDatabase(std::string const& path, bool read_only = false) -> std::unique_ptr<DatabaseHandle>;
 
 // Connection operations
 auto createConnection(DatabaseHandle& db) -> std::unique_ptr<ConnectionHandle>;

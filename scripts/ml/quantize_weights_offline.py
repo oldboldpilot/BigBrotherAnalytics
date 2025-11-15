@@ -242,7 +242,7 @@ def save_quantized_weights_int16(
 def main():
     """Main entry point."""
     base_dir = Path(__file__).parent.parent.parent
-    model_path = base_dir / "models" / "price_predictor_60feat_best.pth"
+    model_path = base_dir / "models" / "price_predictor_85feat_best.pth"
     output_dir = base_dir / "models" / "weights"
 
     # Create output directory

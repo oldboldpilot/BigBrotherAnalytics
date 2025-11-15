@@ -288,9 +288,8 @@ class TradingEngine {
         strategy_manager_ = std::make_unique<strategy::StrategyManager>();
 
         // Add default strategies
-        // ML strategy now has defensive validation to prevent crashes from corrupted symbols
         strategy_manager_->addStrategy(
-            strategies::createMLPredictorStrategy()); // AI-powered predictions with validation
+            strategies::createMLPredictorStrategy()); // AI-powered predictions
         strategy_manager_->addStrategy(strategies::createStraddleStrategy());
         strategy_manager_->addStrategy(strategies::createStrangleStrategy());
         strategy_manager_->addStrategy(strategies::createVolatilityArbStrategy());

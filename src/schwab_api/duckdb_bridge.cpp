@@ -24,9 +24,35 @@ namespace bigbrother::duckdb_bridge {
 struct DatabaseHandle::Impl {
     duckdb_database db{nullptr};
 
-    explicit Impl(std::string const& path) {
-        if (duckdb_open(path.c_str(), &db) == DuckDBError) {
-            throw std::runtime_error("Failed to open database: " + path);
+    explicit Impl(std::string const& path, bool read_only = false) {
+        if (read_only) {
+            // Open in read-only mode using config
+            duckdb_config config;
+            if (duckdb_create_config(&config) == DuckDBError) {
+                throw std::runtime_error("Failed to create DuckDB config");
+            }
+
+            // Set access mode to READ_ONLY
+            if (duckdb_set_config(config, "access_mode", "READ_ONLY") == DuckDBError) {
+                duckdb_destroy_config(&config);
+                throw std::runtime_error("Failed to set read-only mode");
+            }
+
+            // Open with config
+            char* error_msg = nullptr;
+            if (duckdb_open_ext(path.c_str(), &db, config, &error_msg) == DuckDBError) {
+                std::string error = error_msg ? error_msg : "Unknown error";
+                duckdb_free(error_msg);
+                duckdb_destroy_config(&config);
+                throw std::runtime_error("Failed to open database in read-only mode: " + error);
+            }
+
+            duckdb_destroy_config(&config);
+        } else {
+            // Normal read-write mode
+            if (duckdb_open(path.c_str(), &db) == DuckDBError) {
+                throw std::runtime_error("Failed to open database: " + path);
+            }
         }
     }
 
@@ -184,9 +210,9 @@ auto PreparedStatementHandle::setImpl(void* impl) -> void {
 // Bridge Functions (C API)
 // ============================================================================
 
-auto openDatabase(std::string const& path) -> std::unique_ptr<DatabaseHandle> {
+auto openDatabase(std::string const& path, bool read_only) -> std::unique_ptr<DatabaseHandle> {
     auto handle = std::make_unique<DatabaseHandle>();
-    handle->pImpl_ = std::make_unique<DatabaseHandle::Impl>(path);
+    handle->pImpl_ = std::make_unique<DatabaseHandle::Impl>(path, read_only);
     return handle;
 }
 

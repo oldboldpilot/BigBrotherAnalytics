@@ -252,7 +252,492 @@ struct PriceFeatures {
     [[nodiscard]] auto normalize() const -> std::array<float, 60> {
         return StandardScalerParams::normalize(toArray());
     }
+
+  private:
+    /**
+     * Calculate Black-Scholes Greeks from pricing data
+     * Returns: {gamma, theta, vega, rho}
+     */
+    [[nodiscard]] static auto calculateGreeks(
+        float spot_price,
+        float volatility,
+        float risk_free_rate,
+        float time_to_expiry = 30.0f / 365.0f) -> std::array<float, 4> {
+
+        // For ETFs, approximate ATM option (strike = spot)
+        float K = spot_price;
+        float S = spot_price;
+        float r = risk_free_rate / 100.0f;  // Convert percentage to decimal
+        float sigma = volatility;
+        float T = time_to_expiry;
+
+        // Avoid invalid inputs
+        if (S <= 0.0f || K <= 0.0f || sigma <= 0.0f || T <= 0.0f) {
+            return {0.01f, -0.05f, 0.20f, 0.01f};  // Fallback to estimates
+        }
+
+        // Black-Scholes d1 and d2
+        float sqrt_T = std::sqrt(T);
+        float d1 = (std::log(S / K) + (r + 0.5f * sigma * sigma) * T) / (sigma * sqrt_T);
+        float d2 = d1 - sigma * sqrt_T;
+
+        // Standard normal PDF: N'(x) = (1/sqrt(2π)) * exp(-x²/2)
+        float n_prime_d1 = (1.0f / std::sqrt(2.0f * 3.14159265f)) * std::exp(-0.5f * d1 * d1);
+
+        // Standard normal CDF: N(x) (approximation using tanh)
+        auto norm_cdf = [](float x) -> float {
+            return 0.5f * (1.0f + std::tanh(x / std::sqrt(2.0f) * 0.7978845608f));
+        };
+
+        float n_d2 = norm_cdf(d2);
+
+        // Calculate Greeks for ATM call option (matching Python JAX implementation)
+        float gamma_val = n_prime_d1 / (S * sigma * sqrt_T);
+        float vega_val = S * n_prime_d1 * sqrt_T / 100.0f;  // Per 1% volatility change
+
+        // Theta (full formula matching Python):
+        // theta = (-S * N'(d1) * sigma / (2*sqrt(T)) - r * K * exp(-r*T) * N(d2)) / 365
+        float theta_val = (-(S * n_prime_d1 * sigma) / (2.0f * sqrt_T)
+                          - r * K * std::exp(-r * T) * n_d2) / 365.0f;
+
+        // Rho (full formula matching Python):
+        // rho = K * T * exp(-r*T) * N(d2) / 100
+        float rho_val = K * T * std::exp(-r * T) * n_d2 / 100.0f;
+
+        // Scale to reasonable ranges
+        gamma_val = std::clamp(gamma_val, 0.0f, 0.1f);
+        theta_val = std::clamp(theta_val, -0.5f, 0.0f);
+        vega_val = std::clamp(vega_val, 0.0f, 1.0f);
+        rho_val = std::clamp(rho_val, -0.5f, 0.5f);
+
+        return {gamma_val, theta_val, vega_val, rho_val};
+    }
+
+  public:
+    /**
+     * Convert to 85-feature array for v4.0 clean model
+     * Requires at least 21 days of price history
+     */
+    [[nodiscard]] auto toArray85(
+        std::vector<float> const& price_history,
+        std::vector<float> const& volume_history,
+        std::chrono::system_clock::time_point timestamp) const -> std::array<float, 85> {
+
+        // Calculate price lags as actual historical prices (not ratios)
+        // Training data uses actual price values for lag features
+        std::array<float, 20> price_lags{};
+        for (int i = 0; i < 20 && i < static_cast<int>(price_history.size()); ++i) {
+            price_lags[i] = price_history[i];
+        }
+
+        // Calculate price diffs (20 values)
+        // Python: df.groupby('symbol')['close'].diff(lag)
+        // This computes: price[t] - price[t-lag]
+        // In our price_history: [0] is most recent, so diff(i+1) = price[0] - price[i+1]
+        std::array<float, 20> price_diffs{};
+        for (int i = 0; i < 20 && i + 1 < static_cast<int>(price_history.size()); ++i) {
+            price_diffs[i] = price_history[0] - price_history[i + 1];  // current - (i+1) days ago
+        }
+
+        // Calculate autocorrelations using returns (matches Python)
+        // Python: df['returns'] = df.groupby('symbol')['close'].pct_change()
+        // Then computes rolling autocorrelation with window=60
+        auto calc_autocorr = [&price_history](int lag, int window = 60) -> float {
+            if (static_cast<int>(price_history.size()) < window + lag + 1) return 0.0f;
+
+            // Calculate returns (most recent first)
+            std::vector<float> returns;
+            for (size_t i = 0; i + 1 < price_history.size() && i < static_cast<size_t>(window + lag); ++i) {
+                float ret = (price_history[i] - price_history[i + 1]) / price_history[i + 1];
+                returns.push_back(ret);
+            }
+
+            if (returns.size() < static_cast<size_t>(window + lag)) return 0.0f;
+
+            // Compute autocorrelation: corr(returns[0:window], returns[lag:window+lag])
+            // Calculate means
+            float mean1 = 0.0f, mean2 = 0.0f;
+            for (int i = 0; i < window; ++i) {
+                mean1 += returns[i];
+                mean2 += returns[i + lag];
+            }
+            mean1 /= window;
+            mean2 /= window;
+
+            // Calculate correlation
+            float num = 0.0f, denom1 = 0.0f, denom2 = 0.0f;
+            for (int i = 0; i < window; ++i) {
+                float diff1 = returns[i] - mean1;
+                float diff2 = returns[i + lag] - mean2;
+                num += diff1 * diff2;
+                denom1 += diff1 * diff1;
+                denom2 += diff2 * diff2;
+            }
+
+            float denom = std::sqrt(denom1 * denom2);
+            return (denom > 0.0f) ? (num / denom) : 0.0f;
+        };
+
+        float autocorr_1 = calc_autocorr(1, 60);
+        float autocorr_5 = calc_autocorr(5, 60);
+        float autocorr_10 = calc_autocorr(10, 60);
+        float autocorr_20 = calc_autocorr(20, 60);
+
+        // Extract year, month, day from timestamp
+        auto time_t_now = std::chrono::system_clock::to_time_t(timestamp);
+        std::tm tm_local;
+        #if defined(__linux__) || defined(__APPLE__)
+        localtime_r(&time_t_now, &tm_local);
+        #else
+        localtime_s(&tm_local, &time_t_now);
+        #endif
+
+        float year = static_cast<float>(tm_local.tm_year + 1900);
+        float month = static_cast<float>(tm_local.tm_mon + 1);
+        float day = static_cast<float>(tm_local.tm_mday);
+
+        // Calculate volume_sma20
+        float volume_sma20 = 0.0f;
+        int volume_count = std::min(20, static_cast<int>(volume_history.size()));
+        if (volume_count > 0) {
+            for (int i = 0; i < volume_count; ++i) {
+                volume_sma20 += volume_history[i];
+            }
+            volume_sma20 /= volume_count;
+        }
+
+        // Calculate volume_ratio
+        float vol_ratio = (volume_sma20 > 0.0f) ? (volume / volume_sma20) : volume_ratio;
+
+        // Calculate implied volatility from historical price data
+        // Use ATR as a proxy for volatility (annualized)
+        float volatility_estimate = 0.0f;
+        if (price_history.size() >= 14) {
+            float atr_sum = 0.0f;
+            for (int i = 1; i < 14 && i < static_cast<int>(price_history.size()); ++i) {
+                atr_sum += std::abs(price_history[i-1] - price_history[i]);
+            }
+            float avg_atr = atr_sum / 13.0f;
+            // Annualize: ATR / Price * sqrt(252 trading days)
+            volatility_estimate = (close > 0.0f) ? (avg_atr / close) * std::sqrt(252.0f) : 0.20f;
+            volatility_estimate = std::clamp(volatility_estimate, 0.05f, 2.0f);  // Reasonable bounds
+        } else {
+            volatility_estimate = 0.20f;  // Default 20% volatility
+        }
+
+        // Use treasury_10yr as risk-free rate (or fed_funds_rate if available)
+        // Note: These should come from PriceFeatures struct members
+        float risk_free = (treasury_10yr > 0.0f) ? treasury_10yr :
+                          (fed_funds_rate > 0.0f) ? fed_funds_rate : 4.5f;  // Default ~4.5%
+
+        // Calculate Greeks from pricing data
+        auto greeks = calculateGreeks(close, volatility_estimate, risk_free);
+        float gamma_calc = greeks[0];
+        float theta_calc = greeks[1];
+        float vega_calc = greeks[2];
+        float rho_calc = greeks[3];
+
+        // Recalculate interaction features that depend on Greeks
+        // Use calculated Greeks instead of struct values to match Python training
+        float gamma_volatility_calc = gamma_calc * atr_14;
+
+        return {
+            // [0-4] OHLCV
+            close, open, high, low, volume,
+            // [5-7] Technical indicators
+            rsi_14, macd, macd_signal,
+            // [8-10] Bollinger Bands
+            bb_upper, bb_lower, bb_position,
+            // [11-13] Volatility/Volume
+            atr_14, volume_sma20,
+            vol_ratio,
+            // [14-17] Greeks (calculated from pricing data using Black-Scholes)
+            gamma_calc, theta_calc, vega_calc, rho_calc,
+            // [18-24] Interaction features
+            volume_rsi_signal, yield_volatility, macd_volume,
+            bb_momentum, rate_return, gamma_volatility_calc, rsi_bb_signal,
+            // [25-26] Momentum features
+            momentum_3d, recent_win_rate,
+            // [27-46] Price lags (20 days)
+            price_lags[0], price_lags[1], price_lags[2], price_lags[3], price_lags[4],
+            price_lags[5], price_lags[6], price_lags[7], price_lags[8], price_lags[9],
+            price_lags[10], price_lags[11], price_lags[12], price_lags[13], price_lags[14],
+            price_lags[15], price_lags[16], price_lags[17], price_lags[18], price_lags[19],
+            // [47] Symbol encoding
+            symbol_encoded,
+            // [48-52] Time features
+            day_of_week, day_of_month, month_of_year, quarter, day_of_year,
+            // [53-57] Directional features
+            price_direction, price_above_ma5, price_above_ma20,
+            macd_signal_direction, volume_trend,
+            // [58-60] Date components
+            year, month, day,
+            // [61-80] Price diffs (20 days)
+            price_diffs[0], price_diffs[1], price_diffs[2], price_diffs[3], price_diffs[4],
+            price_diffs[5], price_diffs[6], price_diffs[7], price_diffs[8], price_diffs[9],
+            price_diffs[10], price_diffs[11], price_diffs[12], price_diffs[13], price_diffs[14],
+            price_diffs[15], price_diffs[16], price_diffs[17], price_diffs[18], price_diffs[19],
+            // [81-84] Autocorrelations
+            autocorr_1, autocorr_5, autocorr_10, autocorr_20
+        };
+
+        // Normalize all features to [0,1] using global min/max from training data
+        // This ensures: (1) perfect INT32 quantization, (2) no dominant features
+        return normalizeFeatures85(features);
+    }
 };
+
+// ============================================================================
+// Feature Normalization - Single Source of Truth
+// ============================================================================
+
+/**
+ * Global min/max normalization constants from training data
+ * Ensures all features are in [0,1] for perfect INT32 quantization
+ *
+ * IMPORTANT: These are computed from the ENTIRE training dataset and hardcoded here.
+ * Training and inference use these SAME constants → perfect parity.
+ *
+ * Computed from 9,720 training samples (all SPY data)
+ */
+inline constexpr std::array<float, 85> FEATURE_MIN_85 = {
+    25.752899f, 25.954308f, 26.119101f, 25.734591f, 1245100.0f,  // [0-4] OHLCV
+    0.0f, -4.184433f, -3.979798f, 0.0f, 0.0f,  // [5-9]
+    -0.077830f, 0.0f, -1.0f, -0.452162f, -0.314953f,  // [10-14]
+    -0.376302f, -1.0f, -1.0f, 0.0f, -0.092566f,  // [15-19]
+    -6.506897f, 0.0f, 0.0f, 0.0f, 0.0f,  // [20-24]
+    -6.506897f, 0.0f, 0.0f, 0.0f, 0.0f,  // [25-29]
+    0.0f, -0.196610f, -0.189683f, -0.176601f, 0.0f,  // [30-34]
+    -41.470001f, -41.200001f, 0.0f, 0.0f, 0.0f,  // [35-39]
+    0.0f, 0.0f, 0.0f, -0.074834f, -0.196610f,  // [40-44]
+    -0.452162f, -41.470001f, -0.158731f, 0.0f, -0.188785f,  // [45-49]
+    0.0f, 0.0f, 0.0f, -0.077830f, 0.0f,  // [50-54]
+    0.0f, -0.188785f, 0.0f, 0.0f, 0.0f,  // [55-59]
+    0.0f, -191.740005f, -191.470001f, -186.039993f, -184.839996f,  // [60-64]
+    -183.380005f, -178.979996f, -176.160004f, -172.869995f, -170.020004f,  // [65-69]
+    -167.259995f, -164.509995f, -161.979996f, -159.610001f, -157.179993f,  // [70-74]
+    -154.759995f, -152.330002f, -149.949997f, -147.570007f, -145.199997f,  // [75-79]
+    -143.500000f, -0.173090f, 0.0f, -0.066612f, -0.081545f  // [80-84] Last + autocorrs
+};
+
+inline constexpr std::array<float, 85> FEATURE_MAX_85 = {
+    673.109985f, 673.530029f, 673.950012f, 669.460022f, 256611392.0f,  // [0-4] OHLCV
+    100.0f, 4.160000f, 4.110000f, 1.0f, 1.0f,  // [5-9]
+    0.134623f, 0.999875f, 1.0f, 0.437879f, 0.312500f,  // [10-14]
+    0.378571f, 1.0f, 1.0f, 1.0f, 0.138462f,  // [15-19]
+    6.506897f, 1.0f, 1.0f, 1.0f, 1.0f,  // [20-24]
+    6.506897f, 1.0f, 1.0f, 1.0f, 1.0f,  // [25-29]
+    1.0f, 0.314433f, 0.296610f, 0.271449f, 100.0f,  // [30-34]
+    41.470001f, 41.200001f, 1.0f, 31.0f, 673.109985f,  // [35-39]
+    669.460022f, 1.0f, 1.0f, 0.159091f, 0.314433f,  // [40-44]
+    0.437879f, 41.470001f, 0.162338f, 1.0f, 0.188785f,  // [45-49]
+    1.0f, 1.0f, 1.0f, 0.134623f, 1.0f,  // [50-54]
+    1.0f, 0.188785f, 1.0f, 1.0f, 1.0f,  // [55-59]
+    4.0f, 191.740005f, 191.470001f, 186.039993f, 184.839996f,  // [60-64]
+    183.380005f, 178.979996f, 176.160004f, 172.869995f, 170.020004f,  // [65-69]
+    167.259995f, 164.509995f, 161.979996f, 159.610001f, 157.179993f,  // [70-74]
+    154.759995f, 152.330002f, 149.949997f, 147.570007f, 145.199997f,  // [75-79]
+    143.500000f, 0.0f, 0.142276f, 0.099620f, 0.046974f  // [80-84] Last + autocorrs
+};
+
+/**
+ * Normalize 85 features to [0,1] using global min/max constants
+ * Formula: normalized = (value - min) / (max - min)
+ *
+ * This ensures:
+ * - All features in [0,1] range
+ * - Perfect INT32 quantization (no dominant features)
+ * - Identical normalization in training and inference
+ */
+[[nodiscard]] inline auto normalizeFeatures85(std::array<float, 85> const& features)
+    -> std::array<float, 85>
+{
+    std::array<float, 85> normalized;
+
+    for (size_t i = 0; i < 85; ++i) {
+        float const range = FEATURE_MAX_85[i] - FEATURE_MIN_85[i];
+
+        // Avoid division by zero for constant features
+        if (range < 1e-8f) {
+            normalized[i] = 0.0f;
+        } else {
+            float const value = std::clamp(features[i], FEATURE_MIN_85[i], FEATURE_MAX_85[i]);
+            normalized[i] = (value - FEATURE_MIN_85[i]) / range;
+        }
+    }
+
+    return normalized;
+};
+
+// ============================================================================
+// INT32 Quantization for Neural Network Inference
+// ============================================================================
+
+/**
+ * Quantization parameters for INT32 symmetric quantization
+ * Maps FP32 range [-scale, +scale] to INT32 range [-2^31+1, +2^31-1]
+ */
+struct QuantizationParams32 {
+    float scale;           // Scale factor: fp32_value = int32_value * scale
+    float inv_scale;       // Inverse: int32_value = fp32_value / inv_scale
+    int32_t zero_point{0}; // Symmetric quantization always uses 0
+
+    QuantizationParams32() : scale(1.0f), inv_scale(1.0f) {}
+
+    explicit QuantizationParams32(float s)
+        : scale(s)
+        , inv_scale(1.0f / s)
+    {}
+};
+
+/**
+ * Compute INT32 quantization parameters from FP32 data
+ * Uses symmetric quantization: [-max_abs, +max_abs] → [-2147483647, +2147483647]
+ */
+[[nodiscard]] inline auto computeQuantizationParams32(std::span<float const> data) -> QuantizationParams32 {
+    float max_abs = 0.0f;
+    for (float val : data) {
+        max_abs = std::max(max_abs, std::abs(val));
+    }
+
+    // Avoid division by zero
+    if (max_abs < 1e-8f) {
+        max_abs = 1.0f;
+    }
+
+    // Map [-max_abs, +max_abs] to [-2147483647, +2147483647]
+    // Use 2^31 - 1 to avoid overflow
+    constexpr int32_t MAX_INT32 = 2147483647;
+    float scale = max_abs / static_cast<float>(MAX_INT32);
+    return QuantizationParams32(scale);
+}
+
+/**
+ * Quantize FP32 array to INT32
+ * output[i] = clamp(round(input[i] / scale), -2147483647, 2147483647)
+ */
+[[nodiscard]] inline auto quantize32(
+    std::span<float const> input,
+    std::span<int32_t> output,
+    QuantizationParams32 const& params) -> void
+{
+    float const inv_scale = params.inv_scale;
+    int const size = static_cast<int>(input.size());
+
+    #if defined(__AVX2__)
+    // AVX2: Process 8 floats at a time
+    __m256 const inv_scale_vec = _mm256_set1_ps(inv_scale);
+
+    int i = 0;
+    for (; i + 8 <= size; i += 8) {
+        // Load 8 floats
+        __m256 fp32_vals = _mm256_loadu_ps(&input[i]);
+
+        // Scale: fp32 / scale
+        __m256 scaled = _mm256_mul_ps(fp32_vals, inv_scale_vec);
+
+        // Round to nearest integer and convert to int32
+        __m256i int32_vals = _mm256_cvtps_epi32(scaled);
+
+        // Store (no clamping needed for INT32 as FP32 range fits)
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&output[i]), int32_vals);
+    }
+
+    // Handle remainder
+    for (; i < size; ++i) {
+        float scaled = input[i] * inv_scale;
+        output[i] = static_cast<int32_t>(std::round(scaled));
+    }
+    #else
+    // Scalar fallback
+    for (int i = 0; i < size; ++i) {
+        float scaled = input[i] * inv_scale;
+        output[i] = static_cast<int32_t>(std::round(scaled));
+    }
+    #endif
+}
+
+/**
+ * Dequantize INT32 array to FP32
+ * output[i] = input[i] * scale
+ */
+[[nodiscard]] inline auto dequantize32(
+    std::span<int32_t const> input,
+    std::span<float> output,
+    QuantizationParams32 const& params) -> void
+{
+    float const scale = params.scale;
+    int const size = static_cast<int>(input.size());
+
+    #if defined(__AVX2__)
+    // AVX2: Process 8 int32 values at a time
+    __m256 const scale_vec = _mm256_set1_ps(scale);
+
+    int i = 0;
+    for (; i + 8 <= size; i += 8) {
+        // Load 8 int32 values
+        __m256i int32_vals = _mm256_loadu_si256(reinterpret_cast<__m256i const*>(&input[i]));
+
+        // Convert int32 → fp32
+        __m256 fp32_vals = _mm256_cvtepi32_ps(int32_vals);
+
+        // Scale: int32 * scale
+        fp32_vals = _mm256_mul_ps(fp32_vals, scale_vec);
+
+        // Store
+        _mm256_storeu_ps(&output[i], fp32_vals);
+    }
+
+    // Handle remainder
+    for (; i < size; ++i) {
+        output[i] = static_cast<float>(input[i]) * scale;
+    }
+    #else
+    // Scalar fallback
+    for (int i = 0; i < size; ++i) {
+        output[i] = static_cast<float>(input[i]) * scale;
+    }
+    #endif
+}
+
+/**
+ * Quantize 85-feature array for neural network inference
+ * Returns both quantized features and quantization parameters
+ */
+[[nodiscard]] inline auto quantizeFeatures85(
+    std::array<float, 85> const& features)
+    -> std::pair<std::array<int32_t, 85>, QuantizationParams32>
+{
+    // Compute quantization parameters
+    auto params = computeQuantizationParams32(std::span<float const>(features.data(), 85));
+
+    // Quantize features
+    std::array<int32_t, 85> quantized;
+    quantize32(
+        std::span<float const>(features.data(), 85),
+        std::span<int32_t>(quantized.data(), 85),
+        params
+    );
+
+    return {quantized, params};
+}
+
+/**
+ * Dequantize 85-feature array back to FP32
+ */
+[[nodiscard]] inline auto dequantizeFeatures85(
+    std::array<int32_t, 85> const& quantized,
+    QuantizationParams32 const& params)
+    -> std::array<float, 85>
+{
+    std::array<float, 85> features;
+    dequantize32(
+        std::span<int32_t const>(quantized.data(), 85),
+        std::span<float>(features.data(), 85),
+        params
+    );
+    return features;
+}
 
 /**
  * Context data for feature extraction (60 features)
@@ -529,14 +1014,20 @@ class FeatureExtractor {
 
         float hour = static_cast<float>(tm->tm_hour);
         float minute = static_cast<float>(tm->tm_min);
-        float day_of_week = static_cast<float>(tm->tm_wday);  // 0=Sunday
+
+        // Convert tm_wday (0=Sunday) to Python dayofweek (0=Monday)
+        // tm_wday: Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+        // Python:  Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+        float day_of_week = (tm->tm_wday == 0) ? 6.0f : static_cast<float>(tm->tm_wday - 1);
+
         float day_of_month = static_cast<float>(tm->tm_mday);
         float month = static_cast<float>(tm->tm_mon + 1);     // 1-12
         float quarter = static_cast<float>((tm->tm_mon / 3) + 1);  // 1-4
         float day_of_year = static_cast<float>(tm->tm_yday + 1);   // 1-365
 
         // Market open: Mon-Fri 9:30 AM - 4:00 PM ET
-        bool is_weekday = (day_of_week >= 1 && day_of_week <= 5);  // Mon-Fri
+        // Now check using original tm_wday (1-5 = Mon-Fri)
+        bool is_weekday = (tm->tm_wday >= 1 && tm->tm_wday <= 5);
         bool is_market_hours = (hour >= 9 && hour < 16) || (hour == 9 && minute >= 30);
         float is_market_open = (is_weekday && is_market_hours) ? 1.0f : 0.0f;
 

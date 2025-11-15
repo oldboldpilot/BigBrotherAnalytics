@@ -155,6 +155,7 @@ class StraddleStrategy final : public IStrategy {
             signal.strategy_name = getName();
             signal.type = SignalType::Buy;
             signal.confidence = 0.75;
+            signal.max_risk = 1000.0; // $1000 max risk per trade
             signals.push_back(signal);
         }
 
@@ -253,6 +254,7 @@ class StrangleStrategy final : public IStrategy {
             signal.strategy_name = getName();
             signal.type = SignalType::Buy;
             signal.confidence = 0.70;
+            signal.max_risk = 1000.0; // $1000 max risk per trade
             signals.push_back(signal);
         }
 
@@ -353,6 +355,7 @@ class VolatilityArbStrategy final : public IStrategy {
             signal.strategy_name = getName();
             signal.type = SignalType::Buy;
             signal.confidence = 0.80;
+            signal.max_risk = 1000.0; // $1000 max risk per trade
             signals.push_back(signal);
         }
 
@@ -1176,18 +1179,17 @@ class StrategyManager {
 class MLPredictorStrategy : public IStrategy {
   public:
     MLPredictorStrategy() {
-        // Initialize predictor on first use
+        // Initialize v4.0 predictor (85-feature INT32 SIMD model)
         auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
 
         if (!predictor.isInitialized()) {
-            bigbrother::market_intelligence::PredictorConfig config;
-            config.use_cuda = true; // Enable CUDA if available
-            config.model_weights_path = "models/price_predictor.onnx";
+            bigbrother::market_intelligence::PredictorConfigV4 config;
+            config.model_weights_path = "models/weights";
 
             if (!predictor.initialize(config)) {
-                Logger::getInstance().error("Failed to initialize ML predictor");
+                Logger::getInstance().error("Failed to initialize ML predictor v4.0");
             } else {
-                Logger::getInstance().info("ML Predictor Strategy initialized with CUDA");
+                Logger::getInstance().info("ML Predictor v4.0 Strategy initialized (INT32 SIMD, 85 features)");
             }
         }
 
@@ -1205,39 +1207,93 @@ class MLPredictorStrategy : public IStrategy {
         std::vector<bigbrother::strategy::TradingSignal> signals;
 
         if (!active_) {
+            Logger::getInstance().warn("ML strategy not active");
             return signals;
         }
 
         auto& predictor = bigbrother::market_intelligence::PricePredictor::getInstance();
 
         if (!predictor.isInitialized()) {
-            Logger::getInstance().warn("ML predictor not initialized, skipping");
+            Logger::getInstance().warn("ML predictor v4.0 not initialized, skipping");
             return signals;
         }
+
+        Logger::getInstance().info("ML Price Predictor: Analyzing {} symbols", 4);
 
         // Get symbols to analyze (from context or default watchlist)
         std::vector<std::string> symbols = {"SPY", "QQQ", "IWM", "DIA"};
 
         for (auto const& symbol : symbols) {
-            // Update price/volume history from current market data
-            auto quote_it = context.current_quotes.find(symbol);
-            if (quote_it != context.current_quotes.end()) {
-                auto const& quote = quote_it->second;
-                updateHistory(symbol, quote.last, quote.volume);
-            }
+            Logger::getInstance().info("ML: Processing symbol {}", symbol);
+
+            // DON'T update history here - causes duplicates when multiple instances run!
+            // Historical data is already loaded from database at startup (loadHistoricalData)
+            // Only update history once per new bar, not on every prediction cycle
 
             // Extract features from market data (will use historical buffers if available)
             auto features = extractFeatures(context, symbol);
             if (!features) {
+                Logger::getInstance().warn("ML: Feature extraction failed for {}", symbol);
                 continue;
             }
 
-            // Run ML prediction
-            auto prediction = predictor.predict(symbol, *features);
+            Logger::getInstance().info("ML: Features extracted for {}", symbol);
+
+            // Convert deque history to vectors for 85-feature extraction
+            auto price_hist_it = price_history_.find(symbol);
+            auto volume_hist_it = volume_history_.find(symbol);
+
+            if (price_hist_it == price_history_.end() || volume_hist_it == volume_history_.end()) {
+                Logger::getInstance().warn("No price/volume history for {}, skipping", symbol);
+                continue;
+            }
+
+            // Check if we have enough history (need 21 days minimum for 20-day lags)
+            if (price_hist_it->second.size() < 21 || volume_hist_it->second.size() < 21) {
+                Logger::getInstance().warn("Insufficient history for {} ({} days, need 21), skipping",
+                                           symbol, price_hist_it->second.size());
+                continue;
+            }
+
+            std::vector<float> price_vec(price_hist_it->second.begin(), price_hist_it->second.end());
+            std::vector<float> volume_vec(volume_hist_it->second.begin(), volume_hist_it->second.end());
+
+            Logger::getInstance().info("ML: Converting {} days of history to 85 features for {} - "
+                                       "most recent prices: [{:.2f}, {:.2f}, {:.2f}]",
+                                       price_vec.size(), symbol,
+                                       price_vec.size() > 0 ? price_vec[0] : 0.0f,
+                                       price_vec.size() > 1 ? price_vec[1] : 0.0f,
+                                       price_vec.size() > 2 ? price_vec[2] : 0.0f);
+
+            // Extract 85 features for v4.0 model
+            auto features_85 = features->toArray85(price_vec, volume_vec, std::chrono::system_clock::now());
+
+            // Debug: Log ALL 85 features to diagnose why predictions are identical
+            std::string all_features = "[";
+            for (size_t i = 0; i < 85; ++i) {
+                if (i > 0) all_features += ", ";
+                all_features += std::to_string(features_85[i]);
+            }
+            all_features += "]";
+            Logger::getInstance().info("ML: ALL 85 features for {}: {}", symbol, all_features);
+
+            Logger::getInstance().info("ML: Running prediction for {}", symbol);
+
+            // Run ML prediction with 85-feature array
+            auto prediction = predictor.predict(symbol, features_85);
+
+            Logger::getInstance().info("ML: Prediction complete for {} (success: {})",
+                                       symbol, prediction.has_value());
             if (!prediction) {
                 Logger::getInstance().warn("Prediction failed for {}", symbol);
                 continue;
             }
+
+            Logger::getInstance().info("ML: Prediction for {} - 1d:{:.2f}%, 5d:{:.2f}%, 20d:{:.2f}%",
+                                       symbol,
+                                       prediction->day_1_change * 100,
+                                       prediction->day_5_change * 100,
+                                       prediction->day_20_change * 100);
 
             // CRITICAL: Sanity check predictions to catch model errors
             // Reject predictions outside reasonable range (-50% to +50%)
@@ -1257,6 +1313,10 @@ class MLPredictorStrategy : public IStrategy {
 
             // Get overall signal
             auto signal_type = prediction->getOverallSignal();
+
+            Logger::getInstance().info("ML: Signal for {} is {}",
+                                       symbol,
+                                       bigbrother::market_intelligence::PricePrediction::signalToString(signal_type));
 
             // Skip HOLD signals
             if (signal_type == bigbrother::market_intelligence::PricePrediction::Signal::HOLD) {
@@ -1605,12 +1665,19 @@ class MLPredictorStrategy : public IStrategy {
             std::span<float const> price_span(price_vec);
             std::span<float const> volume_span(volume_vec);
 
-            // [26-30] OHLCV data (use current quote + historical high/low if available)
+            // [26-30] OHLCV data (use historical data for realistic values)
             features.close = last_price;
-            features.open = price_vec[0]; // Today's open (same as current in our model)
-            features.high = ask_price;    // Approximate from bid/ask
-            features.low = bid_price;
-            features.volume = current_volume;
+
+            // Open: Use yesterday's close as proxy for today's open
+            features.open = price_vec.size() >= 2 ? price_vec[1] : last_price;
+
+            // High/Low: Use recent price range (last 5 bars)
+            size_t lookback = std::min(size_t(5), price_vec.size());
+            features.high = *std::max_element(price_vec.begin(), price_vec.begin() + lookback);
+            features.low = *std::min_element(price_vec.begin(), price_vec.begin() + lookback);
+
+            // Volume: Use most recent historical volume (volume_vec[0] is today)
+            features.volume = volume_vec.size() > 0 ? volume_vec[0] : 0.0f;
 
             // [31-37] Returns from historical prices
             features.return_1d = (price_vec[0] - price_vec[1]) / price_vec[1];
@@ -1821,15 +1888,21 @@ class MLPredictorStrategy : public IStrategy {
      * Loads last 30 days of data for watchlist symbols (SPY, QQQ, IWM, DIA)
      */
     auto loadHistoricalData() -> void {
+        Logger::getInstance().info("ML: Starting loadHistoricalData()...");
+
         try {
             using namespace bigbrother::duckdb_bridge;
 
-            // Open database and create connection
-            auto db = openDatabase("data/bigbrother.duckdb");
+            Logger::getInstance().info("ML: Opening database data/bigbrother.duckdb in READ-ONLY mode...");
+
+            // Open database in READ-ONLY mode (allows concurrent access with dashboard)
+            auto db = openDatabase("data/bigbrother.duckdb", true);  // read_only = true
             if (!db) {
                 Logger::getInstance().error("Failed to open database for historical data");
                 return;
             }
+
+            Logger::getInstance().info("ML: Database opened successfully, creating connection...");
 
             auto conn = createConnection(*db);
             if (!conn) {
@@ -1837,21 +1910,35 @@ class MLPredictorStrategy : public IStrategy {
                 return;
             }
 
+            Logger::getInstance().info("ML: Connection created successfully");
+
             std::vector<std::string> symbols = {"SPY", "QQQ", "IWM", "DIA"};
 
             for (auto const& symbol : symbols) {
-                // Query last 30 days of price data (most recent first)
+                Logger::getInstance().info("ML: Querying historical data for {}...", symbol);
+
+                // Query last 100 days of price data (most recent first)
+                // Need sufficient history for 85-feature model (requires 21+ days)
                 auto sql_query = std::format("SELECT date, close, volume FROM stock_prices "
-                                             "WHERE symbol = '{}' ORDER BY date DESC LIMIT 30",
+                                             "WHERE symbol = '{}' ORDER BY date DESC LIMIT 100",
                                              symbol);
 
+                Logger::getInstance().info("ML: Executing query: {}", sql_query);
+
                 auto result = executeQueryWithResults(*conn, sql_query);
-                if (!result || hasError(*result)) {
-                    Logger::getInstance().warn("No historical data found for {}", symbol);
+                if (!result) {
+                    Logger::getInstance().warn("Query returned null result for {}", symbol);
+                    continue;
+                }
+
+                if (hasError(*result)) {
+                    Logger::getInstance().warn("Query has error for {}", symbol);
                     continue;
                 }
 
                 auto row_count = getRowCount(*result);
+                Logger::getInstance().info("ML: Query returned {} rows for {}", row_count, symbol);
+
                 if (row_count == 0) {
                     Logger::getInstance().warn("No historical data found for {}", symbol);
                     continue;
@@ -1874,9 +1961,14 @@ class MLPredictorStrategy : public IStrategy {
                     }
                 }
 
-                Logger::getInstance().info("Loaded {} days of historical data for {}",
-                                           price_history_[symbol].size(), symbol);
+                Logger::getInstance().info("Loaded {} days of historical data for {} - first 3 prices: [{:.2f}, {:.2f}, {:.2f}]",
+                                           price_history_[symbol].size(), symbol,
+                                           price_history_[symbol].size() > 0 ? price_history_[symbol][0] : 0.0f,
+                                           price_history_[symbol].size() > 1 ? price_history_[symbol][1] : 0.0f,
+                                           price_history_[symbol].size() > 2 ? price_history_[symbol][2] : 0.0f);
             }
+
+            Logger::getInstance().info("ML: loadHistoricalData() completed successfully");
 
         } catch (std::exception const& e) {
             Logger::getInstance().error("Exception loading historical data: {}", e.what());
@@ -1903,10 +1995,25 @@ class MLPredictorStrategy : public IStrategy {
 
         // Add to price history (keep last 30 days)
         auto& price_hist = price_history_[symbol];
+
+        Logger::getInstance().info("ML: updateHistory() for {} - adding price={:.2f}, buffer_size_before={}, "
+                                   "first_3_before=[{:.2f}, {:.2f}, {:.2f}]",
+                                   symbol, price, price_hist.size(),
+                                   price_hist.size() > 0 ? price_hist[0] : 0.0f,
+                                   price_hist.size() > 1 ? price_hist[1] : 0.0f,
+                                   price_hist.size() > 2 ? price_hist[2] : 0.0f);
+
         price_hist.push_front(static_cast<float>(price));
         if (price_hist.size() > 30) {
             price_hist.pop_back();
         }
+
+        Logger::getInstance().info("ML: updateHistory() for {} - buffer_size_after={}, "
+                                   "first_3_after=[{:.2f}, {:.2f}, {:.2f}]",
+                                   symbol, price_hist.size(),
+                                   price_hist.size() > 0 ? price_hist[0] : 0.0f,
+                                   price_hist.size() > 1 ? price_hist[1] : 0.0f,
+                                   price_hist.size() > 2 ? price_hist[2] : 0.0f);
 
         // Add to volume history (keep last 30 days)
         auto& volume_hist = volume_history_[symbol];

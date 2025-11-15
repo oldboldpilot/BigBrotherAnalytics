@@ -493,7 +493,7 @@ target_sources(market_intelligence
             src/market_intelligence/yahoo_finance.cppm
             src/market_intelligence/schwab_api.cppm
             src/market_intelligence/feature_extractor.cppm
-            src/market_intelligence/price_predictor_v4.cppm
+            src/market_intelligence/price_predictor.cppm
 )
 
 # Optimization flags applied globally - no per-target flags needed
@@ -917,11 +917,11 @@ target_link_libraries(test_neural_net_mkl
 # Price Predictor v4.0 Integration Test (INT32 SIMD with 85-feature model)
 # ============================================================================
 
-add_executable(test_price_predictor_v4
-    examples/test_price_predictor_v4.cpp
+add_executable(test_price_predictor
+    examples/test_price_predictor.cpp
 )
 
-target_link_libraries(test_price_predictor_v4
+target_link_libraries(test_price_predictor
     PRIVATE
     market_intelligence
     ml_lib

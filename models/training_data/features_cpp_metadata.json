@@ -1,0 +1,25 @@
+{
+  "created_at": "2025-11-14T14:21:03.986157",
+  "total_samples": 9720,
+  "total_features": 85,
+  "extractor": "C++ feature_extractor.cppm via Python bindings",
+  "symbols": [
+    "DIA",
+    "IWM",
+    "QQQ",
+    "SPY",
+    "XLE",
+    "XLF",
+    "XLK",
+    "XLV"
+  ],
+  "date_range": {
+    "start": "2020-12-10 21:00:00",
+    "end": "2025-10-13 21:00:00"
+  },
+  "target_columns": [
+    "target_1d",
+    "target_5d",
+    "target_20d"
+  ]
+}

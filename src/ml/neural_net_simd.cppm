@@ -245,6 +245,7 @@ class SimdKernels {
     // AVX-512 Kernels (16 floats per instruction)
     // ========================================================================
 
+    __attribute__((target("avx512f")))
     static auto matmul_avx512(
         float const* A, float const* B, float const* bias,
         float* C, int m, int k, int n, int block_size) -> void {
@@ -302,6 +303,7 @@ class SimdKernels {
         }
     }
 
+    __attribute__((target("avx512f")))
     static auto relu_avx512(float* A, int size) -> void {
         __m512 zero = _mm512_setzero_ps();
 
