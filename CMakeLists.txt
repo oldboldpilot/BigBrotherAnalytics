@@ -996,6 +996,22 @@ target_link_libraries(test_normalizer
 )
 
 # ============================================================================
+# C++/Python Normalizer Parity Test
+# ============================================================================
+
+add_executable(test_cpp_python_normalizer_parity
+    tests/test_cpp_python_normalizer_parity.cpp
+)
+
+target_link_libraries(test_cpp_python_normalizer_parity
+    PRIVATE
+    ml_lib
+    utils
+    c++
+    c++abi
+)
+
+# ============================================================================
 # Comprehensive ML Engine Benchmark (All implementations + weight loading)
 # ============================================================================
 
