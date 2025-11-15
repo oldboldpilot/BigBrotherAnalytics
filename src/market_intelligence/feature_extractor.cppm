@@ -130,6 +130,11 @@ struct StandardScalerParams {
  * [42-51] Interactions (10): sentiment×momentum, volume×RSI, yield×volatility, etc.
  * [52-59] Directionality (8): direction, trend_strength, price_above_MA, etc.
  */
+
+// Forward declaration for normalization function used in PriceFeatures::toArray85()
+[[nodiscard]] inline auto normalizeFeatures85(std::array<float, 85> const& features)
+    -> std::array<float, 85>;
+
 struct PriceFeatures {
     // [0-2] Identification
     float symbol_encoded{0.0f};        // Symbol ID (0-19 for 20 symbols)
